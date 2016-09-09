@@ -18,17 +18,41 @@ SwordRT *swordRT;
 
 // Class SwordRT
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <inttypes.h>
+
+int is_stack(void *ptr)
+{
+  pthread_t self = pthread_self();
+  pthread_attr_t attr;
+  void *stack;
+  size_t stacksize;
+  pthread_getattr_np(self, &attr);
+  pthread_attr_getstack(&attr, &stack, &stacksize);
+  return ((uintptr_t) ptr >= (uintptr_t) stack
+          && (uintptr_t) ptr < (uintptr_t) stack + stacksize);
+}
+
 SwordRT::SwordRT() {
-	InitializeBloomFilterParameters();
+	//InitializeBloomFilterParameters();
 
-	filters.insert({ UNSAFE_READ , new bloom_filter(parameters) });
-	filters.insert({ UNSAFE_WRITE, new bloom_filter(parameters) });
-	filters.insert({ ATOMIC_READ , new bloom_filter(parameters) });
-	filters.insert({ ATOMIC_WRITE, new bloom_filter(parameters) });
-	filters.insert({ MUTEX_READ  , new bloom_filter(parameters) });
-	filters.insert({ MUTEX_WRITE , new bloom_filter(parameters) });
+//	filters.insert({ UNSAFE_READ , new bloom_filter(parameters) });
+//	filters.insert({ UNSAFE_WRITE, new bloom_filter(parameters) });
+//	filters.insert({ ATOMIC_READ , new bloom_filter(parameters) });
+//	filters.insert({ ATOMIC_WRITE, new bloom_filter(parameters) });
+//	filters.insert({ MUTEX_READ  , new bloom_filter(parameters) });
+//	filters.insert({ MUTEX_WRITE , new bloom_filter(parameters) });
 
-	c = new CountMinSketch(0.01, 0.001);
+	filters.insert({ UNSAFE_READ , new CountMinSketch(0.01, 0.1) });
+	filters.insert({ UNSAFE_WRITE, new CountMinSketch(0.01, 0.1) });
+	filters.insert({ ATOMIC_READ , new CountMinSketch(0.01, 0.1) });
+	filters.insert({ ATOMIC_WRITE, new CountMinSketch(0.01, 0.1) });
+	filters.insert({ MUTEX_READ  , new CountMinSketch(0.01, 0.1) });
+	filters.insert({ MUTEX_WRITE , new CountMinSketch(0.01, 0.1) });
+
+	// c = new CountMinSketch(0.01, 0.01);
 }
 
 SwordRT::~SwordRT() {
@@ -57,17 +81,30 @@ void SwordRT::InitializeBloomFilterParameters() {
 }
 
 bool ALWAYS_INLINE SwordRT::Contains(uint64_t access, std::string filter_type) {
-	return filters[filter_type]->contains(access);
+	// return filters[filter_type]->contains(access);
+	int tid = ompt_get_thread_id();
+	char str[16];
+	sprintf(str, "%lx", access);
+	mtx.lock();
+	bool res = ((filters[filter_type]->estimate(str) != -1) && (filters[filter_type]->estimate(str) != tid)); // && !is_stack((void *) access));
+    mtx.unlock();
+	return (res);
 }
 
 void ALWAYS_INLINE SwordRT::Insert(uint64_t access, std::string filter_type) {
-	filters[filter_type]->insert(access);
+	// filters[filter_type]->insert(access);
+	int tid = ompt_get_thread_id();
+	char str[16];
+	sprintf(str, "%lx", access);
+	mtx.lock();
+	filters[filter_type]->update(str, tid);
+	mtx.unlock();
 }
 
 bool ALWAYS_INLINE SwordRT::ContainsAndInsert(uint64_t access, std::string filter_type) {
-	bool res = filters[filter_type]->contains(access);
-	filters[filter_type]->insert(access);
-	return res;
+//	bool res = filters[filter_type]->contains(access);
+//	filters[filter_type]->insert(access);
+//	return res;
 }
 
 inline void SwordRT::ReportRace(uint64_t access, uint64_t pc, AccessSize access_size, AccessType access_type, const char *nutex_name) {
@@ -75,7 +112,9 @@ inline void SwordRT::ReportRace(uint64_t access, uint64_t pc, AccessSize access_
 	// here we just keep filling up the file that holds all the executable/addresses
 	// We also put the address of a parallel region so we know the parallel region where the
 	// access belongs to
-	std::cerr << "There was a race at [" << std::hex << (void *) access << "][" << (void *) pc << "]" << std::endl;
+	mtx.lock();
+	std::cerr << "There was a race for thread " << std::dec << ompt_get_thread_id() << " at [" << std::hex << access << "][" << (void *) pc << "][" << nutex_name << "][" << FilterType[access_type] << "]" << std::endl;
+	mtx.unlock();
 }
 
 bloom_parameters SwordRT::getParameters() {
@@ -92,6 +131,9 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(uint64_t access, uint64_t pc, Acce
 	bool conflict = false;
 	AccessType conflict_type = none;
 	std::string nutex;
+
+	if(is_stack((void *) access))
+		return;
 
 	// printf("AccessType: %s[0x%lx]\n", FilterType[access_type], access);
 	// printf("[0x%lx]%d\n", access, omp_get_thread_num());
@@ -196,203 +238,29 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(uint64_t access, uint64_t pc, Acce
 	//
 	//	tls_filter->insert(access);
 
-	int tid = omp_get_thread_num();
-	char str[8];
-	sprintf(str, "%lx", access);
-	if(c->estimate(str) == tid)
-		conflict = false;
+//	int tid = ompt_get_thread_id();
+//	char str[8];
+//	sprintf(str, "%lx", access);
+//	if(conflict && (c->estimate(str) == tid))
+//		conflict = false;
 
 	swordRT->Insert(access, FilterType[access_type]);
-	c->update(str, tid);
+	// c->update(str, tid);
+
 	if(conflict)
-		ReportRace(access, pc, access_size, access_type, nutex_name);
+		ReportRace(access, pc, access_size, conflict_type, nutex_name);
+//	else {
+//		mtx.lock();
+//		std::cerr << "No race" << ompt_get_thread_id() << " at [" << std::hex << access << "][" << (void *) pc << "][" << nutex_name << "][" << FilterType[access_type] << "]" << std::endl;
+//		mtx.unlock();
+//	}
 }
 
 // Class SwordRT
 
 extern "C" {
 
-// READS
-void __swordomp_read1(void *addr) {
-	if(__swordomp_is_critical__)
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size1, mutex_read);
-	else
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size1, unsafe_read);
-}
-
-void __swordomp_read2(void *addr) {
-	if(__swordomp_is_critical__)
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size2, mutex_read);
-	else
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size2, unsafe_read);
-}
-
-void __swordomp_read4(void *addr) {
-	if(__swordomp_is_critical__)
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size4, mutex_read);
-	else
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size4, unsafe_read);
-}
-
-void __swordomp_read8(void *addr) {
-	if(__swordomp_is_critical__)
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size8, mutex_read);
-	else
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size8, unsafe_read);
-}
-// READS
-
-// WRITES
-void __swordomp_write1(void *addr) {
-	if(__swordomp_is_critical__)
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size1, mutex_write);
-	else
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size1, unsafe_write);
-}
-
-void __swordomp_write2(void *addr) {
-	if(__swordomp_is_critical__)
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size2, mutex_write);
-	else
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size2, unsafe_write);
-}
-
-void __swordomp_write4(void *addr) {
-	if(__swordomp_is_critical__)
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size4, mutex_write);
-	else
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size4, unsafe_write);
-}
-
-void __swordomp_write41(void *addr) {
-	std::cout << "WRITE4[" << std::hex << addr << "]" << std::endl;
-	if(__swordomp_is_critical__)
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size4, mutex_write);
-	else
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size4, unsafe_write);
-}
-
-void __swordomp_write8(void *addr) {
-	if(__swordomp_is_critical__)
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size8, mutex_write);
-	else
-		swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size8, unsafe_write);
-}
-// WRITES
-
-// ATOMICS
-
-// LOAD
-void __swordomp_atomic8_load(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size1, atomic_read);
-}
-
-void __swordomp_atomic16_load(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size2, atomic_read);
-}
-
-void __swordomp_atomic32_load(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size4, atomic_read);
-}
-
-void __swordomp_atomic64_load(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size8, atomic_read);
-}
-
-void __swordomp_atomic128_load(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size16, atomic_read);
-}
-// LOAD
-
-// STORE
-void __swordomp_atomic8_store(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size1, atomic_write);
-}
-
-void __swordomp_atomic16_store(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size2, atomic_write);
-}
-
-void __swordomp_atomic32_store(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size4, atomic_write);
-}
-
-void __swordomp_atomic64_store(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size8, atomic_write);
-}
-
-void __swordomp_atomic128_store(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size16, atomic_write);
-}
-// STORE
-
-// ADD
-void __swordomp_atomic8_fetch_add(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size1, atomic_write);
-}
-
-void __swordomp_atomic16_fetch_add(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size2, atomic_write);
-}
-
-void __swordomp_atomic32_fetch_add(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size4, atomic_write);
-}
-
-void __swordomp_atomic64_fetch_add(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size8, atomic_write);
-}
-
-void __swordomp_atomic128_fetch_add(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size16, atomic_write);
-}
-// ADD
-
-// SUB
-void __swordomp_atomic8_fetch_sub(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size1, atomic_write);
-}
-
-void __swordomp_atomic16_fetch_sub(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size2, atomic_write);
-}
-
-void __swordomp_atomic32_fetch_sub(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size4, atomic_write);
-}
-
-void __swordomp_atomic64_fetch_sub(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size8, atomic_write);
-}
-
-void __swordomp_atomic128_fetch_sub(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size16, atomic_write);
-}
-// SUB
-
-// COMPARE EXCHANGE
-void __swordomp_atomic8_compare_exchange_val(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size1, atomic_write);
-}
-
-void __swordomp_atomic16_compare_exchange_val(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size2, atomic_write);
-}
-
-void __swordomp_atomic32_compare_exchange_val(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size4, atomic_write);
-}
-
-void __swordomp_atomic64_compare_exchange_val(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size8, atomic_write);
-}
-
-void __swordomp_atomic128_compare_exchange_val(void *addr) {
-	swordRT->CheckMemoryAccess((uint64_t) addr, CALLERPC, size16, atomic_write);
-}
-// COMPARE EXCHANGE
-
-// ATOMICS
+#include "sword_interface.inl"
 
 static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 		ompt_frame_t *parent_task_frame,
@@ -400,14 +268,12 @@ static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 		uint32_t requested_team_size,
 		void *parallel_function,
 		ompt_invoker_t invoker) {
-	// printf("BEGIN ThreadID: %d\n", omp_get_thread_num());
 }
 
 static void on_ompt_event_parallel_end(ompt_parallel_id_t parallel_id,
 		ompt_task_id_t task_id,
 		ompt_invoker_t invoker) {
 
-	// printf("END ThreadID: %d\n", omp_get_thread_num());
 	if(__swordomp_status__ == 0) {
 		swordRT->clear();
 	}
@@ -435,7 +301,7 @@ static void ompt_initialize_fn(ompt_function_lookup_t lookup,
 	printf("runtime_version: %s, ompt_version: %i\n", runtime_version, ompt_version);
 
 	ompt_set_callback_t ompt_set_callback = (ompt_set_callback_t) lookup("ompt_set_callback");
-	// ompt_get_thread_id = (ompt_get_thread_id_t) lookup("ompt_get_thread_id");
+	ompt_get_thread_id = (ompt_get_thread_id_t) lookup("ompt_get_thread_id");
 
 	ompt_set_callback(ompt_event_parallel_begin,
 			(ompt_callback_t) &on_ompt_event_parallel_begin);

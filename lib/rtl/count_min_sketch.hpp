@@ -49,11 +49,13 @@ public:
   void update(const char *item, int c);
 
   // estimate count of item i and return count
-  int estimate(int item);
+  int estimate(int item, const char *str);
   int estimate(const char *item);
 
   // return total count
   int totalcount();
+
+  void clear();
 
   // generates a hash value for a string
   // same as djb2 hash function

@@ -14,14 +14,15 @@
 #define SWORDRT_RTL_H
 
 #include "bloom_filter.hpp"
+# include "count_min_sketch.hpp"
 #include <iostream>
 #include <unordered_map>
 #include <omp.h>
 #include <ompt.h>
 #include <cstdint>
+#include <mutex>
 #include <stdio.h>
 #include <string>
-# include "count_min_sketch.hpp"
 
 #define ALWAYS_INLINE __attribute__((always_inline))
 #define CALLERPC ((uint64_t) __builtin_return_address(0))
@@ -71,6 +72,8 @@ const char *FilterType[] = {
 thread_local int __swordomp_status__ = 0;
 thread_local bool __swordomp_is_critical__ = false;
 // thread_local bloom_filter *tls_filter;
+static ompt_get_thread_id_t ompt_get_thread_id;
+std::mutex mtx;
 
 class SwordRT {
 
@@ -88,8 +91,9 @@ public:
 
 private:
 	bloom_parameters parameters;
-	std::unordered_map<std::string, bloom_filter*> filters;
-	CountMinSketch *c;
+	// std::unordered_map<std::string, bloom_filter*> filters;
+	std::unordered_map<std::string, CountMinSketch*> filters;
+	// CountMinSketch *c;
 
 	void InitializeBloomFilterParameters();
 };
