@@ -25,115 +25,92 @@ SwordRT *swordRT;
 
 int is_stack(void *ptr)
 {
-  pthread_t self = pthread_self();
-  pthread_attr_t attr;
-  void *stack;
-  size_t stacksize;
-  pthread_getattr_np(self, &attr);
-  pthread_attr_getstack(&attr, &stack, &stacksize);
-  return ((uintptr_t) ptr >= (uintptr_t) stack
-          && (uintptr_t) ptr < (uintptr_t) stack + stacksize);
+	pthread_t self = pthread_self();
+	pthread_attr_t attr;
+	void *stack;
+	size_t stacksize;
+	pthread_getattr_np(self, &attr);
+	pthread_attr_getstack(&attr, &stack, &stacksize);
+	return ((uintptr_t) ptr >= (uintptr_t) stack
+			&& (uintptr_t) ptr < (uintptr_t) stack + stacksize);
 }
 
 SwordRT::SwordRT() {
-	//InitializeBloomFilterParameters();
-
-//	filters.insert({ UNSAFE_READ , new bloom_filter(parameters) });
-//	filters.insert({ UNSAFE_WRITE, new bloom_filter(parameters) });
-//	filters.insert({ ATOMIC_READ , new bloom_filter(parameters) });
-//	filters.insert({ ATOMIC_WRITE, new bloom_filter(parameters) });
-//	filters.insert({ MUTEX_READ  , new bloom_filter(parameters) });
-//	filters.insert({ MUTEX_WRITE , new bloom_filter(parameters) });
-
-	filters.insert({ UNSAFE_READ , new CountMinSketch(0.01, 0.1) });
-	filters.insert({ UNSAFE_WRITE, new CountMinSketch(0.01, 0.1) });
-	filters.insert({ ATOMIC_READ , new CountMinSketch(0.01, 0.1) });
-	filters.insert({ ATOMIC_WRITE, new CountMinSketch(0.01, 0.1) });
-	filters.insert({ MUTEX_READ  , new CountMinSketch(0.01, 0.1) });
-	filters.insert({ MUTEX_WRITE , new CountMinSketch(0.01, 0.1) });
-
-	// c = new CountMinSketch(0.01, 0.01);
+//	filters.insert({ UNSAFE_READ , new boost::bloom_filters::counting_bloom_filter<size_t, 100000, 8, murmurhash3> });
+//	filters.insert({ UNSAFE_WRITE, new boost::bloom_filters::counting_bloom_filter<size_t, 100000, 8, murmurhash3> });
+//	filters.insert({ ATOMIC_READ , new boost::bloom_filters::counting_bloom_filter<size_t, 100000, 8, murmurhash3> });
+//	filters.insert({ ATOMIC_WRITE, new boost::bloom_filters::counting_bloom_filter<size_t, 100000, 8, murmurhash3> });
+//	filters.insert({ MUTEX_READ  , new boost::bloom_filters::counting_bloom_filter<size_t, 100000, 8, murmurhash3> });
+//	filters.insert({ MUTEX_WRITE , new boost::bloom_filters::counting_bloom_filter<size_t, 100000, 8, murmurhash3> });
+	filters.insert({ UNSAFE_READ , NULL });
+	filters.insert({ UNSAFE_WRITE, NULL });
+	filters.insert({ ATOMIC_READ , NULL });
+	filters.insert({ ATOMIC_WRITE, NULL });
+	filters.insert({ MUTEX_READ  , NULL });
+	filters.insert({ MUTEX_WRITE , NULL });
 }
 
 SwordRT::~SwordRT() {
 	// filters.clear();
 }
 
-void SwordRT::InitializeBloomFilterParameters() {
-	// Initialize Bloom Filters
-	// This number should be roughly the number of different addresses
-	// that a parallel region access during its execution, how do we
-	// find it out?
-	parameters.projected_element_count = 100000;
-
-	// What maximum tolerable false positive probability? (0,1)
-	parameters.false_positive_probability = 0.001; // 1 in 1000
-
-	// Simple randomizer (optional) - Try different seeds?
-	parameters.random_seed = 0xA5A5A5A5;
-
-	if (!parameters) {
-		std::cerr << "Error - Invalid set of bloom filter parameters!" << std::endl;
-		exit(1);
-	}
-
-	parameters.compute_optimal_parameters();
-}
-
-bool ALWAYS_INLINE SwordRT::Contains(uint64_t access, std::string filter_type) {
-	// return filters[filter_type]->contains(access);
-	int tid = ompt_get_thread_id();
-	char str[16];
-	sprintf(str, "%lx", access);
-	mtx.lock();
-	bool res = ((filters[filter_type]->estimate(str) != -1) && (filters[filter_type]->estimate(str) != tid)); // && !is_stack((void *) access));
-    mtx.unlock();
+bool ALWAYS_INLINE SwordRT::Contains(size_t access, AccessType access_type, int tid) {
+	if(!filters[FilterType[access_type]])
+		filters[FilterType[access_type]] = new boost::bloom_filters::counting_bloom_filter<size_t, 100000, 8, murmurhash3>;
+	//mtx.lock();
+	bool res = filters[FilterType[access_type]]->contains(access, tid); // ((filters[filter_type]->lookup(access) != 0) && (filters[filter_type]->lookup(access) != tid))
+	//mtx.unlock();
 	return (res);
 }
 
-void ALWAYS_INLINE SwordRT::Insert(uint64_t access, std::string filter_type) {
-	// filters[filter_type]->insert(access);
-	int tid = ompt_get_thread_id();
-	char str[16];
-	sprintf(str, "%lx", access);
-	mtx.lock();
-	filters[filter_type]->update(str, tid);
-	mtx.unlock();
+void ALWAYS_INLINE SwordRT::Insert(size_t access, AccessType access_type, int tid) {
+	//mtx.lock();
+	if(!filters[FilterType[access_type]])
+		filters[FilterType[access_type]] = new boost::bloom_filters::counting_bloom_filter<size_t, 100000, 8, murmurhash3>;
+	filters[FilterType[access_type]]->insert(access, tid);
+	//mtx.unlock();
 }
 
-bool ALWAYS_INLINE SwordRT::ContainsAndInsert(uint64_t access, std::string filter_type) {
-//	bool res = filters[filter_type]->contains(access);
-//	filters[filter_type]->insert(access);
-//	return res;
-}
-
-inline void SwordRT::ReportRace(uint64_t access, uint64_t pc, AccessSize access_size, AccessType access_type, const char *nutex_name) {
+inline void SwordRT::ReportRace(size_t access, size_t pc, int tid, AccessSize access_size, AccessType access_type, const char *nutex_name) {
 	// Will call a class that executes llvm-symbolizer at the end of each parallel region,
 	// here we just keep filling up the file that holds all the executable/addresses
 	// We also put the address of a parallel region so we know the parallel region where the
 	// access belongs to
-	mtx.lock();
-	std::cerr << "There was a race for thread " << std::dec << ompt_get_thread_id() << " at [" << std::hex << access << "][" << (void *) pc << "][" << nutex_name << "][" << FilterType[access_type] << "]" << std::endl;
-	mtx.unlock();
-}
-
-bloom_parameters SwordRT::getParameters() {
-	return parameters;
+	// mtx.lock();
+	reported_races.insert(pc);
+	std::cerr << "There was a race for thread " << std::dec << tid << " at [" << std::hex << access << "][" << (void *) pc << "][" << FilterType[access_type] << "]" << std::endl;
+	// mtx.unlock();
 }
 
 void SwordRT::clear() {
-	for (auto& f: filters) {
-		f.second->clear();
-	}
+//	for (auto& f: filters) {
+//		f.second->clear();
+//	}
+	filters.clear();
+	filters.insert({ UNSAFE_READ , NULL });
+	filters.insert({ UNSAFE_WRITE, NULL });
+	filters.insert({ ATOMIC_READ , NULL });
+	filters.insert({ ATOMIC_WRITE, NULL });
+	filters.insert({ MUTEX_READ  , NULL });
+	filters.insert({ MUTEX_WRITE , NULL });
 }
 
-void ALWAYS_INLINE SwordRT::CheckMemoryAccess(uint64_t access, uint64_t pc, AccessSize access_size, AccessType access_type, const char *nutex_name) {
+void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSize access_size, AccessType access_type, const char *nutex_name) {
 	bool conflict = false;
 	AccessType conflict_type = none;
 	std::string nutex;
 
+	//mtx.lock();
+	if(reported_races.probably_contains(pc)) {
+		//mtx.unlock();
+		return;
+	}
+	//mtx.unlock();
+
 	if(is_stack((void *) access))
 		return;
+
+	int tid = ompt_get_thread_id();
 
 	// printf("AccessType: %s[0x%lx]\n", FilterType[access_type], access);
 	// printf("[0x%lx]%d\n", access, omp_get_thread_num());
@@ -141,82 +118,82 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(uint64_t access, uint64_t pc, Acce
 
 	switch(access_type) {
 	case unsafe_read:
-		if(swordRT->Contains(access, UNSAFE_WRITE)) {
+		if(swordRT->Contains(access, unsafe_write, tid)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(access, ATOMIC_WRITE)) {
+		} else if(swordRT->Contains(access, atomic_write, tid)) {
 			conflict = true;
 			conflict_type = atomic_write;
-		} else if(swordRT->Contains(access, MUTEX_WRITE)) {
+		} else if(swordRT->Contains(access, mutex_write, tid)) {
 			conflict = true;
 			conflict_type = mutex_write;
 		}
 		break;
 	case unsafe_write:
-		if(swordRT->Contains(access, UNSAFE_READ)) {
+		if(swordRT->Contains(access, unsafe_read, tid)) {
 			conflict = true;
 			conflict_type = unsafe_read;
-		} else if(swordRT->Contains(access, UNSAFE_WRITE)) {
+		} else if(swordRT->Contains(access, unsafe_write, tid)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(access, ATOMIC_READ)) {
+		} else if(swordRT->Contains(access, atomic_read, tid)) {
 			conflict = true;
 			conflict_type = atomic_read;
-		} else if(swordRT->Contains(access, ATOMIC_WRITE)) {
+		} else if(swordRT->Contains(access, atomic_write, tid)) {
 			conflict = true;
 			conflict_type = atomic_write;
-		} else if(swordRT->Contains(access, MUTEX_READ)) {
+		} else if(swordRT->Contains(access, mutex_read, tid)) {
 			conflict = true;
 			conflict_type = mutex_read;
-		} else if(swordRT->Contains(access, MUTEX_WRITE)) {
+		} else if(swordRT->Contains(access, mutex_write, tid)) {
 			conflict = true;
 			conflict_type = mutex_write;
 		}
 		break;
 	case atomic_read:
-		if(swordRT->Contains(access, UNSAFE_WRITE)) {
+		if(swordRT->Contains(access, unsafe_write, tid)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(access, MUTEX_WRITE)) {
+		} else if(swordRT->Contains(access, mutex_write, tid)) {
 			conflict = true;
 			conflict_type = mutex_write;
 		}
 		break;
 	case atomic_write:
-		if(swordRT->Contains(access, UNSAFE_READ)) {
+		if(swordRT->Contains(access, unsafe_read, tid)) {
 			conflict = true;
 			conflict_type = unsafe_read;
-		} else if(swordRT->Contains(access, UNSAFE_WRITE)) {
+		} else if(swordRT->Contains(access, unsafe_write, tid)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(access, MUTEX_READ)) {
+		} else if(swordRT->Contains(access, mutex_read, tid)) {
 			conflict = true;
 			conflict_type = mutex_read;
-		} else if(swordRT->Contains(access, MUTEX_WRITE)) {
+		} else if(swordRT->Contains(access, mutex_write, tid)) {
 			conflict = true;
 			conflict_type = mutex_write;
 		}
 		break;
 	case mutex_read:
-		if(swordRT->Contains(access, UNSAFE_WRITE)) {
+		if(swordRT->Contains(access, unsafe_write, tid)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(access, ATOMIC_WRITE)) {
+		} else if(swordRT->Contains(access, atomic_write, tid)) {
 			conflict = true;
 			conflict_type = atomic_write;
 		}
 		break;
 	case mutex_write:
-		if(swordRT->Contains(access, UNSAFE_READ)) {
+		if(swordRT->Contains(access, unsafe_read, tid)) {
 			conflict = true;
 			conflict_type = unsafe_read;
-		} else if(swordRT->Contains(access, UNSAFE_WRITE)) {
+		} else if(swordRT->Contains(access, unsafe_write, tid)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(access, ATOMIC_READ)) {
+		} else if(swordRT->Contains(access, atomic_read, tid)) {
 			conflict = true;
 			conflict_type = atomic_read;
-		} else if(swordRT->Contains(access, ATOMIC_WRITE)) {
+		} else if(swordRT->Contains(access, atomic_write, tid)) {
 			conflict = true;
 			conflict_type = atomic_write;
 		}
@@ -229,31 +206,15 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(uint64_t access, uint64_t pc, Acce
 		return;
 	}
 
-	// Trying to manage the thread races with itself
-	//	if(!tls_filter)
-	//		tls_filter = new bloom_filter(swordRT->parameters);
-	//	if(tls_filter->contains(access)) {
-	//		conflict = false;
-	//	}
-	//
-	//	tls_filter->insert(access);
-
-//	int tid = ompt_get_thread_id();
-//	char str[8];
-//	sprintf(str, "%lx", access);
-//	if(conflict && (c->estimate(str) == tid))
-//		conflict = false;
-
-	swordRT->Insert(access, FilterType[access_type]);
-	// c->update(str, tid);
+	swordRT->Insert(access, access_type, tid);
 
 	if(conflict)
-		ReportRace(access, pc, access_size, conflict_type, nutex_name);
-//	else {
-//		mtx.lock();
-//		std::cerr << "No race" << ompt_get_thread_id() << " at [" << std::hex << access << "][" << (void *) pc << "][" << nutex_name << "][" << FilterType[access_type] << "]" << std::endl;
-//		mtx.unlock();
-//	}
+		ReportRace(access, pc, tid, access_size, conflict_type, nutex_name);
+	//	else {
+	//		mtx.lock();
+	//		std::cerr << "No race" << ompt_get_thread_id() << " at [" << std::hex << access << "][" << (void *) pc << "][" << nutex_name << "][" << FilterType[access_type] << "]" << std::endl;
+	//		mtx.unlock();
+	//	}
 }
 
 // Class SwordRT
