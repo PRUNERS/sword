@@ -13,7 +13,8 @@ LINK_DIRECTORIES(${Boost_LIBRARY_DIRS})
 
 # Set SWORD-RT version
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcxx-exceptions")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --std=c++11 -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --std=c++11 -fcxx-exceptions -g") # -fsanitize=thread
 set(SWORDRT_VERSION_MAJOR 0)
 set(SWORDRT_VERSION_MINOR 1)
 
@@ -26,7 +27,7 @@ set(TSAN_SOURCES
 
 
 INCLUDE_DIRECTORIES("/home/simone/usr/include")
-set (CMAKE_SHARED_LINKER_FLAGS "-L/home/simone/usr/lib -fopenmp")
+set (CMAKE_SHARED_LINKER_FLAGS "-L/home/simone/usr/lib -fopenmp") # -fsanitize=thread
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_BINARY_DIR}/projects/openmp/runtime/src/)
 add_library(sword-rt SHARED ${TSAN_SOURCES})

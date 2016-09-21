@@ -15,26 +15,49 @@
 
 #define BOOST_MPL_CFG_NO_PREPROCESSED_HEADERS
 #define BOOST_MPL_LIMIT_VECTOR_SIZE 40
-#include <boost/mpl/vector.hpp>
-
 #include <boost/bloom_filter/basic_bloom_filter.hpp>
 #include <boost/bloom_filter/counting_bloom_filter.hpp>
-#include <boost/test/floating_point_comparison.hpp>
 #include <boost/bloom_filter/detail/exceptions.hpp>
 #include <boost/bloom_filter/hash/murmurhash3.hpp>
 #include <boost/cstdint.hpp>
+#include <boost/lockfree/queue.hpp>
+#include <boost/mpl/vector.hpp>
+#include <boost/test/floating_point_comparison.hpp>
 
-#include <cstdint>
-#include <iostream>
-#include <mutex>
 #include <omp.h>
 #include <ompt.h>
 #include <stdio.h>
+
+#include <atomic>
+#include <cstdint>
+#include <iostream>
+#include <mutex>
+#include <queue>
 #include <string>
+#include <thread>
 #include <unordered_map>
 
-#define ALWAYS_INLINE __attribute__((always_inline))
-#define CALLERPC ((size_t) __builtin_return_address(0))
+#define SWORDRT_DEBUG 1
+
+std::mutex pmtx;
+#ifdef SWORDRT_DEBUG
+#define ASSERT(x) assert(x);
+#define DEBUG(stream, x) 										\
+		do {													\
+			std::unique_lock<std::mutex> lock(pmtx);		\
+			stream << "DEBUG INFO[" << x << "][" << __FUNCTION__ << ":" << __FILE__ << ":" << std::dec << __LINE__ << "]" << std::endl;	\
+		} while(0)
+#else
+#define ASSERT(x)
+#define DEBUG(stream, x)
+#endif
+
+#define ALWAYS_INLINE				__attribute__((always_inline))
+#define CALLERPC					((size_t) __builtin_return_address(0))
+
+#define NUM_OF_REPORTED_RACES		1000
+#define NUM_OF_ITEMS				100000
+#define TID_NUM_OF_BITS				8
 
 enum AccessSize {
 	size1 = 0,
@@ -45,7 +68,7 @@ enum AccessSize {
 };
 
 enum AccessType {
-    none = 0,
+	none = 0,
 	unsafe_read,
 	unsafe_write,
 	atomic_read,
@@ -55,6 +78,19 @@ enum AccessType {
 	nutex_read,
 	nutex_write
 };
+
+typedef struct Access {
+	bool valid;
+	ompt_parallel_id_t parallel_id;
+	uint64_t tid;
+	void *stack;
+	uint64_t stacksize;
+	size_t access;
+	size_t pc;
+	AccessSize access_size;
+	AccessType access_type;
+	const char *nutex_name;
+} Access;
 
 const char *FilterType[] = {
 		"none",
@@ -78,10 +114,24 @@ const char *FilterType[] = {
 // More parallels r/w use parallel id?
 // Nutex: use nutex name
 
+std::vector<boost::lockfree::queue<Access>*> access_queues;
+std::vector<std::thread> threads;
+static ompt_get_thread_id_t ompt_get_thread_id;
+std::mutex exitMtx;
+std::mutex raceMtx;
+std::mutex filterMtx;
+std::mutex threadMtx;
+std::mutex queueMtx;
+unsigned numThreads;
+ompt_parallel_id_t outer_parallel_id;
+std::atomic<unsigned> num_of_checker_threads;
+
+thread_local uint64_t tid = 0;
+thread_local uint64_t parallel_id = 0;
+thread_local void *stack;
+thread_local size_t stacksize;
 thread_local int __swordomp_status__ = 0;
 thread_local bool __swordomp_is_critical__ = false;
-static ompt_get_thread_id_t ompt_get_thread_id;
-std::mutex mtx;
 
 // n = 1,000,000, p = 1.0E-10 (1 in 10,000,000,000) → m = 47,925,292 (5.71MB), k = 33
 typedef boost::mpl::vector<
@@ -118,7 +168,7 @@ typedef boost::mpl::vector<
 		boost::bloom_filters::murmurhash3<size_t, 127>, // 31
 		boost::bloom_filters::murmurhash3<size_t, 131>, // 32
 		boost::bloom_filters::murmurhash3<size_t, 137>  // 33
-> murmurhash3;
+> hash_function;
 
 class SwordRT {
 
@@ -126,15 +176,16 @@ public:
 	SwordRT();
 	~SwordRT();
 
-	inline bool Contains(size_t access, AccessType access_type, int tid);
-	inline void Insert(size_t access, AccessType access_type, int tid);
-	inline void CheckMemoryAccess(size_t access, size_t pc, AccessSize access_size, AccessType access_type, const char *nutex_name = "");
-	inline void ReportRace(size_t access, size_t pc, int tid, AccessSize access_size, AccessType access_type, const char *nutex_name = "");
-	void clear();
+	inline bool Contains(size_t access, uint64_t filter);
+	inline void Insert(size_t access, uint64_t tid, uint64_t filter);
+	inline void AddMemoryAccess(uint64_t tid, void *stack, uint64_t stacksize, size_t access, size_t pc, AccessSize access_size, AccessType access_type, const char *nutex_name = "");
+	inline void CheckMemoryAccess(uint64_t tid, uint64_t parallel_id, void *stack, uint64_t stacksize, size_t access, size_t pc, AccessSize access_size, AccessType access_type, const char *nutex_name = "");
+	inline void ReportRace(size_t access, size_t pc, uint64_t tid, AccessSize access_size, AccessType access_type, const char *nutex_name = "");
+	void clear(uint64_t parallel_id);
 
 private:
-	std::unordered_map<std::string, boost::bloom_filters::counting_bloom_filter<size_t, 100000, 8, murmurhash3>*> filters;
-	boost::bloom_filters::basic_bloom_filter<size_t, 1000, murmurhash3> reported_races;
+	std::unordered_map<uint64_t, boost::bloom_filters::counting_bloom_filter<size_t, NUM_OF_ITEMS, TID_NUM_OF_BITS, hash_function>*> filters;
+	boost::bloom_filters::basic_bloom_filter<size_t, NUM_OF_REPORTED_RACES, hash_function> reported_races;
 
 };
 

@@ -26,6 +26,7 @@
 
 #include <boost/bloom_filter/detail/counting_apply_hash.hpp>
 #include <boost/bloom_filter/hash/default.hpp>
+#include <sys/time.h>
 
 #ifndef BOOST_NO_0X_HDR_INITIALIZER_LIST
 #include <initializer_list>
@@ -194,7 +195,7 @@ namespace boost {
 				this->num_bins());
       }
 
-      void insert(const T& t, int val)
+      void insert(const T& t, uint64_t val)
       {
 	apply_hash_type::insert(t, val,
 				this->bits,
@@ -231,7 +232,7 @@ namespace boost {
 					 this->num_bins());
       }
 
-      bool contains(const T& t, int val) const
+      bool contains(const T& t, uint64_t val) const
       {
     boost_map map;
 	return apply_hash_type::contains(t, val,

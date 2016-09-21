@@ -81,7 +81,7 @@ namespace boost {
 	  slots[pos] |= (final_bits << offset_bits);
 	}
 
-	void update(int val, typename CBF::bucket_type& slots,
+	void update(uint64_t val, typename CBF::bucket_type& slots,
 		    const size_t limit) const {
 	  const size_t final_bits = (size_t) val;
 	  slots[pos] &= ~(CBF::mask() << offset_bits);
@@ -118,7 +118,7 @@ namespace boost {
 	  counting_apply_hash<N-1, CBF>::insert(t, slots, num_bins);
 	}
 
-	static void insert(const typename CBF::value_type& t, int val,
+	static void insert(const typename CBF::value_type& t, uint64_t val,
 			   typename CBF::bucket_type& slots,
 			   const size_t num_bins)
 	{
@@ -147,7 +147,7 @@ namespace boost {
 		  counting_apply_hash<N-1, CBF>::contains(t, slots, num_bins));
 	}
 
-	static bool contains(const typename CBF::value_type& t, int val,
+	static bool contains(const typename CBF::value_type& t, uint64_t val,
 			     const typename CBF::bucket_type& slots,
 			   const size_t num_bins, boost_map map)
 	{
@@ -175,7 +175,7 @@ namespace boost {
 	  inserter.update(slots, (1ull << CBF::bits_per_bin()) - 1ull);
 	}
 
-	static void insert(const typename CBF::value_type& t, int val,
+	static void insert(const typename CBF::value_type& t, uint64_t val,
 			   typename CBF::bucket_type& slots,
 			   const size_t num_bins)
 	{
@@ -199,7 +199,7 @@ namespace boost {
 	  return (checker.check());
 	}
 
-	static bool contains(const typename CBF::value_type& t, int val,
+	static bool contains(const typename CBF::value_type& t, uint64_t val,
 			     const typename CBF::bucket_type& slots,
 			   const size_t num_bins, boost_map map)
 	{
