@@ -19,13 +19,21 @@
 #include <boost/functional/hash.hpp>
 
 namespace boost {
-  namespace bloom_filters {
-  template <typename T, size_t Seed = 0>
-    struct boost_hash {
-      size_t operator()(const T& t) {
-        return boost::hash_value(t) + Seed;
-      }
-    };
-  }
+namespace bloom_filters {
+template <typename T, size_t Seed = 0>
+struct boost_hash {
+	size_t operator()(const T& t) {
+		size_t key = (size_t) t;
+		key = ~key + (key << 15);
+		key = key ^ (key >> 12);
+		key = key + (key << 2);
+		key = key ^ (key >> 4);
+		key = key * 2057;
+		key = key ^ (key >> 16);
+		return key + Seed;
+		//return boost::hash_value(t) + Seed;
+	}
+};
+}
 }
 #endif

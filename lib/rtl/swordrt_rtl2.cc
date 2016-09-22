@@ -25,25 +25,24 @@ SwordRT *swordRT;
 		pthread_attr_getstack(&attr, &stack, &stacksize);	\
 		pthread_attr_destroy(&attr);
 
-SwordRT::SwordRT() {}
+SwordRT::SwordRT() {
+	filters[UNSAFE_READ].clear();
+	filters[UNSAFE_WRITE].clear();
+	filters[ATOMIC_READ].clear();
+	filters[ATOMIC_WRITE].clear();
+	filters[MUTEX_READ].clear();
+	filters[MUTEX_WRITE].clear();
+}
 
 SwordRT::~SwordRT() {}
 
 bool ALWAYS_INLINE SwordRT::Contains(size_t access, const char *filter_type) {
-	filterMtx.lock();
-	if(!filters[filter_type])
-		filters[filter_type] = new boost::bloom_filters::counting_bloom_filter<size_t, NUM_OF_ITEMS, TID_NUM_OF_BITS, hash_function>;
-	bool res = filters[filter_type]->contains(access, tid);
-	filterMtx.unlock();
+	bool res = filters[filter_type].contains(access, tid);
 	return (res);
 }
 
 void ALWAYS_INLINE SwordRT::Insert(size_t access, uint64_t tid, const char *filter_type) {
-	filterMtx.lock();
-	if(!filters[filter_type])
-		filters[filter_type] = new boost::bloom_filters::counting_bloom_filter<size_t, NUM_OF_ITEMS, TID_NUM_OF_BITS, hash_function>;
-	filters[filter_type]->insert(access, tid);
-	filterMtx.unlock();
+	filters[filter_type].insert(access, tid);
 }
 
 inline void SwordRT::ReportRace(size_t access, size_t pc, uint64_t tid, AccessSize access_size, AccessType access_type, const char *nutex_name) {
@@ -51,14 +50,13 @@ inline void SwordRT::ReportRace(size_t access, size_t pc, uint64_t tid, AccessSi
 	// here we just keep filling up the file that holds all the executable/addresses
 	// We also put the address of a parallel region so we know the parallel region where the
 	// access belongs to
-	raceMtx.lock();
 	reported_races.insert(pc);
-	raceMtx.unlock();
 	DEBUG(std::cerr, "There was a race for thread " << std::dec << tid << " at [" << std::hex << access << "][" << (void *) pc << "]");
 }
 
-void SwordRT::clear(uint64_t parallel_id) {
-	filters.clear();
+void SwordRT::clear() {
+	for(auto i : filters)
+		i.second.clear();
 }
 
 void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSize access_size, AccessType access_type, const char *nutex_name) {
@@ -66,12 +64,8 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 	AccessType conflict_type = none;
 	std::string nutex;
 
-	raceMtx.lock();
-	if(reported_races.probably_contains(pc)) {
-		raceMtx.unlock();
+	if(reported_races.probably_contains(pc))
 		return;
-	}
-	raceMtx.unlock();
 
 	// Return if variable belong to thread stack (is local)
 	if((access >= (size_t) stack) &&
@@ -188,18 +182,20 @@ static void on_ompt_event_thread_begin(ompt_thread_type_t thread_type,
 	GET_STACK
 }
 
-//static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
-//		ompt_frame_t *parent_task_frame,
-//		ompt_parallel_id_t parallel_id,
-//		uint32_t requested_team_size,
-//		void *parallel_function) {
-//
-//}
+static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
+		ompt_frame_t *parent_task_frame,
+		ompt_parallel_id_t parallel_id,
+		uint32_t requested_team_size,
+		void *parallel_function) {
+	if(__swordomp_status__ == 0)
+		swordRT->clear();
+}
 
 static void on_ompt_event_parallel_end(ompt_parallel_id_t parallel_id,
 		ompt_task_id_t task_id,
 		ompt_invoker_t invoker) {
-
+	//	if(__swordomp_status__ == 0)
+	//		swordRT->clear();
 }
 
 static void on_acquired_critical(ompt_wait_id_t wait_id) {
