@@ -22,8 +22,11 @@ set(LLVM_NO_RTTI 1)
 
 set(CMAKE_BUILD_TYPE Release)
 
+#set(TSAN_SOURCES
+#  rtl/swordrt_rtl1.cc)
+  
 set(TSAN_SOURCES
-  rtl/swordrt_rtl.cc)
+  rtl/swordrt_rtl2.cc)
 
 
 INCLUDE_DIRECTORIES("/home/simone/usr/include")

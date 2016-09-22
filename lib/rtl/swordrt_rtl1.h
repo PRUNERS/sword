@@ -22,7 +22,6 @@
 #include <boost/cstdint.hpp>
 #include <boost/lockfree/queue.hpp>
 #include <boost/mpl/vector.hpp>
-#include <boost/test/floating_point_comparison.hpp>
 
 #include <omp.h>
 #include <ompt.h>

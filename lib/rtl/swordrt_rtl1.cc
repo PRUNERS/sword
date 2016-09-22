@@ -12,7 +12,7 @@
 // Main file (entry points) for the TSan run-time.
 //===----------------------------------------------------------------------===//
 
-#include "swordrt_rtl.h"
+#include "swordrt_rtl1.h"
 
 SwordRT *swordRT;
 
