@@ -41,8 +41,22 @@ bool ALWAYS_INLINE SwordRT::Contains(size_t access, const char *filter_type) {
 	return (res);
 }
 
+bool ALWAYS_INLINE SwordRT::Contains(size_t access, const char *filter_type, std::vector<size_t>& hash_values) {
+	bool res = filters[filter_type].contains(access, tid, hash_values);
+	return (res);
+}
+
+bool ALWAYS_INLINE SwordRT::Contains(std::vector<size_t>& hash_values, size_t access, const char *filter_type) {
+	bool res = filters[filter_type].contains(access, tid, hash_values);
+	return (res);
+}
+
 void ALWAYS_INLINE SwordRT::Insert(size_t access, uint64_t tid, const char *filter_type) {
 	filters[filter_type].insert(access, tid);
+}
+
+void ALWAYS_INLINE SwordRT::Insert(std::vector<size_t>& hash_values, size_t access, uint64_t tid, const char *filter_type) {
+	filters[filter_type].insert(hash_values, access, tid);
 }
 
 inline void SwordRT::ReportRace(size_t access, size_t pc, uint64_t tid, AccessSize access_size, AccessType access_type, const char *nutex_name) {
@@ -51,7 +65,8 @@ inline void SwordRT::ReportRace(size_t access, size_t pc, uint64_t tid, AccessSi
 	// We also put the address of a parallel region so we know the parallel region where the
 	// access belongs to
 	reported_races.insert(pc);
-	DEBUG(std::cerr, "There was a race for thread " << std::dec << tid << " at [" << std::hex << access << "][" << (void *) pc << "]");
+	// DEBUG(std::cerr, "RACE[" << std::hex << access << "] - [" << (void *) pc << "]");
+	DEBUG(std::cerr, "RACE[" << (void *) pc << "]");
 }
 
 void SwordRT::clear() {
@@ -74,82 +89,82 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 
 	switch(access_type) {
 	case unsafe_read:
-		if(swordRT->Contains(access, UNSAFE_WRITE)) {
+		if(swordRT->Contains(access, UNSAFE_WRITE, hash_values)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(access, ATOMIC_WRITE)) {
+		} else if(swordRT->Contains(hash_values, access, ATOMIC_WRITE)) {
 			conflict = true;
 			conflict_type = atomic_write;
-		} else if(swordRT->Contains(access, MUTEX_WRITE)) {
+		} else if(swordRT->Contains(hash_values, access, MUTEX_WRITE)) {
 			conflict = true;
 			conflict_type = mutex_write;
 		}
 		break;
 	case unsafe_write:
-		if(swordRT->Contains(access, UNSAFE_READ)) {
+		if(swordRT->Contains(hash_values, access, UNSAFE_READ)) {
 			conflict = true;
 			conflict_type = unsafe_read;
-		} else if(swordRT->Contains(access, UNSAFE_WRITE)) {
+		} else if(swordRT->Contains(hash_values, access, UNSAFE_WRITE)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(access, ATOMIC_READ)) {
+		} else if(swordRT->Contains(hash_values, access, ATOMIC_READ)) {
 			conflict = true;
 			conflict_type = atomic_read;
-		} else if(swordRT->Contains(access, ATOMIC_WRITE)) {
+		} else if(swordRT->Contains(hash_values, access, ATOMIC_WRITE)) {
 			conflict = true;
 			conflict_type = atomic_write;
-		} else if(swordRT->Contains(access, MUTEX_READ)) {
+		} else if(swordRT->Contains(hash_values, access, MUTEX_READ)) {
 			conflict = true;
 			conflict_type = mutex_read;
-		} else if(swordRT->Contains(access, MUTEX_WRITE)) {
+		} else if(swordRT->Contains(hash_values, access, MUTEX_WRITE)) {
 			conflict = true;
 			conflict_type = mutex_write;
 		}
 		break;
 	case atomic_read:
-		if(swordRT->Contains(access, UNSAFE_WRITE)) {
+		if(swordRT->Contains(hash_values, access, UNSAFE_WRITE)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(access, MUTEX_WRITE)) {
+		} else if(swordRT->Contains(hash_values, access, MUTEX_WRITE)) {
 			conflict = true;
 			conflict_type = mutex_write;
 		}
 		break;
 	case atomic_write:
-		if(swordRT->Contains(access, UNSAFE_READ)) {
+		if(swordRT->Contains(hash_values, access, UNSAFE_READ)) {
 			conflict = true;
 			conflict_type = unsafe_read;
-		} else if(swordRT->Contains(access, UNSAFE_WRITE)) {
+		} else if(swordRT->Contains(hash_values, access, UNSAFE_WRITE)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(access, MUTEX_READ)) {
+		} else if(swordRT->Contains(hash_values, access, MUTEX_READ)) {
 			conflict = true;
 			conflict_type = mutex_read;
-		} else if(swordRT->Contains(access, MUTEX_WRITE)) {
+		} else if(swordRT->Contains(hash_values, access, MUTEX_WRITE)) {
 			conflict = true;
 			conflict_type = mutex_write;
 		}
 		break;
 	case mutex_read:
-		if(swordRT->Contains(access, UNSAFE_WRITE)) {
+		if(swordRT->Contains(hash_values, access, UNSAFE_WRITE)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(access, ATOMIC_WRITE)) {
+		} else if(swordRT->Contains(hash_values, access, ATOMIC_WRITE)) {
 			conflict = true;
 			conflict_type = atomic_write;
 		}
 		break;
 	case mutex_write:
-		if(swordRT->Contains(access, UNSAFE_READ)) {
+		if(swordRT->Contains(hash_values, access, UNSAFE_READ)) {
 			conflict = true;
 			conflict_type = unsafe_read;
-		} else if(swordRT->Contains(access, UNSAFE_WRITE)) {
+		} else if(swordRT->Contains(hash_values, access, UNSAFE_WRITE)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(access, ATOMIC_READ)) {
+		} else if(swordRT->Contains(hash_values, access, ATOMIC_READ)) {
 			conflict = true;
 			conflict_type = atomic_read;
-		} else if(swordRT->Contains(access, ATOMIC_WRITE)) {
+		} else if(swordRT->Contains(hash_values, access, ATOMIC_WRITE)) {
 			conflict = true;
 			conflict_type = atomic_write;
 		}
@@ -162,7 +177,7 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 		return;
 	}
 
-	swordRT->Insert(access, tid, FilterType[access_type]);
+	swordRT->Insert(hash_values, access, tid, FilterType[access_type]);
 
 	if(conflict)
 		ReportRace(access, pc, tid, access_size, conflict_type, nutex_name);
@@ -224,8 +239,8 @@ static void ompt_initialize_fn(ompt_function_lookup_t lookup,
 
 	ompt_set_callback(ompt_event_thread_begin,
 			(ompt_callback_t) &on_ompt_event_thread_begin);
-	//	ompt_set_callback(ompt_event_parallel_begin,
-	//			(ompt_callback_t) &on_ompt_event_parallel_begin);
+	ompt_set_callback(ompt_event_parallel_begin,
+			(ompt_callback_t) &on_ompt_event_parallel_begin);
 	ompt_set_callback(ompt_event_parallel_end,
 			(ompt_callback_t) &on_ompt_event_parallel_end);
 	ompt_set_callback(ompt_event_acquired_critical,
