@@ -102,10 +102,11 @@ public:
 
 	void update(uint64_t val, typename CBF::bucket_type& slots,
 			const size_t limit) const {
-		printf("Target Bits: %lu\n", target_bits);
-		const size_t final_bits = (size_t) val;
-		slots[pos] &= ~(CBF::mask() << offset_bits);
-		slots[pos] |= (final_bits << offset_bits);
+		if(target_bits == 0) {
+			const size_t final_bits = (size_t) val;
+			slots[pos] &= ~(CBF::mask() << offset_bits);
+			slots[pos] |= (final_bits << offset_bits);
+		}
 	}
 
 	bool check() const {
