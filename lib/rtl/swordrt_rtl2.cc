@@ -64,21 +64,22 @@ inline void SwordRT::ReportRace(size_t access, size_t pc, uint64_t tid, AccessSi
 	// here we just keep filling up the file that holds all the executable/addresses
 	// We also put the address of a parallel region so we know the parallel region where the
 	// access belongs to
-	reported_races[current_parallel_id].insert(pc);
+	// reported_races[current_parallel_id].insert(pc);
+	reported_races.insert(pc);
 	// DEBUG(std::cerr, "RACE[" << std::hex << access << "] - [" << (void *) pc << "]");
 	DEBUG(std::cerr, "RACE[" << (void *) pc << "]");
 }
 
 void SwordRT::clear() {
-	reported_races[current_parallel_id].clear();
+	// reported_races[current_parallel_id].clear();
 	CLEAR_FILTER(unsafe_read);
 	CLEAR_FILTER(unsafe_write);
 	CLEAR_FILTER(mutex_read);
 	CLEAR_FILTER(mutex_write);
 	CLEAR_FILTER(atomic_read);
 	CLEAR_FILTER(atomic_write);
-//	for(auto i : filters)
-//		i.second.clear();
+	//	for(auto i : filters)
+	//		i.second.clear();
 }
 
 void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSize access_size, AccessType access_type, const char *nutex_name) {
@@ -86,7 +87,9 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 	AccessType conflict_type = none;
 	std::string nutex;
 
-	if(reported_races[current_parallel_id].probably_contains(pc, hash_value_pc))
+	//	if(reported_races[current_parallel_id].probably_contains(pc, hash_value_pc))
+	//		return;
+	if(reported_races.probably_contains(pc, hash_value_pc))
 		return;
 
 	// Return if variable belong to thread stack (is local)
@@ -194,7 +197,8 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 
 	if(conflict) {
 		// ReportRace(access, pc, tid, access_size, conflict_type, nutex_name);
-		reported_races[current_parallel_id].insert(pc, hash_value_pc);
+		// reported_races[current_parallel_id].insert(pc, hash_value_pc);
+		reported_races.insert(pc, hash_value_pc);
 		DEBUG(std::cerr, "RACE[" << (void *) pc << "]");
 	}
 }
