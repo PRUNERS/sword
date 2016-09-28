@@ -38,7 +38,10 @@ while True:
         if(line != '\n'):
             # l = line.rsplit('\n')[0].rsplit()[2].split(':')
             # races.append([l[0], int(l[1], 10), int(l[2], 10)])
-            races.append(line.rsplit('\n')[0].rsplit()[2])
+            # races.append(line.rsplit('\n')[0].rsplit()[2])
+            l = line.rsplit('\n')[0].rsplit()[2].split(':')
+            if(len(l) > 1):
+                races.append(l[0] + ":" + l[1])
     else:
         break;
 
@@ -46,11 +49,12 @@ races = list(set(races))
 new_races = []
 for race in races:
     r = race.split(':')
-    new_races.append([r[0], int(r[1], 10), int(r[2], 10)])
-new_races.sort(key = itemgetter(0,1,2))
+    if(len(r) > 1):
+        new_races.append([r[0], int(r[1], 10)]) #, int(r[2], 10)])
+new_races.sort(key = itemgetter(0,1)) # ,2))
 race_list = []
 for race in new_races:
-    race_list.append(race[0] + ':' + str(race[1]) + ':' + str(race[2]))
+    race_list.append(race[0] + ':' + str(race[1])) # + ':' + str(race[2]))
 
 print "ARCHER RACES:"
 print '\n'.join(race_list)

@@ -63,9 +63,9 @@ struct Is64Bit {
 };
 }
 
-template <typename T, size_t Seed = 0, bool Use128Mode = false>
+template <typename T, size_t Seed = 0, bool Use128Mode = true>
 struct murmurhash3 {
-	typedef detail::murmurhash3_dispatch<false, // detail::Is64Bit::value
+	typedef detail::murmurhash3_dispatch<detail::Is64Bit::value,
 			Use128Mode> dispatch_type;
 	size_t operator()(const T& t) {
 		static dispatch_type dispatcher;

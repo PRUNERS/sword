@@ -26,52 +26,59 @@ SwordRT *swordRT;
 		pthread_attr_destroy(&attr);
 
 SwordRT::SwordRT() {
-	filters[UNSAFE_READ].clear();
-	filters[UNSAFE_WRITE].clear();
-	filters[ATOMIC_READ].clear();
-	filters[ATOMIC_WRITE].clear();
-	filters[MUTEX_READ].clear();
-	filters[MUTEX_WRITE].clear();
+	//	filters[UNSAFE_READ].clear();
+	//	filters[UNSAFE_WRITE].clear();
+	//	filters[ATOMIC_READ].clear();
+	//	filters[ATOMIC_WRITE].clear();
+	//	filters[MUTEX_READ].clear();
+	//	filters[MUTEX_WRITE].clear();
 }
 
 SwordRT::~SwordRT() {}
 
-bool ALWAYS_INLINE SwordRT::Contains(size_t access, const char *filter_type) {
-	bool res = filters[filter_type].contains(access, tid);
-	return (res);
-}
-
-bool ALWAYS_INLINE SwordRT::Contains(size_t access, const char *filter_type, std::vector<size_t>& hash_values) {
-	bool res = filters[filter_type].contains(access, tid, hash_values);
-	return (res);
-}
-
-bool ALWAYS_INLINE SwordRT::Contains(std::vector<size_t>& hash_values, size_t access, const char *filter_type) {
-	bool res = filters[filter_type].contains(access, tid, hash_values);
-	return (res);
-}
-
-void ALWAYS_INLINE SwordRT::Insert(size_t access, uint64_t tid, const char *filter_type) {
-	filters[filter_type].insert(access, tid);
-}
-
-void ALWAYS_INLINE SwordRT::Insert(std::vector<size_t>& hash_values, size_t access, uint64_t tid, const char *filter_type) {
-	filters[filter_type].insert(hash_values, access, tid);
-}
+//bool ALWAYS_INLINE SwordRT::Contains(size_t access, const char *filter_type) {
+//	bool res = filters[filter_type].contains(access, tid);
+//	return (res);
+//}
+//
+//bool ALWAYS_INLINE SwordRT::Contains(size_t access, const char *filter_type, std::vector<size_t>& hash_values) {
+//	bool res = filters[filter_type].contains(access, tid, hash_values);
+//	return (res);
+//}
+//
+//bool ALWAYS_INLINE SwordRT::Contains(std::vector<size_t>& hash_values, size_t access, const char *filter_type) {
+//	bool res = filters[filter_type].contains(hash_values, access, tid);
+//	return (res);
+//}
+//
+//void ALWAYS_INLINE SwordRT::Insert(size_t access, uint64_t tid, const char *filter_type) {
+//	filters[filter_type].insert(access, tid);
+//}
+//
+//void ALWAYS_INLINE SwordRT::Insert(std::vector<size_t>& hash_values, size_t access, uint64_t tid, const char *filter_type) {
+//	filters[filter_type].insert(hash_values, access, tid);
+//}
 
 inline void SwordRT::ReportRace(size_t access, size_t pc, uint64_t tid, AccessSize access_size, AccessType access_type, const char *nutex_name) {
 	// Will call a class that executes llvm-symbolizer at the end of each parallel region,
 	// here we just keep filling up the file that holds all the executable/addresses
 	// We also put the address of a parallel region so we know the parallel region where the
 	// access belongs to
-	reported_races.insert(pc);
+	reported_races[current_parallel_id].insert(pc);
 	// DEBUG(std::cerr, "RACE[" << std::hex << access << "] - [" << (void *) pc << "]");
 	DEBUG(std::cerr, "RACE[" << (void *) pc << "]");
 }
 
 void SwordRT::clear() {
-	for(auto i : filters)
-		i.second.clear();
+	reported_races[current_parallel_id].clear();
+	CLEAR_FILTER(unsafe_read);
+	CLEAR_FILTER(unsafe_write);
+	CLEAR_FILTER(mutex_read);
+	CLEAR_FILTER(mutex_write);
+	CLEAR_FILTER(atomic_read);
+	CLEAR_FILTER(atomic_write);
+//	for(auto i : filters)
+//		i.second.clear();
 }
 
 void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSize access_size, AccessType access_type, const char *nutex_name) {
@@ -79,7 +86,7 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 	AccessType conflict_type = none;
 	std::string nutex;
 
-	if(reported_races.probably_contains(pc))
+	if(reported_races[current_parallel_id].probably_contains(pc, hash_value_pc))
 		return;
 
 	// Return if variable belong to thread stack (is local)
@@ -89,85 +96,91 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 
 	switch(access_type) {
 	case unsafe_read:
-		if(swordRT->Contains(access, UNSAFE_WRITE, hash_values)) {
+		if(CONTAINS(access, unsafe_write, hash_values)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(hash_values, access, ATOMIC_WRITE)) {
+		} else if(CONTAINS_HASH(hash_values, access, atomic_write)) {
 			conflict = true;
 			conflict_type = atomic_write;
-		} else if(swordRT->Contains(hash_values, access, MUTEX_WRITE)) {
+		} else if(CONTAINS_HASH(hash_values, access, mutex_write)) {
 			conflict = true;
 			conflict_type = mutex_write;
 		}
+		INSERT_HASH(hash_values, access, unsafe_read);
 		break;
 	case unsafe_write:
-		if(swordRT->Contains(hash_values, access, UNSAFE_READ)) {
+		if(CONTAINS_HASH(hash_values, access, unsafe_read)) {
 			conflict = true;
 			conflict_type = unsafe_read;
-		} else if(swordRT->Contains(hash_values, access, UNSAFE_WRITE)) {
+		} else if(CONTAINS_HASH(hash_values, access, unsafe_write)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(hash_values, access, ATOMIC_READ)) {
+		} else if(CONTAINS_HASH(hash_values, access, atomic_read)) {
 			conflict = true;
 			conflict_type = atomic_read;
-		} else if(swordRT->Contains(hash_values, access, ATOMIC_WRITE)) {
+		} else if(CONTAINS_HASH(hash_values, access, atomic_write)) {
 			conflict = true;
 			conflict_type = atomic_write;
-		} else if(swordRT->Contains(hash_values, access, MUTEX_READ)) {
+		} else if(CONTAINS_HASH(hash_values, access, mutex_read)) {
 			conflict = true;
 			conflict_type = mutex_read;
-		} else if(swordRT->Contains(hash_values, access, MUTEX_WRITE)) {
+		} else if(CONTAINS_HASH(hash_values, access, mutex_write)) {
 			conflict = true;
 			conflict_type = mutex_write;
 		}
-		break;
-	case atomic_read:
-		if(swordRT->Contains(hash_values, access, UNSAFE_WRITE)) {
-			conflict = true;
-			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(hash_values, access, MUTEX_WRITE)) {
-			conflict = true;
-			conflict_type = mutex_write;
-		}
-		break;
-	case atomic_write:
-		if(swordRT->Contains(hash_values, access, UNSAFE_READ)) {
-			conflict = true;
-			conflict_type = unsafe_read;
-		} else if(swordRT->Contains(hash_values, access, UNSAFE_WRITE)) {
-			conflict = true;
-			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(hash_values, access, MUTEX_READ)) {
-			conflict = true;
-			conflict_type = mutex_read;
-		} else if(swordRT->Contains(hash_values, access, MUTEX_WRITE)) {
-			conflict = true;
-			conflict_type = mutex_write;
-		}
+		INSERT_HASH(hash_values, access, unsafe_write);
 		break;
 	case mutex_read:
-		if(swordRT->Contains(hash_values, access, UNSAFE_WRITE)) {
+		if(CONTAINS_HASH(hash_values, access, unsafe_write)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(hash_values, access, ATOMIC_WRITE)) {
+		} else if(CONTAINS_HASH(hash_values, access, atomic_write)) {
 			conflict = true;
 			conflict_type = atomic_write;
 		}
+		INSERT_HASH(hash_values, access, mutex_read);
 		break;
 	case mutex_write:
-		if(swordRT->Contains(hash_values, access, UNSAFE_READ)) {
+		if(CONTAINS_HASH(hash_values, access, unsafe_read)) {
 			conflict = true;
 			conflict_type = unsafe_read;
-		} else if(swordRT->Contains(hash_values, access, UNSAFE_WRITE)) {
+		} else if(CONTAINS_HASH(hash_values, access, unsafe_write)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(swordRT->Contains(hash_values, access, ATOMIC_READ)) {
+		} else if(CONTAINS_HASH(hash_values, access, atomic_read)) {
 			conflict = true;
 			conflict_type = atomic_read;
-		} else if(swordRT->Contains(hash_values, access, ATOMIC_WRITE)) {
+		} else if(CONTAINS_HASH(hash_values, access, atomic_write)) {
 			conflict = true;
 			conflict_type = atomic_write;
 		}
+		INSERT_HASH(hash_values, access, mutex_write);
+		break;
+	case atomic_read:
+		if(CONTAINS_HASH(hash_values, access, unsafe_write)) {
+			conflict = true;
+			conflict_type = unsafe_write;
+		} else if(CONTAINS_HASH(hash_values, access, mutex_write)) {
+			conflict = true;
+			conflict_type = mutex_write;
+		}
+		INSERT_HASH(hash_values, access, atomic_read);
+		break;
+	case atomic_write:
+		if(CONTAINS_HASH(hash_values, access, unsafe_read)) {
+			conflict = true;
+			conflict_type = unsafe_read;
+		} else if(CONTAINS_HASH(hash_values, access, unsafe_write)) {
+			conflict = true;
+			conflict_type = unsafe_write;
+		} else if(CONTAINS_HASH(hash_values, access, mutex_read)) {
+			conflict = true;
+			conflict_type = mutex_read;
+		} else if(CONTAINS_HASH(hash_values, access, mutex_write)) {
+			conflict = true;
+			conflict_type = mutex_write;
+		}
+		INSERT_HASH(hash_values, access, atomic_write);
 		break;
 	case nutex_read:
 		break;
@@ -177,10 +190,13 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 		return;
 	}
 
-	swordRT->Insert(hash_values, access, tid, FilterType[access_type]);
+	// swordRT->Insert(hash_values, access, tid, FilterType[access_type]);
 
-	if(conflict)
-		ReportRace(access, pc, tid, access_size, conflict_type, nutex_name);
+	if(conflict) {
+		// ReportRace(access, pc, tid, access_size, conflict_type, nutex_name);
+		reported_races[current_parallel_id].insert(pc, hash_value_pc);
+		DEBUG(std::cerr, "RACE[" << (void *) pc << "]");
+	}
 }
 
 // Class SwordRT
@@ -202,16 +218,15 @@ static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 		ompt_parallel_id_t parallel_id,
 		uint32_t requested_team_size,
 		void *parallel_function) {
-	if(__swordomp_status__ == 0)
+	if(__swordomp_status__ == 0) {
+		current_parallel_id = parallel_id;
 		swordRT->clear();
+	}
 }
 
-static void on_ompt_event_parallel_end(ompt_parallel_id_t parallel_id,
-		ompt_task_id_t task_id,
-		ompt_invoker_t invoker) {
-	//	if(__swordomp_status__ == 0)
-	//		swordRT->clear();
-}
+//static void on_ompt_event_parallel_end(ompt_parallel_id_t parallel_id,
+//		ompt_task_id_t task_id,
+//		ompt_invoker_t invoker) {}
 
 static void on_acquired_critical(ompt_wait_id_t wait_id) {
 	__swordomp_is_critical__ = true;
@@ -241,8 +256,8 @@ static void ompt_initialize_fn(ompt_function_lookup_t lookup,
 			(ompt_callback_t) &on_ompt_event_thread_begin);
 	ompt_set_callback(ompt_event_parallel_begin,
 			(ompt_callback_t) &on_ompt_event_parallel_begin);
-	ompt_set_callback(ompt_event_parallel_end,
-			(ompt_callback_t) &on_ompt_event_parallel_end);
+	//	ompt_set_callback(ompt_event_parallel_end,
+	//			(ompt_callback_t) &on_ompt_event_parallel_end);
 	ompt_set_callback(ompt_event_acquired_critical,
 			(ompt_callback_t) &on_acquired_critical);
 	ompt_set_callback(ompt_event_release_critical,

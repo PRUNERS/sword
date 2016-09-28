@@ -98,6 +98,10 @@ namespace boost {
         apply_hash_type::insert(t, bits);
       }
 
+      void insert(const T& t, std::vector<size_t> &hash_values) {
+        apply_hash_type::insert(t, bits, hash_values);
+      }
+
       template <typename InputIterator>
       void insert(const InputIterator start, const InputIterator end) {
 	for (InputIterator i = start; i != end; ++i) {
@@ -107,6 +111,10 @@ namespace boost {
 
       bool probably_contains(const T& t) const {
         return apply_hash_type::contains(t, bits);
+      }
+
+      bool probably_contains(const T& t, std::vector<size_t> &hash_values) const {
+        return apply_hash_type::contains(t, bits, hash_values);
       }
 
       void clear() {

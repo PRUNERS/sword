@@ -18,20 +18,22 @@
  */
 #include <boost/functional/hash.hpp>
 
+extern "C" uint64_t memhash(void const* key, size_t n, uint64_t seed);
+
 namespace boost {
 namespace bloom_filters {
 template <typename T, size_t Seed = 0>
 struct boost_hash {
 	size_t operator()(const T& t) {
-		size_t key = (size_t) t + Seed;
-		key = ~key + (key << 15);
-		key = key ^ (key >> 12);
-		key = key + (key << 2);
-		key = key ^ (key >> 4);
-		key = key * 2057;
-		key = key ^ (key >> 16);
+		size_t key = t + Seed;
+		key = (~key) + (t << 21); // key = (key << 21) - key - 1;
+		key = key ^ (key >> 24);
+		key = (key + (key << 3)) + (key << 8); // key * 265
+		key = key ^ (key >> 14);
+		key = (key + (key << 2)) + (key << 4); // key * 21
+		key = key ^ (key >> 28);
+		key = key + (key << 31);
 		return key;
-		//return boost::hash_value(t) + Seed;
 	}
 };
 }
