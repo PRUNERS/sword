@@ -32,6 +32,8 @@
 #include <initializer_list>
 #endif 
 
+#include "perf.h"
+
 namespace boost {
 namespace bloom_filters {
 template <typename T,
@@ -204,9 +206,13 @@ public:
 
 			void insert(std::vector<size_t>& hash_values, const T& t, uint64_t val)
 			{
+//				unsigned long start,end;
+//				start = RDTSC_START();
 				apply_hash_type::insert(t, val,
 						this->bits,
 						this->num_bins(), hash_values);
+//				end = RDTSCP();
+//				printf("Cyles: %lu\n", end - start);
 			}
 
 
@@ -249,16 +255,28 @@ public:
 
 			bool contains(const T& t, uint64_t val, std::vector<size_t>& hash_values) const
 			{
-				return apply_hash_type::contains(t, val,
+				bool res;
+//				unsigned long start,end;
+//				start = RDTSC_START();
+				res = apply_hash_type::contains(t, val,
 						this->bits,
 						this->num_bins(), hash_values);
+//				end = RDTSCP();
+//				printf("Cyles[contains]: %lu\n", end - start);
+				return res;
 			}
 
 			bool contains(std::vector<size_t>& hash_values, const T& t, uint64_t val) const
 			{
-				return apply_hash_type::contains(t, val,
+				bool res;
+//				unsigned long start,end;
+//				start = RDTSC_START();
+				res = apply_hash_type::contains(t, val,
 						this->bits,
 						hash_values, this->num_bins());
+//				end = RDTSCP();
+//				printf("Cyles[contains_hash]: %lu\n", end - start);
+				return res;
 			}
 
 			//* auxiliary ops

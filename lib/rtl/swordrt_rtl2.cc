@@ -13,8 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "swordrt_rtl2.h"
-
-SwordRT *swordRT;
+#include "swordrt_interface.h"
 
 // Class SwordRT
 
@@ -22,7 +21,7 @@ SwordRT *swordRT;
 		pthread_t self = pthread_self(); 					\
 		pthread_attr_t attr;								\
 		pthread_getattr_np(self, &attr);					\
-		pthread_attr_getstack(&attr, &stack, &stacksize);	\
+		pthread_attr_getstack(&attr, (void **) &stack, &stacksize);	\
 		pthread_attr_destroy(&attr);
 
 SwordRT::SwordRT() {
@@ -207,8 +206,6 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 
 extern "C" {
 
-#include "sword_interface2.inl"
-
 static void on_ompt_event_thread_begin(ompt_thread_type_t thread_type,
 		ompt_thread_id_t thread_id) {
 	// Set thread id
@@ -223,7 +220,7 @@ static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 		uint32_t requested_team_size,
 		void *parallel_function) {
 	if(__swordomp_status__ == 0) {
-		current_parallel_id = parallel_id;
+		// current_parallel_id = parallel_id;
 		swordRT->clear();
 	}
 }

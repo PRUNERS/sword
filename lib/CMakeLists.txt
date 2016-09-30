@@ -32,7 +32,8 @@ set(TSAN_SOURCES
 INCLUDE_DIRECTORIES("/home/simone/usr/include")
 set (CMAKE_SHARED_LINKER_FLAGS "-L/home/simone/usr/lib -fopenmp") # -fsanitize=thread
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${CMAKE_BINARY_DIR}/projects/openmp/runtime/src/)
+  ${CMAKE_BINARY_DIR}/projects/openmp/runtime/src
+  /home/simone/LLVM/llvm/projects/sword-rt/lib/rtl)
 add_library(sword-rt SHARED ${TSAN_SOURCES})
 
 install (TARGETS sword-rt

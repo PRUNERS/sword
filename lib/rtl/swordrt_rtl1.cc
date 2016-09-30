@@ -194,7 +194,7 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(uint64_t tid, uint64_t parallel_id
 
 extern "C" {
 
-#include "sword_interface1.inl"
+#include "swordrt_interface1.inl"
 
 void analyze_thread(uint64_t thread_id) {
 	uint64_t tid;

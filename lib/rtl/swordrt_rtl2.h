@@ -50,7 +50,6 @@ std::mutex pmtx;
 #endif
 
 #define ALWAYS_INLINE				__attribute__((always_inline))
-#define CALLERPC					((size_t) __builtin_return_address(0))
 
 #define NUM_OF_REPORTED_RACES		10000
 #define NUM_OF_ITEMS				1000000
@@ -110,27 +109,27 @@ std::mutex filterMtx;
 std::mutex threadMtx;
 std::mutex queueMtx;
 
-thread_local uint64_t tid = 0;
-thread_local void *stack;
-thread_local size_t stacksize;
-thread_local int __swordomp_status__ = 0;
-thread_local bool __swordomp_is_critical__ = false;
-thread_local size_t current_parallel_id;
+//thread_local uint64_t tid = 0;
+//thread_local size_t *stack;
+//thread_local size_t stacksize;
+//thread_local int __swordomp_status__ = 0;
+//thread_local uint8_t __swordomp_is_critical__ = false;
+//thread_local size_t current_parallel_id;
 
 // n = 1,000,000, p = 1.0E-10 (1 in 10,000,000,000) → m = 47,925,292 (5.71MB), k = 33
 #define MURMUR3
 #ifdef MURMUR3
 typedef boost::mpl::vector<
-		boost::bloom_filters::murmurhash3<size_t, 2>, // 1
-		boost::bloom_filters::murmurhash3<size_t, 3>, // 2
-		boost::bloom_filters::murmurhash3<size_t, 5>, // 3
-		boost::bloom_filters::murmurhash3<size_t, 7>, // 4
-		boost::bloom_filters::murmurhash3<size_t, 11>, // 5
-		boost::bloom_filters::murmurhash3<size_t, 13>, // 6
-		boost::bloom_filters::murmurhash3<size_t, 17>, // 7
-		boost::bloom_filters::murmurhash3<size_t, 19>, // 8
-		boost::bloom_filters::murmurhash3<size_t, 23>, // 9
-		boost::bloom_filters::murmurhash3<size_t, 29> // 10
+		boost::bloom_filters::murmurhash3<size_t, 2> // 1
+//		boost::bloom_filters::murmurhash3<size_t, 3>, // 2
+//		boost::bloom_filters::murmurhash3<size_t, 5>, // 3
+//		boost::bloom_filters::murmurhash3<size_t, 7>, // 4
+//		boost::bloom_filters::murmurhash3<size_t, 11>, // 5
+//		boost::bloom_filters::murmurhash3<size_t, 13>, // 6
+//		boost::bloom_filters::murmurhash3<size_t, 17>, // 7
+//		boost::bloom_filters::murmurhash3<size_t, 19>, // 8
+//		boost::bloom_filters::murmurhash3<size_t, 23>, // 9
+//		boost::bloom_filters::murmurhash3<size_t, 29>, // 10
 //		boost::bloom_filters::murmurhash3<size_t, 31>, // 11
 //		boost::bloom_filters::murmurhash3<size_t, 37>, // 12
 //		boost::bloom_filters::murmurhash3<size_t, 41>, // 13
@@ -195,16 +194,16 @@ typedef boost::mpl::vector<
 
 #ifdef MURMUR3
 typedef boost::mpl::vector<
-		boost::bloom_filters::murmurhash3<size_t, 2>, // 1
-		boost::bloom_filters::murmurhash3<size_t, 3>, // 2
-		boost::bloom_filters::murmurhash3<size_t, 5>, // 3
-		boost::bloom_filters::murmurhash3<size_t, 7>, // 4
-		boost::bloom_filters::murmurhash3<size_t, 11>, // 5
-		boost::bloom_filters::murmurhash3<size_t, 13>, // 6
-		boost::bloom_filters::murmurhash3<size_t, 17>, // 7
-		boost::bloom_filters::murmurhash3<size_t, 19>, // 8
-		boost::bloom_filters::murmurhash3<size_t, 23>, // 9
-		boost::bloom_filters::murmurhash3<size_t, 29> // 10
+		boost::bloom_filters::murmurhash3<size_t, 2> // 1
+//		boost::bloom_filters::murmurhash3<size_t, 3>, // 2
+//		boost::bloom_filters::murmurhash3<size_t, 5>, // 3
+//		boost::bloom_filters::murmurhash3<size_t, 7>, // 4
+//		boost::bloom_filters::murmurhash3<size_t, 11>, // 5
+//		boost::bloom_filters::murmurhash3<size_t, 13>, // 6
+//		boost::bloom_filters::murmurhash3<size_t, 17>, // 7
+//		boost::bloom_filters::murmurhash3<size_t, 19>, // 8
+//		boost::bloom_filters::murmurhash3<size_t, 23>, // 9
+//		boost::bloom_filters::murmurhash3<size_t, 29> // 10
 //		boost::bloom_filters::murmurhash3<size_t, 31>, // 11
 //		boost::bloom_filters::murmurhash3<size_t, 37>, // 12
 //		boost::bloom_filters::murmurhash3<size_t, 41>, // 13
