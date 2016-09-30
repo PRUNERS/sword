@@ -13,7 +13,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "swordrt_rtl2.h"
-#include "swordrt_interface.h"
+
+SwordRT *swordRT;
 
 // Class SwordRT
 
@@ -205,6 +206,8 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 // Class SwordRT
 
 extern "C" {
+
+#include "swordrt_interface.inl"
 
 static void on_ompt_event_thread_begin(ompt_thread_type_t thread_type,
 		ompt_thread_id_t thread_id) {

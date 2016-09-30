@@ -49,7 +49,8 @@ std::mutex pmtx;
 #define DEBUG(stream, x)
 #endif
 
-#define ALWAYS_INLINE				__attribute__((always_inline))
+#define ALWAYS_INLINE			__attribute__((always_inline))
+#define CALLERPC 				((size_t) __builtin_return_address(0))
 
 #define NUM_OF_REPORTED_RACES		10000
 #define NUM_OF_ITEMS				1000000
@@ -115,6 +116,12 @@ std::mutex queueMtx;
 //thread_local int __swordomp_status__ = 0;
 //thread_local uint8_t __swordomp_is_critical__ = false;
 //thread_local size_t current_parallel_id;
+
+extern thread_local uint64_t tid;
+extern thread_local size_t *stack;
+extern thread_local size_t stacksize;
+extern thread_local int __swordomp_status__;
+extern thread_local uint8_t __swordomp_is_critical__;
 
 // n = 1,000,000, p = 1.0E-10 (1 in 10,000,000,000) → m = 47,925,292 (5.71MB), k = 33
 #define MURMUR3
