@@ -13,8 +13,8 @@ LINK_DIRECTORIES(${Boost_LIBRARY_DIRS})
 
 # Set SWORD-RT version
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --std=c++11 -g")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --std=c++11 -fcxx-exceptions -g") # -fsanitize=thread
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 --std=c++11 -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 --std=c++11 -fcxx-exceptions -g") # -fsanitize=thread
 set(SWORDRT_VERSION_MAJOR 0)
 set(SWORDRT_VERSION_MINOR 1)
 
@@ -33,10 +33,12 @@ INCLUDE_DIRECTORIES("/home/simone/usr/include")
 set (CMAKE_SHARED_LINKER_FLAGS "-L/home/simone/usr/lib -fopenmp") # -fsanitize=thread
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_BINARY_DIR}/projects/openmp/runtime/src
-  /home/simone/LLVM/llvm/projects/sword-rt/lib/rtl)
+  /home/simone/LLVM/llvm/projects/sword-rt/lib/rtl
+  /home/simone/LLVM/llvm/projects/sword-rt/lib/cuckoofilter)
 add_library(sword-rt SHARED ${TSAN_SOURCES})
+add_library(sword-rt-static STATIC ${TSAN_SOURCES})
 
-install (TARGETS sword-rt
+install (TARGETS sword-rt sword-rt-static 
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin)

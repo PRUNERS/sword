@@ -56,6 +56,13 @@ std::mutex pmtx;
 #define NUM_OF_ITEMS				1000000
 #define TID_NUM_OF_BITS				8
 
+typedef struct ThreadInfo {
+	size_t *stack;
+	size_t stacksize;
+	int __swordomp_status__;
+	uint8_t __swordomp_is_critical__;
+} ThreadInfo;
+
 enum AccessSize {
 	size1 = 0,
 	size2,
@@ -110,18 +117,25 @@ std::mutex filterMtx;
 std::mutex threadMtx;
 std::mutex queueMtx;
 
-//thread_local uint64_t tid = 0;
-//thread_local size_t *stack;
-//thread_local size_t stacksize;
-//thread_local int __swordomp_status__ = 0;
-//thread_local uint8_t __swordomp_is_critical__ = false;
-//thread_local size_t current_parallel_id;
-
+#define TLS
+//#define NOTLS
+#ifdef TLS
+thread_local uint64_t tid = 0;
+thread_local size_t *stack;
+thread_local size_t stacksize;
+thread_local int __swordomp_status__ = 0;
+thread_local uint8_t __swordomp_is_critical__ = false;
+#elif NOTLS
 extern thread_local uint64_t tid;
 extern thread_local size_t *stack;
 extern thread_local size_t stacksize;
 extern thread_local int __swordomp_status__;
 extern thread_local uint8_t __swordomp_is_critical__;
+#else
+#define MAX_THREADS 256
+thread_local uint64_t tid;
+ThreadInfo threadInfo[MAX_THREADS];
+#endif
 
 // n = 1,000,000, p = 1.0E-10 (1 in 10,000,000,000) → m = 47,925,292 (5.71MB), k = 33
 #define MURMUR3
@@ -292,7 +306,6 @@ public:
 	void clear();
 
 private:
-	// std::unordered_map<std::string, boost::bloom_filters::counting_bloom_filter<size_t, NUM_OF_ITEMS, TID_NUM_OF_BITS, hash_function>> filters;
 	DECLARE_FILTER(unsafe_read);
 	DECLARE_FILTER(unsafe_write);
 	DECLARE_FILTER(mutex_read);
@@ -300,7 +313,6 @@ private:
 	DECLARE_FILTER(atomic_read);
 	DECLARE_FILTER(atomic_write);
 	boost::bloom_filters::basic_bloom_filter<size_t, NUM_OF_REPORTED_RACES, hash_function_rc> reported_races;
-	// std::unordered_map<size_t, boost::bloom_filters::basic_bloom_filter<size_t, NUM_OF_REPORTED_RACES, hash_function_rc>> reported_races;
 
 };
 

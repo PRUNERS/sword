@@ -18,12 +18,21 @@ SwordRT *swordRT;
 
 // Class SwordRT
 
+#if defined(TLS) || defined(NOTLS)
 #define GET_STACK	 										\
 		pthread_t self = pthread_self(); 					\
 		pthread_attr_t attr;								\
 		pthread_getattr_np(self, &attr);					\
 		pthread_attr_getstack(&attr, (void **) &stack, &stacksize);	\
 		pthread_attr_destroy(&attr);
+#else
+#define GET_STACK	 										\
+		pthread_t self = pthread_self(); 					\
+		pthread_attr_t attr;								\
+		pthread_getattr_np(self, &attr);					\
+		pthread_attr_getstack(&attr, (void **) &threadInfo[tid - 1].stack, &threadInfo[tid - 1].stacksize);	\
+		pthread_attr_destroy(&attr);
+#endif
 
 SwordRT::SwordRT() {
 	//	filters[UNSAFE_READ].clear();
@@ -85,7 +94,6 @@ void SwordRT::clear() {
 void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSize access_size, AccessType access_type, const char *nutex_name) {
 	bool conflict = false;
 	AccessType conflict_type = none;
-	std::string nutex;
 
 	//	if(reported_races[current_parallel_id].probably_contains(pc, hash_value_pc))
 	//		return;
@@ -93,9 +101,15 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 		return;
 
 	// Return if variable belong to thread stack (is local)
+#if defined(TLS) || defined(NOTLS)
 	if((access >= (size_t) stack) &&
 			(access < (size_t) stack + stacksize))
 		return;
+#else
+	if((access >= (size_t) threadInfo[tid - 1].stack) &&
+				(access < (size_t) threadInfo[tid - 1].stack + threadInfo[tid - 1].stacksize))
+			return;
+#endif
 
 	switch(access_type) {
 	case unsafe_read:
@@ -207,7 +221,11 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 
 extern "C" {
 
+#if defined(TLS) || defined(NOTLS)
 #include "swordrt_interface.inl"
+#else
+#include "swordrt_interface2.inl"
+#endif
 
 static void on_ompt_event_thread_begin(ompt_thread_type_t thread_type,
 		ompt_thread_id_t thread_id) {
@@ -222,10 +240,18 @@ static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 		ompt_parallel_id_t parallel_id,
 		uint32_t requested_team_size,
 		void *parallel_function) {
+
+#if defined(TLS) || defined(NOTLS)
 	if(__swordomp_status__ == 0) {
 		// current_parallel_id = parallel_id;
 		swordRT->clear();
 	}
+#else
+	if(threadInfo[tid - 1].__swordomp_status__ == 0) {
+		// current_parallel_id = parallel_id;
+		swordRT->clear();
+	}
+#endif
 }
 
 //static void on_ompt_event_parallel_end(ompt_parallel_id_t parallel_id,
@@ -233,11 +259,19 @@ static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 //		ompt_invoker_t invoker) {}
 
 static void on_acquired_critical(ompt_wait_id_t wait_id) {
+#if defined(TLS) || defined(NOTLS)
 	__swordomp_is_critical__ = true;
+#else
+	threadInfo[tid - 1].__swordomp_is_critical__ = true;
+#endif
 }
 
 static void on_release_critical(ompt_wait_id_t wait_id) {
+#if defined(TLS) || defined(NOTLS)
 	__swordomp_is_critical__ = false;
+#else
+	threadInfo[tid - 1].__swordomp_is_critical__ = false;
+#endif
 }
 
 static void ompt_initialize_fn(ompt_function_lookup_t lookup,
