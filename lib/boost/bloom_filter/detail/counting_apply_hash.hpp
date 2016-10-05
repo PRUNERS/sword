@@ -20,6 +20,7 @@
 #include <boost/foreach.hpp>
 
 #include <stdio.h>
+#include <atomic>
 
 namespace boost {
 namespace bloom_filters {

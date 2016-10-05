@@ -42,9 +42,6 @@ struct apply_hash
 	static void insert(const value_type& t,
 			bitset_type& _bits, std::vector<size_t> &hash_values)
 	{
-		typedef typename boost::mpl::at_c<hash_function_type, N>::type Hash;
-		static Hash hasher;
-
 		_bits[hash_values[N]] = true;
 		apply_hash<N-1, Container>::insert(t, _bits, hash_values);
 	}

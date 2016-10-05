@@ -83,39 +83,15 @@ enum AccessType {
 	nutex_write
 };
 
-const char *FilterType[] = {
-		"none",
-		"unsafe_read",
-		"unsafe_write",
-		"atomic_read",
-		"atomic_write",
-		"mutex_read",
-		"mutex_write",
-		"nutex_read",
-		"nutex_write"
-};
-
 #define DECLARE_FILTER(name) boost::bloom_filters::counting_bloom_filter<size_t, NUM_OF_ITEMS, TID_NUM_OF_BITS, hash_function> filter_##name
 #define CONTAINS(access, name, hash_values) filter_##name.contains(access, tid, hash_values)
 #define CONTAINS_HASH(hash_values, access, name) filter_##name.contains(hash_values, access, tid)
 #define INSERT_HASH(hash_values, access, name) filter_##name.insert(hash_values, access, tid)
 #define CLEAR_FILTER(name) filter_##name.clear()
-// Filters Type
-#define UNSAFE_READ		"unsafe_read"
-#define UNSAFE_WRITE	"unsafe_write"
-#define MUTEX_READ      "mutex_read"
-#define MUTEX_WRITE     "mutex_write"
-#define ATOMIC_READ     "atomic_read"
-#define ATOMIC_WRITE    "atomic_write"
 // More parallels r/w use parallel id?
 // Nutex: use nutex name
 
 static ompt_get_thread_id_t ompt_get_thread_id;
-std::mutex exitMtx;
-std::mutex raceMtx;
-std::mutex filterMtx;
-std::mutex threadMtx;
-std::mutex queueMtx;
 
 #define TLS
 //#define NOTLS
@@ -141,7 +117,7 @@ ThreadInfo threadInfo[MAX_THREADS];
 #define MURMUR3
 #ifdef MURMUR3
 typedef boost::mpl::vector<
-		boost::bloom_filters::murmurhash3<size_t, 2> // 1
+		boost::bloom_filters::murmurhash3<size_t, 137> // 1
 //		boost::bloom_filters::murmurhash3<size_t, 3>, // 2
 //		boost::bloom_filters::murmurhash3<size_t, 5>, // 3
 //		boost::bloom_filters::murmurhash3<size_t, 7>, // 4
@@ -224,7 +200,7 @@ typedef boost::mpl::vector<
 //		boost::bloom_filters::murmurhash3<size_t, 17>, // 7
 //		boost::bloom_filters::murmurhash3<size_t, 19>, // 8
 //		boost::bloom_filters::murmurhash3<size_t, 23>, // 9
-//		boost::bloom_filters::murmurhash3<size_t, 29> // 10
+//		boost::bloom_filters::murmurhash3<size_t, 29>, // 10
 //		boost::bloom_filters::murmurhash3<size_t, 31>, // 11
 //		boost::bloom_filters::murmurhash3<size_t, 37>, // 12
 //		boost::bloom_filters::murmurhash3<size_t, 41>, // 13
@@ -288,7 +264,7 @@ typedef boost::mpl::vector<
 #endif
 
 thread_local std::vector<size_t> hash_values(boost::mpl::size<hash_function>::value);
-thread_local std::vector<size_t> hash_value_pc(boost::mpl::size<hash_function>::value);
+thread_local std::vector<size_t> hash_value_pc(boost::mpl::size<hash_function_rc>::value);
 
 class SwordRT {
 

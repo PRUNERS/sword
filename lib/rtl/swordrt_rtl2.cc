@@ -8,8 +8,6 @@
 //===----------------------------------------------------------------------===//
 //
 // This file is a part of Archer/SwordRT, an OpenMP race detector.
-//
-// Main file (entry points) for the TSan run-time.
 //===----------------------------------------------------------------------===//
 
 #include "swordrt_rtl2.h"
@@ -34,69 +32,35 @@ SwordRT *swordRT;
 		pthread_attr_destroy(&attr);
 #endif
 
-SwordRT::SwordRT() {
-	//	filters[UNSAFE_READ].clear();
-	//	filters[UNSAFE_WRITE].clear();
-	//	filters[ATOMIC_READ].clear();
-	//	filters[ATOMIC_WRITE].clear();
-	//	filters[MUTEX_READ].clear();
-	//	filters[MUTEX_WRITE].clear();
-}
+SwordRT::SwordRT() {}
 
 SwordRT::~SwordRT() {}
-
-//bool ALWAYS_INLINE SwordRT::Contains(size_t access, const char *filter_type) {
-//	bool res = filters[filter_type].contains(access, tid);
-//	return (res);
-//}
-//
-//bool ALWAYS_INLINE SwordRT::Contains(size_t access, const char *filter_type, std::vector<size_t>& hash_values) {
-//	bool res = filters[filter_type].contains(access, tid, hash_values);
-//	return (res);
-//}
-//
-//bool ALWAYS_INLINE SwordRT::Contains(std::vector<size_t>& hash_values, size_t access, const char *filter_type) {
-//	bool res = filters[filter_type].contains(hash_values, access, tid);
-//	return (res);
-//}
-//
-//void ALWAYS_INLINE SwordRT::Insert(size_t access, uint64_t tid, const char *filter_type) {
-//	filters[filter_type].insert(access, tid);
-//}
-//
-//void ALWAYS_INLINE SwordRT::Insert(std::vector<size_t>& hash_values, size_t access, uint64_t tid, const char *filter_type) {
-//	filters[filter_type].insert(hash_values, access, tid);
-//}
 
 inline void SwordRT::ReportRace(size_t access, size_t pc, uint64_t tid, AccessSize access_size, AccessType access_type, const char *nutex_name) {
 	// Will call a class that executes llvm-symbolizer at the end of each parallel region,
 	// here we just keep filling up the file that holds all the executable/addresses
 	// We also put the address of a parallel region so we know the parallel region where the
 	// access belongs to
-	// reported_races[current_parallel_id].insert(pc);
 	reported_races.insert(pc);
-	// DEBUG(std::cerr, "RACE[" << std::hex << access << "] - [" << (void *) pc << "]");
+	DEBUG(std::cout, "RACE[" << std::hex << access << "] - [" << (void *) pc << "]");
 	DEBUG(std::cerr, "RACE[" << (void *) pc << "]");
 }
 
 void SwordRT::clear() {
-	// reported_races[current_parallel_id].clear();
+	// DEBUG(std::cout, "Reset filters!");
+	reported_races.clear();
 	CLEAR_FILTER(unsafe_read);
 	CLEAR_FILTER(unsafe_write);
 	CLEAR_FILTER(mutex_read);
 	CLEAR_FILTER(mutex_write);
 	CLEAR_FILTER(atomic_read);
 	CLEAR_FILTER(atomic_write);
-	//	for(auto i : filters)
-	//		i.second.clear();
 }
 
 void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSize access_size, AccessType access_type, const char *nutex_name) {
 	bool conflict = false;
 	AccessType conflict_type = none;
 
-	//	if(reported_races[current_parallel_id].probably_contains(pc, hash_value_pc))
-	//		return;
 	if(reported_races.probably_contains(pc, hash_value_pc))
 		return;
 
@@ -123,10 +87,11 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 			conflict = true;
 			conflict_type = mutex_write;
 		}
-		INSERT_HASH(hash_values, access, unsafe_read);
+		if(!conflict)
+			INSERT_HASH(hash_values, access, unsafe_read);
 		break;
 	case unsafe_write:
-		if(CONTAINS_HASH(hash_values, access, unsafe_read)) {
+		if(CONTAINS(access, unsafe_read, hash_values)) {
 			conflict = true;
 			conflict_type = unsafe_read;
 		} else if(CONTAINS_HASH(hash_values, access, unsafe_write)) {
@@ -145,20 +110,22 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 			conflict = true;
 			conflict_type = mutex_write;
 		}
-		INSERT_HASH(hash_values, access, unsafe_write);
+		if(!conflict)
+			INSERT_HASH(hash_values, access, unsafe_write);
 		break;
 	case mutex_read:
-		if(CONTAINS_HASH(hash_values, access, unsafe_write)) {
+		if(CONTAINS(access, unsafe_write, hash_values)) {
 			conflict = true;
 			conflict_type = unsafe_write;
 		} else if(CONTAINS_HASH(hash_values, access, atomic_write)) {
 			conflict = true;
 			conflict_type = atomic_write;
 		}
-		INSERT_HASH(hash_values, access, mutex_read);
+		if(!conflict)
+			INSERT_HASH(hash_values, access, mutex_read);
 		break;
 	case mutex_write:
-		if(CONTAINS_HASH(hash_values, access, unsafe_read)) {
+		if(CONTAINS(access, unsafe_read, hash_values)) {
 			conflict = true;
 			conflict_type = unsafe_read;
 		} else if(CONTAINS_HASH(hash_values, access, unsafe_write)) {
@@ -171,20 +138,22 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 			conflict = true;
 			conflict_type = atomic_write;
 		}
-		INSERT_HASH(hash_values, access, mutex_write);
+		if(!conflict)
+			INSERT_HASH(hash_values, access, mutex_write);
 		break;
 	case atomic_read:
-		if(CONTAINS_HASH(hash_values, access, unsafe_write)) {
+		if(CONTAINS(access, unsafe_write, hash_values)) {
 			conflict = true;
 			conflict_type = unsafe_write;
 		} else if(CONTAINS_HASH(hash_values, access, mutex_write)) {
 			conflict = true;
 			conflict_type = mutex_write;
 		}
-		INSERT_HASH(hash_values, access, atomic_read);
+		if(!conflict)
+			INSERT_HASH(hash_values, access, atomic_read);
 		break;
 	case atomic_write:
-		if(CONTAINS_HASH(hash_values, access, unsafe_read)) {
+		if(CONTAINS(access, unsafe_read, hash_values)) {
 			conflict = true;
 			conflict_type = unsafe_read;
 		} else if(CONTAINS_HASH(hash_values, access, unsafe_write)) {
@@ -197,7 +166,8 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 			conflict = true;
 			conflict_type = mutex_write;
 		}
-		INSERT_HASH(hash_values, access, atomic_write);
+		if(!conflict)
+			INSERT_HASH(hash_values, access, atomic_write);
 		break;
 	case nutex_read:
 		break;
@@ -207,12 +177,10 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 		return;
 	}
 
-	// swordRT->Insert(hash_values, access, tid, FilterType[access_type]);
-
 	if(conflict) {
 		// ReportRace(access, pc, tid, access_size, conflict_type, nutex_name);
-		// reported_races[current_parallel_id].insert(pc, hash_value_pc);
 		reported_races.insert(pc, hash_value_pc);
+		// DEBUG(std::cout, "RACE[" << std::hex << access << "] - [" << hash_value_pc[0] << "] - [" << tid << "] - [" << (void *) pc << "]");
 		DEBUG(std::cerr, "RACE[" << (void *) pc << "]");
 	}
 }
@@ -243,12 +211,10 @@ static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 
 #if defined(TLS) || defined(NOTLS)
 	if(__swordomp_status__ == 0) {
-		// current_parallel_id = parallel_id;
 		swordRT->clear();
 	}
 #else
 	if(threadInfo[tid - 1].__swordomp_status__ == 0) {
-		// current_parallel_id = parallel_id;
 		swordRT->clear();
 	}
 #endif
