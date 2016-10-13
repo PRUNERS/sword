@@ -16,9 +16,8 @@
 #define BOOST_MPL_CFG_NO_PREPROCESSED_HEADERS
 #define BOOST_MPL_LIMIT_VECTOR_SIZE 40
 #include <boost/bloom_filter/basic_bloom_filter.hpp>
-#include <boost/bloom_filter/counting_bloom_filter.hpp>
+#include <boost/bloom_filter/twohash_counting_bloom_filter.hpp>
 #include <boost/bloom_filter/detail/exceptions.hpp>
-#include <boost/bloom_filter/hash/murmurhash3.hpp>
 #include <boost/cstdint.hpp>
 #include <boost/mpl/vector.hpp>
 
@@ -83,10 +82,10 @@ enum AccessType {
 	nutex_write
 };
 
-#define DECLARE_FILTER(name) boost::bloom_filters::counting_bloom_filter<size_t, NUM_OF_ITEMS, TID_NUM_OF_BITS, hash_function> filter_##name
-#define CONTAINS(access, name, hash_values) filter_##name.contains(access, tid, hash_values)
-#define CONTAINS_HASH(hash_values, access, name) filter_##name.contains(hash_values, access, tid)
-#define INSERT_HASH(hash_values, access, name) filter_##name.insert(hash_values, access, tid)
+#define DECLARE_FILTER(name) boost::bloom_filters::twohash_counting_bloom_filter<size_t, NUM_OF_ITEMS, TID_NUM_OF_BITS> filter_##name
+#define CONTAINS(access, name) filter_##name.contains(access, tid, &hash_value1, &hash_value2)
+#define CONTAINS_HASH(access, name) filter_##name.contains(hash_value1, hash_value2, access, tid)
+#define INSERT_HASH(access, name) filter_##name.insert(hash_value1, hash_value2, access, tid)
 #define CLEAR_FILTER(name) filter_##name.clear()
 // More parallels r/w use parallel id?
 // Nutex: use nutex name
@@ -114,82 +113,6 @@ ThreadInfo threadInfo[MAX_THREADS];
 #endif
 
 // n = 1,000,000, p = 1.0E-10 (1 in 10,000,000,000) → m = 47,925,292 (5.71MB), k = 33
-#define MURMUR3
-#ifdef MURMUR3
-typedef boost::mpl::vector<
-		boost::bloom_filters::murmurhash3<size_t, 137> // 1
-//		boost::bloom_filters::murmurhash3<size_t, 3>, // 2
-//		boost::bloom_filters::murmurhash3<size_t, 5>, // 3
-//		boost::bloom_filters::murmurhash3<size_t, 7>, // 4
-//		boost::bloom_filters::murmurhash3<size_t, 11>, // 5
-//		boost::bloom_filters::murmurhash3<size_t, 13>, // 6
-//		boost::bloom_filters::murmurhash3<size_t, 17>, // 7
-//		boost::bloom_filters::murmurhash3<size_t, 19>, // 8
-//		boost::bloom_filters::murmurhash3<size_t, 23>, // 9
-//		boost::bloom_filters::murmurhash3<size_t, 29>, // 10
-//		boost::bloom_filters::murmurhash3<size_t, 31>, // 11
-//		boost::bloom_filters::murmurhash3<size_t, 37>, // 12
-//		boost::bloom_filters::murmurhash3<size_t, 41>, // 13
-//		boost::bloom_filters::murmurhash3<size_t, 43>, // 14
-//		boost::bloom_filters::murmurhash3<size_t, 47>, // 15
-//		boost::bloom_filters::murmurhash3<size_t, 53>, // 16
-//		boost::bloom_filters::murmurhash3<size_t, 59>, // 17
-//		boost::bloom_filters::murmurhash3<size_t, 61>, // 18
-//		boost::bloom_filters::murmurhash3<size_t, 67>, // 19
-//		boost::bloom_filters::murmurhash3<size_t, 71>, // 20
-//		boost::bloom_filters::murmurhash3<size_t, 73>, // 21
-//		boost::bloom_filters::murmurhash3<size_t, 79>, // 22
-//		boost::bloom_filters::murmurhash3<size_t, 83>, // 23
-//		boost::bloom_filters::murmurhash3<size_t, 89>, // 24
-//		boost::bloom_filters::murmurhash3<size_t, 97>, // 25
-//		boost::bloom_filters::murmurhash3<size_t, 101>, // 26
-//		boost::bloom_filters::murmurhash3<size_t, 103>, // 27
-//		boost::bloom_filters::murmurhash3<size_t, 107>, // 28
-//		boost::bloom_filters::murmurhash3<size_t, 109>, // 29
-//		boost::bloom_filters::murmurhash3<size_t, 113>, // 30
-//		boost::bloom_filters::murmurhash3<size_t, 127>, // 31
-//		boost::bloom_filters::murmurhash3<size_t, 131>, // 32
-//		boost::bloom_filters::murmurhash3<size_t, 137>  // 33
-> hash_function;
-#else
-typedef boost::mpl::vector<
-		boost::bloom_filters::boost_hash<size_t, 2>, // 1
-		boost::bloom_filters::boost_hash<size_t, 3>, // 2
-		boost::bloom_filters::boost_hash<size_t, 5>, // 3
-		boost::bloom_filters::boost_hash<size_t, 7>, // 4
-		boost::bloom_filters::boost_hash<size_t, 11>, // 5
-		boost::bloom_filters::boost_hash<size_t, 13>, // 6
-		boost::bloom_filters::boost_hash<size_t, 17>, // 7
-		boost::bloom_filters::boost_hash<size_t, 19>, // 8
-		boost::bloom_filters::boost_hash<size_t, 23>, // 9
-		boost::bloom_filters::boost_hash<size_t, 29>, // 10
-		boost::bloom_filters::boost_hash<size_t, 31>, // 11
-		boost::bloom_filters::boost_hash<size_t, 37>, // 12
-		boost::bloom_filters::boost_hash<size_t, 41>, // 13
-		boost::bloom_filters::boost_hash<size_t, 43>, // 14
-		boost::bloom_filters::boost_hash<size_t, 47>, // 15
-		boost::bloom_filters::boost_hash<size_t, 53>, // 16
-		boost::bloom_filters::boost_hash<size_t, 59>, // 17
-		boost::bloom_filters::boost_hash<size_t, 61>, // 18
-		boost::bloom_filters::boost_hash<size_t, 67>, // 19
-		boost::bloom_filters::boost_hash<size_t, 71>, // 20
-		boost::bloom_filters::boost_hash<size_t, 73>, // 21
-		boost::bloom_filters::boost_hash<size_t, 79>, // 22
-		boost::bloom_filters::boost_hash<size_t, 83>, // 23
-		boost::bloom_filters::boost_hash<size_t, 89>, // 24
-		boost::bloom_filters::boost_hash<size_t, 97>, // 25
-		boost::bloom_filters::boost_hash<size_t, 101>, // 26
-		boost::bloom_filters::boost_hash<size_t, 103>, // 27
-		boost::bloom_filters::boost_hash<size_t, 107>, // 28
-		boost::bloom_filters::boost_hash<size_t, 109>, // 29
-		boost::bloom_filters::boost_hash<size_t, 113>, // 30
-		boost::bloom_filters::boost_hash<size_t, 127>, // 31
-		boost::bloom_filters::boost_hash<size_t, 131>, // 32
-		boost::bloom_filters::boost_hash<size_t, 137>  // 33
-> hash_function;
-#endif
-
-#ifdef MURMUR3
 typedef boost::mpl::vector<
 		boost::bloom_filters::murmurhash3<size_t, 2> // 1
 //		boost::bloom_filters::murmurhash3<size_t, 3>, // 2
@@ -225,46 +148,11 @@ typedef boost::mpl::vector<
 //		boost::bloom_filters::murmurhash3<size_t, 131>, // 32
 //		boost::bloom_filters::murmurhash3<size_t, 137>  // 33
 > hash_function_rc;
-#else
-typedef boost::mpl::vector<
-		boost::bloom_filters::boost_hash<size_t, 2>, // 1
-		boost::bloom_filters::boost_hash<size_t, 3>, // 2
-		boost::bloom_filters::boost_hash<size_t, 5>, // 3
-		boost::bloom_filters::boost_hash<size_t, 7>, // 4
-		boost::bloom_filters::boost_hash<size_t, 11>, // 5
-		boost::bloom_filters::boost_hash<size_t, 13>, // 6
-		boost::bloom_filters::boost_hash<size_t, 17>, // 7
-		boost::bloom_filters::boost_hash<size_t, 19>, // 8
-		boost::bloom_filters::boost_hash<size_t, 23>, // 9
-		boost::bloom_filters::boost_hash<size_t, 29>, // 10
-		boost::bloom_filters::boost_hash<size_t, 31>, // 11
-		boost::bloom_filters::boost_hash<size_t, 37>, // 12
-		boost::bloom_filters::boost_hash<size_t, 41>, // 13
-		boost::bloom_filters::boost_hash<size_t, 43>, // 14
-		boost::bloom_filters::boost_hash<size_t, 47>, // 15
-		boost::bloom_filters::boost_hash<size_t, 53>, // 16
-		boost::bloom_filters::boost_hash<size_t, 59>, // 17
-		boost::bloom_filters::boost_hash<size_t, 61>, // 18
-		boost::bloom_filters::boost_hash<size_t, 67>, // 19
-		boost::bloom_filters::boost_hash<size_t, 71>, // 20
-		boost::bloom_filters::boost_hash<size_t, 73>, // 21
-		boost::bloom_filters::boost_hash<size_t, 79>, // 22
-		boost::bloom_filters::boost_hash<size_t, 83>, // 23
-		boost::bloom_filters::boost_hash<size_t, 89>, // 24
-		boost::bloom_filters::boost_hash<size_t, 97>, // 25
-		boost::bloom_filters::boost_hash<size_t, 101>, // 26
-		boost::bloom_filters::boost_hash<size_t, 103>, // 27
-		boost::bloom_filters::boost_hash<size_t, 107>, // 28
-		boost::bloom_filters::boost_hash<size_t, 109>, // 29
-		boost::bloom_filters::boost_hash<size_t, 113>, // 30
-		boost::bloom_filters::boost_hash<size_t, 127>, // 31
-		boost::bloom_filters::boost_hash<size_t, 131>, // 32
-		boost::bloom_filters::boost_hash<size_t, 137>  // 33
-> hash_function_rc;
-#endif
 
-thread_local std::vector<size_t> hash_values(boost::mpl::size<hash_function>::value);
 thread_local std::vector<size_t> hash_value_pc(boost::mpl::size<hash_function_rc>::value);
+
+thread_local size_t hash_value1;
+thread_local size_t hash_value2;
 
 class SwordRT {
 

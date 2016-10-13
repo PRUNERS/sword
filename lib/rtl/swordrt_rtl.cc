@@ -10,7 +10,7 @@
 // This file is a part of Archer/SwordRT, an OpenMP race detector.
 //===----------------------------------------------------------------------===//
 
-#include "swordrt_rtl2.h"
+#include "swordrt_rtl.h"
 
 SwordRT *swordRT;
 
@@ -71,103 +71,103 @@ void ALWAYS_INLINE SwordRT::CheckMemoryAccess(size_t access, size_t pc, AccessSi
 		return;
 #else
 	if((access >= (size_t) threadInfo[tid - 1].stack) &&
-				(access < (size_t) threadInfo[tid - 1].stack + threadInfo[tid - 1].stacksize))
-			return;
+			(access < (size_t) threadInfo[tid - 1].stack + threadInfo[tid - 1].stacksize))
+		return;
 #endif
 
 	switch(access_type) {
 	case unsafe_read:
-		if(CONTAINS(access, unsafe_write)) {
+		if(CONTAINS(access, unsafe_write, hash_values)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(CONTAINS_HASH(access, atomic_write)) {
+		} else if(CONTAINS_HASH(hash_values, access, atomic_write)) {
 			conflict = true;
 			conflict_type = atomic_write;
-		} else if(CONTAINS_HASH(access, mutex_write)) {
+		} else if(CONTAINS_HASH(hash_values, access, mutex_write)) {
 			conflict = true;
 			conflict_type = mutex_write;
 		}
 		if(!conflict)
-			INSERT_HASH(access, unsafe_read);
+			INSERT_HASH(hash_values, access, unsafe_read);
 		break;
 	case unsafe_write:
-		if(CONTAINS(access, unsafe_read)) {
+		if(CONTAINS(access, unsafe_read, hash_values)) {
 			conflict = true;
 			conflict_type = unsafe_read;
-		} else if(CONTAINS_HASH(access, unsafe_write)) {
+		} else if(CONTAINS_HASH(hash_values, access, unsafe_write)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(CONTAINS_HASH(access, atomic_read)) {
+		} else if(CONTAINS_HASH(hash_values, access, atomic_read)) {
 			conflict = true;
 			conflict_type = atomic_read;
-		} else if(CONTAINS_HASH(access, atomic_write)) {
+		} else if(CONTAINS_HASH(hash_values, access, atomic_write)) {
 			conflict = true;
 			conflict_type = atomic_write;
-		} else if(CONTAINS_HASH(access, mutex_read)) {
+		} else if(CONTAINS_HASH(hash_values, access, mutex_read)) {
 			conflict = true;
 			conflict_type = mutex_read;
-		} else if(CONTAINS_HASH(access, mutex_write)) {
+		} else if(CONTAINS_HASH(hash_values, access, mutex_write)) {
 			conflict = true;
 			conflict_type = mutex_write;
 		}
 		if(!conflict)
-			INSERT_HASH(access, unsafe_write);
+			INSERT_HASH(hash_values, access, unsafe_write);
 		break;
 	case mutex_read:
-		if(CONTAINS(access, unsafe_write)) {
+		if(CONTAINS(access, unsafe_write, hash_values)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(CONTAINS_HASH(access, atomic_write)) {
+		} else if(CONTAINS_HASH(hash_values, access, atomic_write)) {
 			conflict = true;
 			conflict_type = atomic_write;
 		}
 		if(!conflict)
-			INSERT_HASH(access, mutex_read);
+			INSERT_HASH(hash_values, access, mutex_read);
 		break;
 	case mutex_write:
-		if(CONTAINS(access, unsafe_read)) {
+		if(CONTAINS(access, unsafe_read, hash_values)) {
 			conflict = true;
 			conflict_type = unsafe_read;
-		} else if(CONTAINS_HASH(access, unsafe_write)) {
+		} else if(CONTAINS_HASH(hash_values, access, unsafe_write)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(CONTAINS_HASH(access, atomic_read)) {
+		} else if(CONTAINS_HASH(hash_values, access, atomic_read)) {
 			conflict = true;
 			conflict_type = atomic_read;
-		} else if(CONTAINS_HASH(access, atomic_write)) {
+		} else if(CONTAINS_HASH(hash_values, access, atomic_write)) {
 			conflict = true;
 			conflict_type = atomic_write;
 		}
 		if(!conflict)
-			INSERT_HASH(access, mutex_write);
+			INSERT_HASH(hash_values, access, mutex_write);
 		break;
 	case atomic_read:
-		if(CONTAINS(access, unsafe_write)) {
+		if(CONTAINS(access, unsafe_write, hash_values)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(CONTAINS_HASH(access, mutex_write)) {
+		} else if(CONTAINS_HASH(hash_values, access, mutex_write)) {
 			conflict = true;
 			conflict_type = mutex_write;
 		}
 		if(!conflict)
-			INSERT_HASH(access, atomic_read);
+			INSERT_HASH(hash_values, access, atomic_read);
 		break;
 	case atomic_write:
-		if(CONTAINS(access, unsafe_read)) {
+		if(CONTAINS(access, unsafe_read, hash_values)) {
 			conflict = true;
 			conflict_type = unsafe_read;
-		} else if(CONTAINS_HASH(access, unsafe_write)) {
+		} else if(CONTAINS_HASH(hash_values, access, unsafe_write)) {
 			conflict = true;
 			conflict_type = unsafe_write;
-		} else if(CONTAINS_HASH(access, mutex_read)) {
+		} else if(CONTAINS_HASH(hash_values, access, mutex_read)) {
 			conflict = true;
 			conflict_type = mutex_read;
-		} else if(CONTAINS_HASH(access, mutex_write)) {
+		} else if(CONTAINS_HASH(hash_values, access, mutex_write)) {
 			conflict = true;
 			conflict_type = mutex_write;
 		}
 		if(!conflict)
-			INSERT_HASH(access, atomic_write);
+			INSERT_HASH(hash_values, access, atomic_write);
 		break;
 	case nutex_read:
 		break;
@@ -192,7 +192,7 @@ extern "C" {
 #if defined(TLS) || defined(NOTLS)
 #include "swordrt_interface.inl"
 #else
-#include "swordrt_interface2.inl"
+#include "swordrt_interface.inl"
 #endif
 
 static void on_ompt_event_thread_begin(ompt_thread_type_t thread_type,
@@ -212,6 +212,9 @@ static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 #if defined(TLS) || defined(NOTLS)
 	if(__swordomp_status__ == 0) {
 		swordRT->clear();
+		// clear(binAccesses);
+		// binAccesses = NULL;
+		binAccesses.clear();
 	}
 #else
 	if(threadInfo[tid - 1].__swordomp_status__ == 0) {
@@ -240,6 +243,18 @@ static void on_release_critical(ompt_wait_id_t wait_id) {
 #endif
 }
 
+static void on_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
+		ompt_task_id_t task_id) {
+	// in_order_traversal(binAccesses);
+	//	 for (std::unordered_map<uint64_t, node>::iterator it = binAccesses.begin(); it != binAccesses.end(); ++it)
+	//		 printf("%lu-%lu-0x%lx-%lu-%u\n", tid, it->first, it->second.address, it->second.count, it->second.type);
+}
+
+static void on_ompt_event_barrier_end(ompt_parallel_id_t parallel_id,
+		ompt_task_id_t task_id) {
+
+}
+
 static void ompt_initialize_fn(ompt_function_lookup_t lookup,
 		const char *runtime_version,
 		unsigned int ompt_version) {
@@ -266,6 +281,10 @@ static void ompt_initialize_fn(ompt_function_lookup_t lookup,
 			(ompt_callback_t) &on_acquired_critical);
 	ompt_set_callback(ompt_event_release_critical,
 			(ompt_callback_t) &on_release_critical);
+	ompt_set_callback(ompt_event_barrier_begin,
+			(ompt_callback_t) &on_ompt_event_barrier_begin);
+	ompt_set_callback(ompt_event_barrier_end,
+			(ompt_callback_t) &on_ompt_event_barrier_end);
 }
 
 ompt_initialize_t ompt_tool(void) {
