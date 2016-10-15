@@ -19,6 +19,25 @@
 		pthread_getattr_np(self, &attr);					\
 		pthread_attr_getstack(&attr, (void **) &stack, &stacksize);	\
 		pthread_attr_destroy(&attr);
+
+#define CHECK_STACK												\
+		size_t access = (size_t) addr;							\
+		if((access >= (size_t) stack) &&						\
+				(access < (size_t) stack + stacksize))			\
+				return;
+
+#define SAVE_ACCESS(access, size, type)															\
+		std::unordered_map<uint64_t, AccessInfo>::const_iterator item = accesses.find(hash); 	\
+		if(item == accesses.end()) {															\
+			accesses.insert(std::make_pair(hash, AccessInfo(access, 1, size, type, CALLERPC)));	\
+		} else {																				\
+			if(access < item->second.address) {													\
+				accesses[hash].address = access;												\
+				accesses[hash].count++;															\
+			} else if(((access - item->second.address) / size8) > item->second.count) {			\
+				accesses[hash].count++;															\
+			}																					\
+		}
 #else
 #define GET_STACK	 										\
 		pthread_t self = pthread_self(); 					\
@@ -26,6 +45,12 @@
 		pthread_getattr_np(self, &attr);					\
 		pthread_attr_getstack(&attr, (void **) &threadInfo[tid - 1].stack, &threadInfo[tid - 1].stacksize);	\
 		pthread_attr_destroy(&attr);
+
+#define CHECK_STACK												\
+		size_t access = (size_t) addr;							\
+		if((access >= (size_t) stack) &&						\
+				(access < (size_t) stack + stacksize))			\
+				return;
 #endif
 
 extern "C" {
@@ -38,6 +63,7 @@ extern "C" {
 
 static void on_ompt_event_thread_begin(ompt_thread_type_t thread_type,
 		ompt_thread_id_t thread_id) {
+
 	// Set thread id
 	tid = thread_id;
 	// Get stack pointer and stack size
@@ -52,18 +78,24 @@ static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 
 #if defined(TLS) || defined(NOTLS)
 	if(__swordomp_status__ == 0) {
-		binAccesses.clear();
+		accesses.clear();
 	}
 #else
 	if(threadInfo[tid - 1].__swordomp_status__ == 0) {
-		binAccesses.clear();
+		accesses.clear();
 	}
 #endif
+
+	DATA(std::cerr, "PARALLEL_START[" << std::dec << parallel_id << "]");
 }
 
-//static void on_ompt_event_parallel_end(ompt_parallel_id_t parallel_id,
-//		ompt_task_id_t task_id,
-//		ompt_invoker_t invoker) {}
+static void on_ompt_event_parallel_end(ompt_parallel_id_t parallel_id,
+		ompt_task_id_t task_id,
+		ompt_invoker_t invoker) {
+	DATA(std::cerr, "PARALLEL_END[" << std::dec << parallel_id << "]");
+	if(__swordomp_status__ == 0)
+		DATA(std::cerr, "PARALLEL_BREAK");
+}
 
 static void on_acquired_critical(ompt_wait_id_t wait_id) {
 #if defined(TLS) || defined(NOTLS)
@@ -83,9 +115,11 @@ static void on_release_critical(ompt_wait_id_t wait_id) {
 
 static void on_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 		ompt_task_id_t task_id) {
-	// in_order_traversal(binAccesses);
-	//	 for (std::unordered_map<uint64_t, AccessInfo>::iterator it = binAccesses.begin(); it != binAccesses.end(); ++it)
-	//		 printf("%lu-%lu-0x%lx-%lu-%u\n", tid, it->first, it->second.address, it->second.count, it->second.type);
+	DATA(std::cerr, "DATA_BEGIN[" << std::dec << parallel_id << "," << task_id << "," << tid << "]");
+	for (std::unordered_map<uint64_t, AccessInfo>::iterator it = accesses.begin(); it != accesses.end(); ++it) {
+		DATA(std::cerr, "DATA[" << std::hex << "0x" << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << it->second.pc << "]");
+	}
+	DATA(std::cerr, "DATA_END[" << std::dec << parallel_id << "," << task_id << "," << tid << "]");
 }
 
 static void on_ompt_event_barrier_end(ompt_parallel_id_t parallel_id,
@@ -97,7 +131,7 @@ static void ompt_initialize_fn(ompt_function_lookup_t lookup,
 		const char *runtime_version,
 		unsigned int ompt_version) {
 
-	DEBUG(std::cout, "OMPT Initizialization: Runtime Version: " << runtime_version << ", OMPT Version: " << ompt_version);
+	DEBUG(std::cout, "OMPT Initizialization: Runtime Version: " << std::dec << runtime_version << ", OMPT Version: " << std::dec << ompt_version);
 
 	ompt_set_callback_t ompt_set_callback = (ompt_set_callback_t) lookup("ompt_set_callback");
 	ompt_get_thread_id = (ompt_get_thread_id_t) lookup("ompt_get_thread_id");
@@ -106,8 +140,8 @@ static void ompt_initialize_fn(ompt_function_lookup_t lookup,
 			(ompt_callback_t) &on_ompt_event_thread_begin);
 	ompt_set_callback(ompt_event_parallel_begin,
 			(ompt_callback_t) &on_ompt_event_parallel_begin);
-	//	ompt_set_callback(ompt_event_parallel_end,
-	//			(ompt_callback_t) &on_ompt_event_parallel_end);
+	ompt_set_callback(ompt_event_parallel_end,
+			(ompt_callback_t) &on_ompt_event_parallel_end);
 	ompt_set_callback(ompt_event_acquired_critical,
 			(ompt_callback_t) &on_acquired_critical);
 	ompt_set_callback(ompt_event_release_critical,

@@ -23,14 +23,19 @@
 #include <thread>
 #include <unordered_map>
 
-#define SWORDRT_DEBUG 1
+#define SWORDRT_DEBUG 	1
 
 std::mutex pmtx;
 #ifdef SWORDRT_DEBUG
 #define ASSERT(x) assert(x);
+#define DATA(stream, x) 										\
+		do {													\
+			std::unique_lock<std::mutex> lock(pmtx);			\
+			stream << x << std::endl;							\
+		} while(0)
 #define DEBUG(stream, x) 										\
 		do {													\
-			std::unique_lock<std::mutex> lock(pmtx);		\
+			std::unique_lock<std::mutex> lock(pmtx);			\
 			stream << "DEBUG INFO[" << x << "][" << __FUNCTION__ << ":" << __FILE__ << ":" << std::dec << __LINE__ << "]" << std::endl;	\
 		} while(0)
 #else
@@ -70,8 +75,24 @@ struct AccessInfo
 	size_t count;
 	AccessSize size;
 	AccessType type;
-	AccessInfo() { address = 0; count = 0; size = size4; type = none; };
-	AccessInfo(size_t a, size_t c, AccessSize s, AccessType t) { address = a; count = c; size = s; type = t; }
+	size_t pc;
+
+	AccessInfo() {
+		address = 0;
+		count = 0;
+		size = size4;
+		type = none;
+		pc = 0;
+	}
+
+	AccessInfo(size_t a, size_t c,	AccessSize s,
+			AccessType t, size_t p) {
+		address = a;
+		count = c;
+		size = s;
+		type = t;
+		pc = p;
+	}
 };
 
 #if !defined(TLS) && !defined(NOTLS)
@@ -93,14 +114,16 @@ thread_local int __swordomp_status__ = 0;
 thread_local uint8_t __swordomp_is_critical__ = false;
 thread_local AccessInfo accessInfo[10];
 thread_local unsigned num_accesses = 1;
-thread_local std::unordered_map<uint64_t, AccessInfo> binAccesses;
+thread_local std::unordered_map<uint64_t, AccessInfo> accesses;
+size_t barrier_id;
 #elif NOTLS
 extern thread_local uint64_t tid;
 extern thread_local size_t *stack;
 extern thread_local size_t stacksize;
 extern thread_local int __swordomp_status__;
 extern thread_local uint8_t __swordomp_is_critical__;
-thread_local std::unordered_map<uint64_t, AccessInfo> binAccesses;
+thread_local std::unordered_map<uint64_t, AccessInfo> accesses;
+size_t barrier_id;
 #else
 #define MAX_THREADS 256
 thread_local uint64_t tid;
