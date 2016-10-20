@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "swordrt_rtl.h"
+#include <sstream>
 
 #if defined(TLS) || defined(NOTLS)
 #define GET_STACK	 										\
@@ -86,15 +87,15 @@ static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 	}
 #endif
 
-	DATA(std::cerr, "PARALLEL_START[" << std::dec << parallel_id << "]");
+	DATA(datafile, "PARALLEL_START[" << std::dec << parallel_id << "]\n");
 }
 
 static void on_ompt_event_parallel_end(ompt_parallel_id_t parallel_id,
 		ompt_task_id_t task_id,
 		ompt_invoker_t invoker) {
-	DATA(std::cerr, "PARALLEL_END[" << std::dec << parallel_id << "]");
+	DATA(datafile, "PARALLEL_END[" << std::dec << parallel_id << "]\n");
 	if(__swordomp_status__ == 0)
-		DATA(std::cerr, "PARALLEL_BREAK");
+		DATA(datafile, "PARALLEL_BREAK\n");
 }
 
 static void on_acquired_critical(ompt_wait_id_t wait_id) {
@@ -115,11 +116,14 @@ static void on_release_critical(ompt_wait_id_t wait_id) {
 
 static void on_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 		ompt_task_id_t task_id) {
-	DATA(std::cerr, "DATA_BEGIN[" << std::dec << parallel_id << "," << task_id << "," << tid << "]");
+	std::ostringstream oss;
+	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << task_id << "," << tid << "]\n";
+
 	for (std::unordered_map<uint64_t, AccessInfo>::iterator it = accesses.begin(); it != accesses.end(); ++it) {
-		DATA(std::cerr, "DATA[" << std::hex << "0x" << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << it->second.pc << "]");
+		oss << "DATA[" << std::hex << "0x" << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "]\n";
 	}
-	DATA(std::cerr, "DATA_END[" << std::dec << parallel_id << "," << task_id << "," << tid << "]");
+	oss << "DATA_END[" << std::dec << parallel_id << "," << task_id << "," << tid << "]\n";
+	DATA(datafile, oss.str());
 }
 
 static void on_ompt_event_barrier_end(ompt_parallel_id_t parallel_id,
@@ -132,6 +136,8 @@ static void ompt_initialize_fn(ompt_function_lookup_t lookup,
 		unsigned int ompt_version) {
 
 	DEBUG(std::cout, "OMPT Initizialization: Runtime Version: " << std::dec << runtime_version << ", OMPT Version: " << std::dec << ompt_version);
+
+	datafile.open("outputdata.txt");
 
 	ompt_set_callback_t ompt_set_callback = (ompt_set_callback_t) lookup("ompt_set_callback");
 	ompt_get_thread_id = (ompt_get_thread_id_t) lookup("ompt_get_thread_id");

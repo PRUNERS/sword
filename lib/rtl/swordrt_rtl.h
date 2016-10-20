@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -26,12 +27,13 @@
 #define SWORDRT_DEBUG 	1
 
 std::mutex pmtx;
+std::ofstream datafile;
 #ifdef SWORDRT_DEBUG
 #define ASSERT(x) assert(x);
 #define DATA(stream, x) 										\
 		do {													\
 			std::unique_lock<std::mutex> lock(pmtx);			\
-			stream << x << std::endl;							\
+			stream << x;										\
 		} while(0)
 #define DEBUG(stream, x) 										\
 		do {													\
