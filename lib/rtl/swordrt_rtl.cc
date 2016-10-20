@@ -117,13 +117,14 @@ static void on_release_critical(ompt_wait_id_t wait_id) {
 static void on_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 		ompt_task_id_t task_id) {
 	std::ostringstream oss;
-	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << task_id << "," << tid << "]\n";
+	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << task_id << "," << tid << "," << __swordomp_status__ << "]\n";
 
 	for (std::unordered_map<uint64_t, AccessInfo>::iterator it = accesses.begin(); it != accesses.end(); ++it) {
 		oss << "DATA[" << std::hex << "0x" << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "]\n";
 	}
-	oss << "DATA_END[" << std::dec << parallel_id << "," << task_id << "," << tid << "]\n";
+	oss << "DATA_END[" << std::dec << parallel_id << "," << task_id << "," << tid << "," << __swordomp_status__ << "]\n";
 	DATA(datafile, oss.str());
+	accesses.clear();
 }
 
 static void on_ompt_event_barrier_end(ompt_parallel_id_t parallel_id,

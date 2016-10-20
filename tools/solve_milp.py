@@ -11,12 +11,13 @@ from swiglpk import *
 import errno
 import math
 import os
+import random
 import re
 import shutil
 import subprocess
 import sys
 
-LIMIT = 9999999999999999
+# LIMIT=0
 
 symbolizer = 'which llvm-symbolizer'
 process = subprocess.Popen(symbolizer.split(), stdout=subprocess.PIPE)
@@ -41,7 +42,7 @@ def create_milp(problem_name, info, filename):
     glp_add_cols(lp, (len(info) * 2) + 1)
     row = 1
     col = 1
-    min = LIMIT
+    min = 9999999999999999
     max = 0
     t_col = []
     i = 1
@@ -51,15 +52,26 @@ def create_milp(problem_name, info, filename):
     col += 1
     # tid, address, count, size, type1, type2, pc1, pc2
     for v in info:
+      # min and max bounds
+      if(v[1] < min):
+        min = v[1]
+      if((v[1] + (v[2] * (2**v[3]))) > max):
+        max = v[1] + (v[2] * (2**v[3]))
+      size = v[3]
+    offset = min
+    min = 0
+    LIMIT = ((max - offset) / (2 **size)) + 1
+    max = max - offset
+    for v in info:
         # print v
         # min and max bounds
-        if(v[1] < min):
-            min = v[1]
-        if((v[1] + (v[2] * (2**v[3]))) > max):
-            max = v[1] + (v[2] * (2**v[3]))
+        # if(v[1] < min):
+        #     min = v[1]
+        # if((v[1] + (v[2] * (2**v[3]))) > max):
+        #     max = v[1] + (v[2] * (2**v[3]))
         # columns (variables)
         glp_set_col_name(lp, col, "i" + str(v[0]))
-        glp_set_col_bnds(lp, col, GLP_DB, v[1], v[1] + v[2] * (2**v[3]))
+        glp_set_col_bnds(lp, col, GLP_DB, (v[1] - offset) / (2**v[3]), ((v[1] - offset) + v[2] * (2**v[3])) / (2**v[3]))
         glp_set_col_kind(lp, col, GLP_IV)
         col += 1
         glp_set_col_name(lp, col, "T" + str(v[0]))
@@ -95,9 +107,8 @@ def create_milp(problem_name, info, filename):
         i += 1
     # print "Int: ", glp_get_num_int(lp)
     # print "Bin: ", glp_get_num_bin(lp)
-    glp_set_col_bnds(lp, 1, GLP_DB, int(min), int(max))
+    glp_set_col_bnds(lp, 1, GLP_DB, int(min), int(max) / (2 ** size))
     glp_load_matrix(lp, i - 1, ia, ja, ar)
-    # glp_simplex(lp, None)
     parm = glp_iocp()
     parm.presolve = GLP_ON
     parm.msg_lev = GLP_MSG_OFF
@@ -118,11 +129,13 @@ def create_milp(problem_name, info, filename):
     parm.out_dly = 10000
     parm.cb_size = 0
     parm.binarize = GLP_OFF
+    # glp_simplex(lp, None)
     res = glp_intopt(lp, parm)
+    # res = glp_exact(lp, None)
+    rand = "_" + str(random.randrange(0,1000))
+    glp_write_lp(lp, None, filename + rand + ".lp")
+    glp_print_mip(lp, filename + rand + ".sol")
     if(res == 0):
-        # glp_write_lp(lp, None, filename + ".lp")
-        # glp_write_sol(lp, filename + ".sol")
-
         # Print Solution
         # Z = glp_mip_obj_val(lp)
         # i = glp_mip_col_val(lp, 1)
@@ -139,7 +152,7 @@ def create_milp(problem_name, info, filename):
         # Print Solution
 
         # Print Race
-        i = int(glp_mip_col_val(lp, 1))
+        i = (int(glp_mip_col_val(lp, 1)) * (2**size)) + offset
         racing_threads = list()
         count = 0
         for c in range(2,col):
@@ -156,18 +169,19 @@ def create_milp(problem_name, info, filename):
         array_race_set = set()
         val = []
         for v in info:
-            if(v[0] in racing_threads):
-                val.append(v)
-        access1 = val[0]
-        access2 = val[1]
-        list1 = [access1[0], i]
-        list1.extend(access1[3:])
-        list2 = [access2[0], i]
-        list2.extend(access2[3:])
-        array_race_set.add((tuple(list1),
-                            tuple(list2)))
+          if(v[0] in racing_threads):
+            val.append(v)
+        if(len(val) > 0):
+          access1 = val[0]
+          access2 = val[1]
+          list1 = [access1[0], i]
+          list1.extend(access1[3:])
+          list2 = [access2[0], i]
+          list2.extend(access2[3:])
+          array_race_set.add((tuple(list1),
+                              tuple(list2)))
 
-        for race in array_race_set:
+          for race in array_race_set:
             printarrayraces(race)
         # Print Race
     glp_delete_prob(lp)
@@ -178,7 +192,6 @@ def create_milp2(problem_name, info):
     min = LIMIT
     max = 0
     for v in info:
-        print v
         # min and max bounds
         if(v[1] < min):
             min = v[1]
@@ -281,7 +294,7 @@ def find_array_races(dict, filename):
 
     for k,v in dict.iteritems():
         for k1,v1 in v.iteritems():
-            array_access_set.add((int(k, 16), int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]), int(v1[3]), int(v1[4], 16)))
+            array_access_set.add((int(k, 16), int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]), int(v1[3]), int(v1[4], 16), int(v1[5], 16)))
 
     # hash, tid, address, count, size, type, pc
     # tid, address, count, size, type1, type2, pc1, pc2
@@ -289,17 +302,22 @@ def find_array_races(dict, filename):
     for key1, key2 in combinat:
         if((key1[1] == key2[1]) and (key1[4] == key2[4])):
             if((key1[2] >= key2[2]) and (key1[2] <= key2[2] + (key2[3] * key2[4]))):
-                new_tuple = (key2[1], key2[2], key2[3], key2[4], key2[5], key1[5], key1[6], key2[6])
+                new_tuple = (key2[1], key2[2], key2[3], key2[4], key2[5], key1[5], key1[6], key2[6], key1[7], key2[7])
                 # array_access_set.remove(key1)
                 # array_access_set.remove(key2)
                 milp_dict[key2[0]].append(new_tuple)
             elif((key2[2] >= key1[2]) and (key2[2] <= key1[2] + (key1[3] * key1[4]))):
-                new_tuple = (key1[1], key1[2], key1[3], key1[4], key2[5], key1[5], key1[6], key2[6])
+                new_tuple = (key1[1], key1[2], key1[3], key1[4], key2[5], key1[5], key1[6], key2[6], key1[7], key2[7])
                 # array_access_set.remove(key1)
                 # array_access_set.remove(key2)
                 milp_dict[key1[0]].append(new_tuple)
+            # else:
+            #     print key1, key2
+            #     print "Don't know what to do!"
 
     for k,v in milp_dict.iteritems():
+        for i in v:
+          print k, i
         may_race = False
         for i in v:
             if((i[4] == AccessType.unsafe_write) or
@@ -476,6 +494,7 @@ for filename in file_list:
     print "Reading file " + filename + "..."
     parallel_id = 0
     tid = 0;
+    parallel_level = 0
     array_dict = defaultdict(lambda : defaultdict(list))
     scalar_dict = defaultdict(lambda : defaultdict(list))
     with open(filename, "r") as f:
@@ -491,6 +510,7 @@ for filename in file_list:
                 string = re.search(r"\[([A-Za-z0-9,]+)\]", line)
                 info = string.group(1).split(',')
                 tid = info[2]
+                parallel_level = info[3]
             elif(line.startswith(DATA_END)):
                 tid = 0;
             elif(line.startswith(DATA)):
@@ -498,8 +518,10 @@ for filename in file_list:
                 info = string.group(1).split(',')
                 if(int(info[2]) > 1):
                     array_dict[info[0]][tid].extend(info[1:])
+                    array_dict[info[0]][tid].extend(parallel_level)
                 else:
                     scalar_dict[info[0]][tid].extend(info[1:2] + info[3:])
+                    scalar_dict[info[0]][tid].extend(parallel_level)
     print "Checking for races..."
     find_array_races(array_dict, filename)
-    find_scalar_races(scalar_dict, filename)
+    # find_scalar_races(scalar_dict, filename)

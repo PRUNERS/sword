@@ -17,7 +17,7 @@ void __swordomp_status_dec() {
 
 // READS
 void __swordomp_read1(void *addr, uint64_t hash) {
-	CHECK_STACK
+	size_t access = (size_t) addr;
 
 	if(!__swordomp_is_critical__) {
 		SAVE_ACCESS(access, size1, unsafe_read)
@@ -27,7 +27,7 @@ void __swordomp_read1(void *addr, uint64_t hash) {
 }
 
 void __swordomp_read2(void *addr, uint64_t hash) {
-	CHECK_STACK
+	size_t access = (size_t) addr;
 
 	if(!__swordomp_is_critical__) {
 		SAVE_ACCESS(access, size2, unsafe_read)
@@ -37,7 +37,7 @@ void __swordomp_read2(void *addr, uint64_t hash) {
 }
 
 void __swordomp_read4(void *addr, uint64_t hash) {
-	CHECK_STACK
+	size_t access = (size_t) addr;
 
 	if(!__swordomp_is_critical__) {
 		SAVE_ACCESS(access, size4, unsafe_read)
@@ -47,7 +47,7 @@ void __swordomp_read4(void *addr, uint64_t hash) {
 }
 
 void __swordomp_read8(void *addr, uint64_t hash) {
-	CHECK_STACK
+	size_t access = (size_t) addr;
 
 	if(!__swordomp_is_critical__) {
 		SAVE_ACCESS(access, size8, unsafe_read)
@@ -59,7 +59,7 @@ void __swordomp_read8(void *addr, uint64_t hash) {
 
 // WRITES
 void __swordomp_write1(void *addr, uint64_t hash) {
-	CHECK_STACK
+	size_t access = (size_t) addr;
 
 	if(!__swordomp_is_critical__) {
 		SAVE_ACCESS(access, size1, unsafe_write)
@@ -69,7 +69,7 @@ void __swordomp_write1(void *addr, uint64_t hash) {
 }
 
 void __swordomp_write2(void *addr, uint64_t hash) {
-	CHECK_STACK
+	size_t access = (size_t) addr;
 
 	if(!__swordomp_is_critical__) {
 		SAVE_ACCESS(access, size2, unsafe_write)
@@ -79,7 +79,7 @@ void __swordomp_write2(void *addr, uint64_t hash) {
 }
 
 void __swordomp_write4(void *addr, uint64_t hash) {
-	CHECK_STACK
+	size_t access = (size_t) addr;
 
 	if(!__swordomp_is_critical__) {
 		SAVE_ACCESS(access, size4, unsafe_write)
@@ -89,7 +89,7 @@ void __swordomp_write4(void *addr, uint64_t hash) {
 }
 
 void __swordomp_write8(void *addr, uint64_t hash) {
-	CHECK_STACK
+	size_t access = (size_t) addr;
 
 	if(!__swordomp_is_critical__) {
 		SAVE_ACCESS(access, size8, unsafe_write)
