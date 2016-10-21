@@ -113,7 +113,7 @@ def create_milp(problem_name, info, filename):
             i += 1
         row += 1
         glp_add_rows(lp, 1)
-        glp_set_row_name(lp, row, "exactly" + str(idx) + "_1")
+        glp_set_row_name(lp, row, "exactly" + str(idx) + "_2")
         glp_set_row_bnds(lp, row, GLP_LO, 1, 0)
         for t in t_col[idx]:
             ia[i] = row; ja[i] = t; ar[i] = 1;
