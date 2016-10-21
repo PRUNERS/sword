@@ -38,76 +38,101 @@ def create_milp(problem_name, info, filename):
     lp = glp_create_prob()
     glp_set_prob_name(lp, problem_name)
     glp_set_obj_dir(lp, GLP_MIN)
-    glp_add_rows(lp, (len(info) * 2) + 1)
-    glp_add_cols(lp, (len(info) * 2) + 1)
     row = 1
     col = 1
     min = 9999999999999999
     max = 0
-    t_col = []
     i = 1
-    glp_set_col_name(lp, col, "i")
-    glp_set_obj_coef(lp, col, 0)
-    glp_set_col_kind(lp, col, GLP_IV)
-    col += 1
-    # tid, address, count, size, type1, type2, pc1, pc2
-    for v in info:
-      # min and max bounds
-      if(v[1] < min):
-        min = v[1]
-      if((v[1] + (v[2] * (2**v[3]))) > max):
-        max = v[1] + (v[2] * (2**v[3]))
-      size = v[3]
+
+    # tid, address, count, size, type, pc, barrier
+    for item in info:
+      for v in item:
+        # min and max bounds
+        if(v[1] < min):
+            min = v[1]
+        if((v[1] + (v[2] * (1 << v[3]))) > max):
+            max = v[1] + (v[2] * (1 << v[3]))
+        size = v[3]
     offset = min
     min = 0
     LIMIT = ((max - offset) / (2 **size)) + 1
     max = max - offset
-    for v in info:
-        # print v
-        # min and max bounds
-        # if(v[1] < min):
-        #     min = v[1]
-        # if((v[1] + (v[2] * (2**v[3]))) > max):
-        #     max = v[1] + (v[2] * (2**v[3]))
-        # columns (variables)
-        glp_set_col_name(lp, col, "i" + str(v[0]))
-        glp_set_col_bnds(lp, col, GLP_DB, (v[1] - offset) / (2**v[3]), ((v[1] - offset) + v[2] * (2**v[3])) / (2**v[3]))
-        glp_set_col_kind(lp, col, GLP_IV)
-        col += 1
-        glp_set_col_name(lp, col, "T" + str(v[0]))
-        glp_set_col_bnds(lp, col, GLP_DB, 0, 1)
-        glp_set_obj_coef(lp, col, 1)
-        glp_set_col_kind(lp, col, GLP_BV)
-        t_col.append(col)
-        col += 1
-        # rows (constraints)
-        glp_set_row_name(lp, row, "T" + str(v[0]) + "_1")
-        glp_set_row_bnds(lp, row, GLP_UP, 0, LIMIT)
-        ia[i] = row; ja[i] = 1; ar[i] = -1;
-        i += 1
-        ia[i] = row; ja[i] = col - 2; ar[i] = 1;
-        i += 1
-        ia[i] = row; ja[i] = col - 1; ar[i] = LIMIT;
-        i += 1
-        row += 1
-        glp_set_row_name(lp, row, "T" + str(v[0]) + "_2")
-        glp_set_row_bnds(lp, row, GLP_UP, 0.0, LIMIT)
-        ia[i] = row; ja[i] = 1; ar[i] = 1;
-        i += 1
-        ia[i] = row; ja[i] = col - 2; ar[i] = -1;
-        i += 1
-        ia[i] = row; ja[i] = col - 1; ar[i] = LIMIT;
-        i += 1
-        row += 1
 
-    glp_set_row_name(lp, row, "atleast")
-    glp_set_row_bnds(lp, row, GLP_LO, 2, 0)
-    for t in t_col:
-        ia[i] = row; ja[i] = t; ar[i] = 1;
+    glp_add_cols(lp, 1)
+    glp_set_col_name(lp, col, "i")
+    glp_set_obj_coef(lp, col, 0)
+    glp_set_col_kind(lp, col, GLP_IV)
+    glp_set_col_bnds(lp, col, GLP_DB, int(min), int(max) / (2 ** size))
+    col += 1
+
+    # tid, address, count, size, type, pc, barrier
+    idx = 0
+    t_col = []
+    for item in info:
+        t_col.append([])
+        for v in item:
+            # columns (variables)
+            glp_add_cols(lp, 1)
+            glp_set_col_name(lp, col, "i" + str(v[0]) + AccessTypeVar[v[4]] + "_" + str(idx))
+            glp_set_col_bnds(lp, col, GLP_DB, (v[1] - offset) / (1 << v[3]), ((v[1] - offset) + v[2] * (1 << v[3])) / (1 << v[3]))
+            glp_set_col_kind(lp, col, GLP_IV)
+            col += 1
+            glp_add_cols(lp, 1)
+            glp_set_col_name(lp, col, "T" + str(v[0]) + AccessTypeVar[v[4]] + "_" + str(idx))
+            glp_set_col_bnds(lp, col, GLP_DB, 0, 1)
+            glp_set_obj_coef(lp, col, 1)
+            glp_set_col_kind(lp, col, GLP_BV)
+            t_col[idx].append(col)
+            col += 1
+            # rows (constraints)
+            glp_add_rows(lp, 1)
+            glp_set_row_name(lp, row, "T" + str(v[0]) + AccessTypeVar[v[4]] + "_" + str(idx) + "_1")
+            glp_set_row_bnds(lp, row, GLP_UP, 0, LIMIT)
+            ia[i] = row; ja[i] = 1; ar[i] = -1;
+            i += 1
+            ia[i] = row; ja[i] = col - 2; ar[i] = 1;
+            i += 1
+            ia[i] = row; ja[i] = col - 1; ar[i] = LIMIT;
+            i += 1
+            row += 1
+            glp_add_rows(lp, 1)
+            glp_set_row_name(lp, row, "T" + str(v[0]) + AccessTypeVar[v[4]] + "_" + str(idx) + "_2")
+            glp_set_row_bnds(lp, row, GLP_UP, 0.0, LIMIT)
+            ia[i] = row; ja[i] = 1; ar[i] = 1;
+            i += 1
+            ia[i] = row; ja[i] = col - 2; ar[i] = -1;
+            i += 1
+            ia[i] = row; ja[i] = col - 1; ar[i] = LIMIT;
+            i += 1
+            row += 1
+        glp_add_rows(lp, 1)
+        glp_set_row_name(lp, row, "exactly" + str(idx) + "_1")
+        glp_set_row_bnds(lp, row, GLP_UP, 0, 1)
+        for t in t_col[idx]:
+            ia[i] = row; ja[i] = t; ar[i] = 1;
+            i += 1
+        row += 1
+        glp_add_rows(lp, 1)
+        glp_set_row_name(lp, row, "exactly" + str(idx) + "_1")
+        glp_set_row_bnds(lp, row, GLP_LO, 1, 0)
+        for t in t_col[idx]:
+            ia[i] = row; ja[i] = t; ar[i] = 1;
+            i += 1
+        row += 1
+        idx += 1
+
+    j = 0
+    for t in range(0, len(t_col[0])):
+        glp_add_rows(lp, 1)
+        glp_set_row_name(lp, row, "atmost" + str(j))
+        glp_set_row_bnds(lp, row, GLP_UP, 0, 1)
+        ia[i] = row; ja[i] = t_col[0][t]; ar[i] = 1;
         i += 1
-    # print "Int: ", glp_get_num_int(lp)
-    # print "Bin: ", glp_get_num_bin(lp)
-    glp_set_col_bnds(lp, 1, GLP_DB, int(min), int(max) / (2 ** size))
+        ia[i] = row; ja[i] = t_col[1][t]; ar[i] = 1;
+        i += 1
+        row += 1
+        j += 1
+    row += 1
     glp_load_matrix(lp, i - 1, ia, ja, ar)
     parm = glp_iocp()
     parm.presolve = GLP_ON
@@ -129,62 +154,57 @@ def create_milp(problem_name, info, filename):
     parm.out_dly = 10000
     parm.cb_size = 0
     parm.binarize = GLP_OFF
-    # glp_simplex(lp, None)
+    # res = glp_simplex(lp, None)
     res = glp_intopt(lp, parm)
-    # res = glp_exact(lp, None)
-    rand = "_" + str(random.randrange(0,1000))
-    glp_write_lp(lp, None, filename + rand + ".lp")
-    glp_print_mip(lp, filename + rand + ".sol")
+    print "Result:",res,"[",0,GLP_EBOUND,GLP_EROOT,GLP_ENOPFS,GLP_ENODFS,GLP_EFAIL,GLP_EMIPGAP,GLP_ETMLIM,GLP_ESTOP,"]"
+    glp_write_lp(lp, None, filename + "_" + problem_name + ".lp")
+    glp_print_mip(lp, filename + "_" + problem_name + ".sol")
     if(res == 0):
         # Print Solution
         # Z = glp_mip_obj_val(lp)
-        # i = glp_mip_col_val(lp, 1)
-        # num_threads = glp_mip_row_val(lp, row)
+        # i = (int(glp_mip_col_val(lp, 1)) * (1 << size)) + offset
         # print "Z =", str(int(Z))
         # print "i =", str(hex(int(i)))
-        # print "num_threads =", str(int(num_threads))
         # for c in range(2,col):
         #     name = glp_get_col_name(lp, c)
         #     if("i" not in name):
         #         print name + "=" + str(int(glp_mip_col_val(lp, c)))
         #     else:
-        #         print name + "=" + hex(int(glp_mip_col_val(lp, c)))
+        #         print name + "=" + hex((int(glp_mip_col_val(lp, c)) * (1 << size)) + offset)
         # Print Solution
 
         # Print Race
-        i = (int(glp_mip_col_val(lp, 1)) * (2**size)) + offset
+        i = (int(glp_mip_col_val(lp, 1)) * (1 << size)) + offset
         racing_threads = list()
         count = 0
         for c in range(2,col):
-            name = glp_get_col_name(lp, c)
-            if("T" in name):
-                if(int(glp_mip_col_val(lp, c)) == 1):
-                    racing_threads.append(int(name.replace("T", "")))
-                    count += 1
-                    if(count == 2):
-                        break
+          name = glp_get_col_name(lp, c)
+          if("T" in name):
+            if(int(glp_mip_col_val(lp, c)) == 1):
+                thread = name.replace("T", "").split("_")
+                racing_threads.append((int(thread[0]), AccessTypeVar.index("_" + thread[1]), int(thread[2])))
+                count += 1
+                if(count == 2):
+                    break
+        # tid, address, count, size, type1, pc, barrier
+        array_race_list = []
+        accesses = []
+        for t in racing_threads:
+            val = info[t[2]]
+            for v in val:
+                if((t[0] == v[0]) and (t[1] == v[4])):
+                   accesses.append(v)
+                   break
+        list1 = [accesses[0][0], i]
+        list1.extend(accesses[0][3:])
+        array_race_list.append(tuple(list1))
+        list2 = [accesses[1][0], i]
+        list2.extend(accesses[1][3:])
+        array_race_list.append(tuple(list2))
 
-        # tid, address, count, size, type1, type2, pc1, pc2
-        # (tid1, address1, size1, type1.2, type1.2, pc1.2, pc1.2, tid2, address2, size2, type2.2, type2.2, pc2.2, pc2.2)
-        array_race_set = set()
-        val = []
-        for v in info:
-          if(v[0] in racing_threads):
-            val.append(v)
-        if(len(val) > 0):
-          access1 = val[0]
-          access2 = val[1]
-          list1 = [access1[0], i]
-          list1.extend(access1[3:])
-          list2 = [access2[0], i]
-          list2.extend(access2[3:])
-          array_race_set.add((tuple(list1),
-                              tuple(list2)))
-
-          for race in array_race_set:
-            printarrayraces(race)
+        printarrayraces(array_race_list)
         # Print Race
-    glp_delete_prob(lp)
+        glp_delete_prob(lp)
 
 def create_milp2(problem_name, info):
     constraints = []
@@ -195,13 +215,13 @@ def create_milp2(problem_name, info):
         # min and max bounds
         if(v[1] < min):
             min = v[1]
-        if((v[1] + (v[2] * (2**v[3]))) > max):
-            max = v[1] + (v[2] * (2**v[3]))
+        if((v[1] + (v[2] * (1 << v[3]))) > max):
+            max = v[1] + (v[2] * (1 << v[3]))
 
     i = Variable('i', lb=min, up=max, type='integer')
     # tid, address, count, size, type1, type2, pc1, pc2
     for v in info:
-        i_T = Variable('i' + str(v[0]), lb=v[1], ub=v[1] + (v[2] * (2**v[3])), type='integer')
+        i_T = Variable('i' + str(v[0]), lb=v[1], ub=v[1] + (v[2] * (1 << v[3])), type='integer')
         T = Variable('T' + str(v[0]), lb=0, ub=1, type='binary')
         bin_variables.append(T)
         constraints.append(Constraint(i_T - i + LIMIT * T, lb = LIMIT))
@@ -240,100 +260,98 @@ def printraces(race):
     race1 = proc.stdout.readline()
     print "--------------------------------------------------"
     print "WARNING: Archer: data race (program=" + executable + ")"
-    print AccessTypeName[race[0][3]] + " of size " + str(2**race[0][2]) + " at " + hex(race[0][1]) + " by thread T" + str(race[0][0]) + " in " + race0.rstrip()
-    print AccessTypeName[race[1][3]] + " of size " + str(2**race[1][2]) + " at " + hex(race[1][1]) + " by thread T" + str(race[1][0]) + " in " + race1.rstrip()
+    print AccessTypeName[race[0][3]] + " of size " + str(1 << race[0][2]) + " at " + hex(race[0][1]) + " by thread T" + str(race[0][0]) + " in " + race0.rstrip()
+    print AccessTypeName[race[1][3]] + " of size " + str(1 << race[1][2]) + " at " + hex(race[1][1]) + " by thread T" + str(race[1][0]) + " in " + race1.rstrip()
     print "--------------------------------------------------"
     print
 
 def printarrayraces(race):
-    # ((tid1, address1, size1, type1.2, type1.2, pc1.2, pc1.2), (tid2, address2, size2, type2.2, type2.2, pc2.2, pc2.2))
-    command = path[0].rstrip() + ' -pretty-print' + ' < <(echo "' + executable + ' ' + hex(race[0][5]) + '")'
+    # ((tid1, address1, size1, type1, pc1, barrier1), (tid2, address2, size2, type2, pc2, barrier))
+    command = path[0].rstrip() + ' -pretty-print' + ' < <(echo "' + executable + ' ' + hex(race[0][4]) + '")'
     proc = subprocess.Popen(command, shell=True, executable='/bin/bash',
                             stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
-    race01 = proc.stdout.readline()
-    race02 = ""
-    if(race[0][5] != race[0][6]):
-        command = path[0].rstrip() + ' -pretty-print' + ' < <(echo "' + executable + ' ' + hex(race[0][6]) + '")'
-        proc = subprocess.Popen(command, shell=True, executable='/bin/bash',
-                            stdin=subprocess.PIPE,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT)
-        race02 = proc.stdout.readline()
-    command = path[0].rstrip() + ' -pretty-print' + ' < <(echo "' + executable + ' ' + hex(race[1][5]) + '")'
+    race0 = proc.stdout.readline()
+    command = path[0].rstrip() + ' -pretty-print' + ' < <(echo "' + executable + ' ' + hex(race[1][4]) + '")'
     proc = subprocess.Popen(command, shell=True, executable='/bin/bash',
                             stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
-    race11 = proc.stdout.readline()
-    race12 = ""
-    if(race[1][5] != race[1][6]):
-        command = path[0].rstrip() + ' -pretty-print' + ' < <(echo "' + executable + ' ' + hex(race[1][6]) + '")'
-        proc = subprocess.Popen(command, shell=True, executable='/bin/bash',
-                                stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT)
-        race12 = proc.stdout.readline()
+    race1 = proc.stdout.readline()
     print "--------------------------------------------------"
     print "WARNING: Archer: data race (program=" + executable + ")"
-    print AccessTypeName[race[0][3]] + " of size " + str(2**race[0][2]) + " at " + hex(race[0][1]) + " by thread T" + str(race[0][0]) + " in " + race01.rstrip()
-    if(race02 != ""):
-        print AccessTypeName[race[0][4]] + " of size " + str(2**race[0][2]) + " at " + hex(race[0][1]) + " by thread T" + str(race[0][0]) + " in " + race02.rstrip()
-    print AccessTypeName[race[1][3]] + " of size " + str(2**race[1][2]) + " at " + hex(race[1][1]) + " by thread T" + str(race[1][0]) + " in " + race11.rstrip()
-    if(race12 != ""):
-        print AccessTypeName[race[1][4]] + " of size " + str(2**race[1][2]) + " at " + hex(race[1][1]) + " by thread T" + str(race[1][0]) + " in " + race12.rstrip()
+    print AccessTypeName[race[0][3]] + " of size " + str(1 << race[0][2]) + " at " + hex(race[0][1]) + " by thread T" + str(race[0][0]) + " in " + race0.rstrip()
+    print AccessTypeName[race[1][3]] + " of size " + str(1 << race[1][2]) + " at " + hex(race[1][1]) + " by thread T" + str(race[1][0]) + " in " + race1.rstrip()
     print "--------------------------------------------------"
     print
 
 
-def find_array_races(dict, filename):
+def find_array_races(dct, filename):
     # Array Races
-    array_access_set = set()
-    milp_dict = defaultdict(list)
+    array_access_list = []
+    milp_set = []
 
-    for k,v in dict.iteritems():
+    for k,v in dct.iteritems():
+        lst = []
         for k1,v1 in v.iteritems():
-            array_access_set.add((int(k, 16), int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]), int(v1[3]), int(v1[4], 16), int(v1[5], 16)))
+            # lst.append((int(k, 16), int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]), int(v1[3]), int(v1[4], 16), int(v1[5], 16)))
+            lst.append((int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]), int(v1[3]), int(v1[4], 16), int(v1[5], 16)))
+        array_access_list.append(lst)
 
-    # hash, tid, address, count, size, type, pc
-    # tid, address, count, size, type1, type2, pc1, pc2
-    combinat = combinations(array_access_set, r = 2)
+    # tid, address, count, size, type, pc, barrier
+    # (1, 24385376, 49, 3, 2, 4197942, 0)
+    combinat = combinations(array_access_list, r = 2)
     for key1, key2 in combinat:
-        if((key1[1] == key2[1]) and (key1[4] == key2[4])):
-            if((key1[2] >= key2[2]) and (key1[2] <= key2[2] + (key2[3] * key2[4]))):
-                new_tuple = (key2[1], key2[2], key2[3], key2[4], key2[5], key1[5], key1[6], key2[6], key1[7], key2[7])
-                # array_access_set.remove(key1)
-                # array_access_set.remove(key2)
-                milp_dict[key2[0]].append(new_tuple)
-            elif((key2[2] >= key1[2]) and (key2[2] <= key1[2] + (key1[3] * key1[4]))):
-                new_tuple = (key1[1], key1[2], key1[3], key1[4], key2[5], key1[5], key1[6], key2[6], key1[7], key2[7])
-                # array_access_set.remove(key1)
-                # array_access_set.remove(key2)
-                milp_dict[key1[0]].append(new_tuple)
-            # else:
-            #     print key1, key2
-            #     print "Don't know what to do!"
+        # Same barrier interval and same access size?
+        if((key1[0][6] == key2[0][6]) and (key1[0][3] == key2[0][3])):
+            if((key1[0][4] == AccessType.unsafe_write) or
+               (key2[0][4] == AccessType.unsafe_write) or
+               ((key1[0][4] == AccessType.unsafe_read) and
+                (key2[0][4] not in set([AccessType.unsafe_read,
+                                        AccessType.atomic_read,
+                                        AccessType.mutex_read]))) or
+               ((key2[0][4] == AccessType.unsafe_read) and
+                (key1[0][4] not in set([AccessType.unsafe_read,
+                                        AccessType.atomic_read,
+                                        AccessType.mutex_read]))) or
+               ((key1[0][4] == AccessType.atomic_read) and
+                (key2[0][4] not in set([AccessType.unsafe_read,
+                                        AccessType.atomic_read,
+                                        AccessType.atomic_write,
+                                        AccessType.mutex_read]))) or
+               ((key2[0][4] == AccessType.atomic_read) and
+                (key1[0][4] not in set([AccessType.unsafe_read,
+                                        AccessType.atomic_read,
+                                        AccessType.atomic_write,
+                                        AccessType.mutex_read]))) or
+               ((key1[0][4] == AccessType.atomic_write) and
+                (key2[0][4] not in set([AccessType.atomic_read,
+                                        AccessType.atomic_write]))) or
+               ((key2[0][4] == AccessType.atomic_write) and
+                (key1[0][4] not in set([AccessType.atomic_read,
+                                        AccessType.atomic_write]))) or
+               ((key1[0][4] == AccessType.mutex_read) and
+                (key2[0][4] not in set([AccessType.unsafe_read,
+                                        AccessType.mutex_read,
+                                        AccessType.mutex_write,
+                                        AccessType.atomic_read]))) or
+               ((key2[0][4] == AccessType.mutex_read) and
+                (key1[0][4] not in set([AccessType.unsafe_read,
+                                        AccessType.mutex_read,
+                                        AccessType.mutex_write,
+                                        AccessType.atomic_read]))) or
+               ((key1[0][4] == AccessType.mutex_write) and
+                (key2[0][4] not in set([AccessType.mutex_read,
+                                        AccessType.mutex_write]))) or
+               ((key2[0][4] == AccessType.mutex_write) and
+                (key1[0][4] not in set([AccessType.mutex_read,
+                                        AccessType.mutex_write])))):
+                milp_set.append((tuple(key1), tuple(key2)))
 
-    for k,v in milp_dict.iteritems():
-        for i in v:
-          print k, i
-        may_race = False
-        for i in v:
-            if((i[4] == AccessType.unsafe_write) or
-               (i[5] == AccessType.unsafe_write) or
-               ((i[4] in set([AccessType.atomic_read, AccessType.atomic_write])) and
-                (i[5] not in set([AccessType.atomic_read, AccessType.atomic_write]))) or
-               ((i[5] in set([AccessType.atomic_read, AccessType.atomic_write])) and
-                (i[4] not in set([AccessType.atomic_read, AccessType.atomic_write]))) or
-               ((i[4] in set([AccessType.mutex_read, AccessType.mutex_write])) and
-                (i[5] not in set([AccessType.mutex_read, AccessType.mutex_write]))) or
-               ((i[5] in set([AccessType.mutex_read, AccessType.mutex_write])) and
-                (i[4] not in set([AccessType.mutex_read, AccessType.mutex_write])))):
-                may_race = True
-            break
-        if may_race:
-            create_milp("milp_" + str(k), v, filename)
+    count = 0
+    for v in milp_set:
+        create_milp("milp_" + str(count), v, filename)
     # Array Races
 
 def find_scalar_races(dict, filename):
@@ -454,6 +472,7 @@ class AccessSize(Enum):
     size16 = 4
 
 AccessTypeName = ['None', 'Read', 'Write', 'Atomic Read', 'Atomic Write', 'Critical Read', 'Critical Write']
+AccessTypeVar = ['_n', '_r', '_w', '_ar', '_aw', '_cr', '_cw']
 
 PARALLEL_BREAK = "PARALLEL_BREAK"
 PARALLEL_START = "PARALLEL_START"
@@ -523,5 +542,6 @@ for filename in file_list:
                     scalar_dict[info[0]][tid].extend(info[1:2] + info[3:])
                     scalar_dict[info[0]][tid].extend(parallel_level)
     print "Checking for races..."
+    # print array_dict
     find_array_races(array_dict, filename)
     # find_scalar_races(scalar_dict, filename)

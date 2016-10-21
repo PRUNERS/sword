@@ -12,6 +12,7 @@
 
 #include "swordrt_rtl.h"
 #include <sstream>
+#include <cmath>
 
 #if defined(TLS) || defined(NOTLS)
 #define GET_STACK	 										\
@@ -30,12 +31,11 @@
 #define SAVE_ACCESS(access, size, type)															\
 		std::unordered_map<uint64_t, AccessInfo>::const_iterator item = accesses.find(hash); 	\
 		if(item == accesses.end()) {															\
-			accesses.insert(std::make_pair(hash, AccessInfo(access, 1, size, type, CALLERPC)));	\
+			accesses.insert(std::make_pair(hash, AccessInfo(access, 0, size, type, CALLERPC)));	\
 		} else {																				\
 			if(access < item->second.address) {													\
 				accesses[hash].address = access;												\
-				accesses[hash].count++;															\
-			} else if(((access - item->second.address) / size8) > item->second.count) {			\
+			} else if(((access - item->second.address) / (1 << size)) >= item->second.count) {	\
 				accesses[hash].count++;															\
 			}																					\
 		}
