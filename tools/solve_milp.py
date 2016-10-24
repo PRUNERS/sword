@@ -2,9 +2,9 @@
 
 from collections import defaultdict
 from enum import Enum
+from gurobipy import *
 from itertools import combinations
 from operator import itemgetter
-from optlang import Model, Variable, Constraint, Objective
 from os.path import expanduser
 from psutil import virtual_memory
 from swiglpk import *
@@ -22,6 +22,7 @@ import sys
 symbolizer = 'which llvm-symbolizer'
 process = subprocess.Popen(symbolizer.split(), stdout=subprocess.PIPE)
 path = process.communicate()
+races_lines_pairs = set()
 
 def mkdir_p(path):
     try:
@@ -31,12 +32,12 @@ def mkdir_p(path):
             pass
         else: raise
 
-def create_milp(problem_name, info, filename):
+def create_milp_glpk(problem_name, info, filename):
     ia = intArray(1+1000)
     ja = intArray(1+1000)
     ar = doubleArray(1+1000)
     lp = glp_create_prob()
-    glp_set_prob_name(lp, problem_name)
+    glp_set_prob_name(lp, filename + "_" + problem_name)
     glp_set_obj_dir(lp, GLP_MIN)
     row = 1
     col = 1
@@ -52,11 +53,11 @@ def create_milp(problem_name, info, filename):
             min = v[1]
         if((v[1] + (v[2] * (1 << v[3]))) > max):
             max = v[1] + (v[2] * (1 << v[3]))
-        size = v[3]
+        size = 1 << v[3]
     offset = min
     min = 0
-    LIMIT = ((max - offset) / (2 **size)) + 1
-    max = max - offset
+    LIMIT = ((max - offset) / size) + 1
+    max = (max - offset) / size
 
     glp_add_cols(lp, 1)
     glp_set_col_name(lp, col, "i")
@@ -197,55 +198,121 @@ def create_milp(problem_name, info, filename):
                 if((t[0] == v[0]) and (t[1] == v[4])):
                    accesses.append(v)
                    break
-        list1 = [accesses[0][0], i]
-        list1.extend(accesses[0][3:])
-        array_race_list.append(tuple(list1))
-        list2 = [accesses[1][0], i]
-        list2.extend(accesses[1][3:])
-        array_race_list.append(tuple(list2))
+        if((key1[4], key2[4]) not in races_lines_pairs):
+            races_lines_pairs.add((key1[4], key2[4]))
+            list1 = [accesses[0][0], i]
+            list1.extend(accesses[0][3:])
+            array_race_list.append(tuple(list1))
+            list2 = [accesses[1][0], i]
+            list2.extend(accesses[1][3:])
+            array_race_list.append(tuple(list2))
 
         printarrayraces(array_race_list)
         # Print Race
         glp_delete_prob(lp)
 
-def create_milp2(problem_name, info):
-    constraints = []
-    bin_variables = []
-    min = LIMIT
-    max = 0
-    for v in info:
-        # min and max bounds
-        if(v[1] < min):
-            min = v[1]
-        if((v[1] + (v[2] * (1 << v[3]))) > max):
-            max = v[1] + (v[2] * (1 << v[3]))
+def create_milp_gurobi(problem_name, info, filename):
+    try:
+        # Create a new model
+        m = Model(filename.split("/")[2] + "_" + problem_name)
 
-    i = Variable('i', lb=min, up=max, type='integer')
-    # tid, address, count, size, type1, type2, pc1, pc2
-    for v in info:
-        i_T = Variable('i' + str(v[0]), lb=v[1], ub=v[1] + (v[2] * (1 << v[3])), type='integer')
-        T = Variable('T' + str(v[0]), lb=0, ub=1, type='binary')
-        bin_variables.append(T)
-        constraints.append(Constraint(i_T - i + LIMIT * T, lb = LIMIT))
-        constraints.append(Constraint(i - i_T + LIMIT * T, lb = LIMIT))
+        constraints = []
+        bin_variables1 = []
+        bin_variables2 = []
 
-    constraints.append(Constraint(sum(v for v in bin_variables), ub = 2))
-    obj = Objective(sum(v for v in bin_variables), direction='min')
+        min = 9999999999999999
+        max = 0
+        size = 0
+        # tid, address, count, size, type, pc, barrier
+        for item in info:
+            for v in item:
+                # min and max bounds
+                if(v[1] < min):
+                    min = v[1]
+                if((v[1] + (v[2] * (1 << v[3]))) > max):
+                    max = v[1] + (v[2] * (1 << v[3]))
+                if(size == 0):
+                    size = 1 << v[3]
 
-    model = Model(name=problem_name)
-    model.objective = obj
-    model.configuration.presolve = True
-    model.add(constraints)
+        offset = min
+        min = 0
+        LIMIT = ((max - offset) / size) + 1
+        max = (max - offset) / size
 
-    status = model.optimize()
+        i = m.addVar(name = 'i', vtype=GRB.INTEGER, lb=min, ub=max)
 
-    print "status:", model.status
-    print "objective value:", model.objective.value
-    for var_name, var in model.variables.iteritems():
-        if("i" in var_name):
-            print var_name, "=", hex(int(var.primal))
-        else:
-            print var_name, "=", var.primal
+        # tid, address, count, size, type, pc, barrier
+        idx = 0
+        t_col = []
+        for item in info:
+            t_col.append([])
+            for v in item:
+                i_T = m.addVar(name = 'i' + str(v[0]) + AccessTypeVar[v[4]] + "_" + str(idx), lb=(v[1] - offset) / (1 << v[3]), ub=((v[1] - offset) + v[2] * (1 << v[3])) / (1 << v[3]), vtype=GRB.INTEGER)
+                T = m.addVar(name = 'T' + str(v[0]) + AccessTypeVar[v[4]] + "_" + str(idx), vtype=GRB.BINARY, obj = 1)
+                m.update()
+                t_col[idx].append(T)
+                m.addConstr(i_T - i + LIMIT * T <= LIMIT, "T" + str(v[0]) + AccessTypeVar[v[4]] + "_" + str(idx) + "_1")
+                m.addConstr(i - i_T + LIMIT * T <= LIMIT, "T" + str(v[0]) + AccessTypeVar[v[4]] + "_" + str(idx) + "_2")
+            m.addConstr(sum(t for t in t_col[idx]), GRB.EQUAL, 1, "exactly" + str(idx))
+            idx += 1
+
+        j = 0
+        len0 = len(t_col[0])
+        len1 = len(t_col[1])
+        length = len0 if len0 < len1 else len1
+        for t in range(0, length):
+            m.addConstr(t_col[0][t] + t_col[1][t], GRB.EQUAL, 1, "atmost" + str(j))
+            j += 1
+
+        m.update()
+        m.write(filename + "_" + problem_name + ".lp")
+        # fixed = m.fixed()
+        # fixed.params.presolve = 1
+        m.setParam('OutputFlag', False)
+        m.optimize()
+
+        if((m.status == GRB.Status.OPTIMAL) or (m.status == GRB.Status.SUBOPTIMAL)):
+            m.write(filename + "_" + problem_name + ".sol")
+
+            # Print Race
+            racing_threads = list()
+            count = 0
+            for v in m.getVars():
+                # print('%s %g' % (v.varName, v.x))
+                if(v.varName == "i"):
+                    i = int(v.x) * (1 << size) + offset
+                else:
+                    name = v.varName
+                    if("T" in name):
+                        if(v.x == 1):
+                            thread = name.replace("T", "").split("_")
+                            racing_threads.append((int(thread[0]), AccessTypeVar.index("_" + thread[1]), int(thread[2])))
+                            count += 1
+                            if(count == 2):
+                                break
+            # tid, address, count, size, type1, pc, barrier
+            array_race_list = []
+            accesses = []
+            for t in racing_threads:
+                val = info[t[2]]
+                for v in val:
+                    if((t[0] == v[0]) and (t[1] == v[4])):
+                       accesses.append(v)
+                       break
+            list1 = [accesses[0][0], i]
+            list1.extend(accesses[0][3:])
+            array_race_list.append(tuple(list1))
+            list2 = [accesses[1][0], i]
+            list2.extend(accesses[1][3:])
+            array_race_list.append(tuple(list2))
+
+            printarrayraces(array_race_list)
+            # # Print Race
+
+    except GurobiError as gurobi_err:
+        print 'Encountered a Gurobi error', gurobi_err
+    except AttributeError as attr_err:
+        print 'Encountered an attribute error', attr_err
 
 def printraces(race):
     command = path[0].rstrip() + ' -pretty-print' + ' < <(echo "' + executable + ' ' + hex(race[0][4]) + '")'
@@ -353,7 +420,8 @@ def find_array_races(dct, filename):
 
     count = 0
     for v in milp_set:
-        create_milp("milp_" + str(count), v, filename)
+        # create_milp_glpk("milp_" + str(count), v, filename)
+        create_milp_gurobi("milp_" + str(count), v, filename)
     # Array Races
 
 def find_scalar_races(dict, filename):
@@ -362,88 +430,59 @@ def find_scalar_races(dict, filename):
 
     for k,v in dict.iteritems():
         for k1,v1 in v.iteritems():
-            scalar_access_set.add((int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]) , int(v1[3], 16)))
+            scalar_access_set.add((int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]) , int(v1[3], 16), int(v1[4])))
 
     scalar_race_set = set()
     # (tid, address, size, type, pc)
     for key1, key2 in combinations(scalar_access_set, r = 2):
-        if(key1[1] == key2[1]):
-            if((key1[3] == key2[3] == AccessType.unsafe_read) or
-               (key1[3] == key2[3] == AccessType.atomic_read) or
-               (key1[3] == key2[3] == AccessType.mutex_read)):
-                # print (key1, key2)
-                # scalar_race_set.add((key1, key2))
-                # print scalar_race_set
-                pass
-            # (tid1, address1, size1, type1, pc1, tid2, address2,  size2, type2, pc2)
-            # address are the same, just for easy insertion on the set we repeat it
-            elif((key1[0] != key1[2]) and
-                 ((key1[3] == AccessType.unsafe_read) and
-                  ((key2[3] == AccessType.unsafe_write) or
-                   (key2[3] == AccessType.atomic_write) or
-                   (key2[3] == AccessType.mutex_write))) or
-                 ((key2[3] == AccessType.unsafe_read) and
-                  ((key1[3] == AccessType.unsafe_write) or
-                   (key1[3] == AccessType.atomic_write) or
-                   (key1[3] == AccessType.mutex_write)))):
-                scalar_race_set.add((key1, key2))
-            elif((key1[0] != key1[2]) and
-                 ((key1[3] == AccessType.unsafe_write) and
-                  ((key2[3] == AccessType.unsafe_read) or
-                   (key2[3] == AccessType.atomic_read) or
-                   (key2[3] == AccessType.atomic_write) or
-                   (key2[3] == AccessType.mutex_read) or
-                   (key2[3] == AccessType.mutex_write))) or
-                 ((key2[3] == AccessType.unsafe_write) and
-                  ((key1[3] == AccessType.unsafe_read) or
-                   (key1[3] == AccessType.atomic_read) or
-                   (key1[3] == AccessType.atomic_write) or
-                   (key1[3] == AccessType.mutex_read) or
-                   (key1[3] == AccessType.mutex_write)))):
-                scalar_race_set.add((key1, key2))
-            elif((key1[0] != key1[2]) and
-                 ((key1[3] == AccessType.atomic_read) and
-                  ((key2[3] == AccessType.unsafe_write) or
-                   (key2[3] == AccessType.mutex_write))) or
-                 ((key2[3] == AccessType.atomic_read) and
-                  ((key1[3] == AccessType.unsafe_write) or
-                   (key1[3] == AccessType.mutex_write)))):
-                scalar_race_set.add((key1, key2))
-            elif((key1[0] != key1[2]) and
-                 ((key1[3] == AccessType.atomic_write) and
-                  ((key2[3] == AccessType.unsafe_read) or
-                   (key2[3] == AccessType.unsafe_write) or
-                   (key2[3] == AccessType.mutex_read) or
-                   (key2[3] == AccessType.mutex_write))) or
-                 ((key2[3] == AccessType.atomic_write) and
-                  ((key1[3] == AccessType.unsafe_read) or
-                   (key1[3] == AccessType.unsafe_write) or
-                   (key1[3] == AccessType.mutex_read) or
-                   (key1[3] == AccessType.mutex_write)))):
-                scalar_race_set.add((key1, key2))
-            elif((key1[0] != key1[2]) and
-                 ((key1[3] == AccessType.mutex_read) and
-                  ((key2[3] == AccessType.unsafe_write) or
-                   (key2[3] == AccessType.atomic_write))) or
-                 ((key2[3] == AccessType.mutex_read) and
-                  ((key1[3] == AccessType.unsafe_write) or
-                   (key1[3] == AccessType.atomic_write)))):
-                scalar_race_set.add((key1, key2))
-            elif((key1[0] != key1[2]) and
-                 ((key1[3] == AccessType.mutex_write) and
-                  ((key2[3] == AccessType.unsafe_read) or
-                   (key2[3] == AccessType.unsafe_write) or
-                   (key2[3] == AccessType.atomic_read) or
-                   (key2[3] == AccessType.atomic_write))) or
-                 ((key2[3] == AccessType.mutex_write) and
-                  ((key1[3] == AccessType.unsafe_read) or
-                   (key1[3] == AccessType.unsafe_write) or
-                   (key1[3] == AccessType.atomic_read) or
-                   (key1[3] == AccessType.atomic_write)))):
-                scalar_race_set.add((key1, key2))
-
-    if(len(scalar_race_set) > 0 or len(scalar_race_set) > 0):
-        print "ARCHER RACES:"
+        # tid, access, size, type, pc, barrier
+        if(key1[0] != key2[0]):
+            if((key1[1] == key2[1]) and (key1[2] == key2[2]) and (key1[5] == key2[5])):
+                if((key1[3] == AccessType.unsafe_write) or
+               (key2[3] == AccessType.unsafe_write) or
+               ((key1[3] == AccessType.unsafe_read) and
+                (key2[3] not in set([AccessType.unsafe_read,
+                                        AccessType.atomic_read,
+                                        AccessType.mutex_read]))) or
+               ((key2[3] == AccessType.unsafe_read) and
+                (key1[3] not in set([AccessType.unsafe_read,
+                                        AccessType.atomic_read,
+                                        AccessType.mutex_read]))) or
+               ((key1[3] == AccessType.atomic_read) and
+                (key2[3] not in set([AccessType.unsafe_read,
+                                        AccessType.atomic_read,
+                                        AccessType.atomic_write,
+                                        AccessType.mutex_read]))) or
+               ((key2[3] == AccessType.atomic_read) and
+                (key1[3] not in set([AccessType.unsafe_read,
+                                        AccessType.atomic_read,
+                                        AccessType.atomic_write,
+                                        AccessType.mutex_read]))) or
+               ((key1[3] == AccessType.atomic_write) and
+                (key2[3] not in set([AccessType.atomic_read,
+                                        AccessType.atomic_write]))) or
+               ((key2[3] == AccessType.atomic_write) and
+                (key1[3] not in set([AccessType.atomic_read,
+                                        AccessType.atomic_write]))) or
+               ((key1[3] == AccessType.mutex_read) and
+                (key2[3] not in set([AccessType.unsafe_read,
+                                        AccessType.mutex_read,
+                                        AccessType.mutex_write,
+                                        AccessType.atomic_read]))) or
+               ((key2[3] == AccessType.mutex_read) and
+                (key1[3] not in set([AccessType.unsafe_read,
+                                        AccessType.mutex_read,
+                                        AccessType.mutex_write,
+                                        AccessType.atomic_read]))) or
+               ((key1[3] == AccessType.mutex_write) and
+                (key2[3] not in set([AccessType.mutex_read,
+                                        AccessType.mutex_write]))) or
+               ((key2[3] == AccessType.mutex_write) and
+                (key1[3] not in set([AccessType.mutex_read,
+                                     AccessType.mutex_write])))):
+                    if((key1[4], key2[4]) not in races_lines_pairs):
+                        races_lines_pairs.add((key1[4], key2[4]))
+                        scalar_race_set.add((key1, key2))
 
     # llvm-symbolizer < <(echo "reduction 0x400fd7")
     # ((tid1, address1, size1, type1, pc1), (tid2, address2,  size2, type2, pc2))
@@ -512,7 +551,7 @@ with open(filename, "r") as f:
 f.close()
 
 for filename in file_list:
-    print "Reading file " + filename + "..."
+    # print "Reading file " + filename + "..."
     parallel_id = 0
     tid = 0;
     parallel_level = 0
@@ -543,7 +582,7 @@ for filename in file_list:
                 else:
                     scalar_dict[info[0]][tid].extend(info[1:2] + info[3:])
                     scalar_dict[info[0]][tid].extend(parallel_level)
-    print "Checking for races..."
+    # print "Checking for races..."
     # print array_dict
     find_array_races(array_dict, filename)
-    # find_scalar_races(scalar_dict, filename)
+    find_scalar_races(scalar_dict, filename)

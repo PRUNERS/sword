@@ -23,7 +23,6 @@
 		pthread_attr_destroy(&attr);
 
 #define CHECK_STACK												\
-		size_t access = (size_t) addr;							\
 		if((access >= (size_t) stack) &&						\
 				(access < (size_t) stack + stacksize))			\
 				return;
