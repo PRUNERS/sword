@@ -161,7 +161,7 @@ def create_milp(problem_name, info, filename):
     glp_print_mip(lp, filename + "_" + problem_name + ".sol")
     feasibility = glp_mip_status(lp)
     print "Feasibility:",feasibility,"[",GLP_UNDEF,GLP_OPT,GLP_FEAS,GLP_NOFEAS,"]"
-    if((res == 0) and (feasibility in [GLP_OPT, GLP_FEAS])):
+    if((res == 0) and ((feasibility == GLP_OPT) or (feasibility == GLP_FEAS))):
         # Print Solution
         # Z = glp_mip_obj_val(lp)
         # i = (int(glp_mip_col_val(lp, 1)) * (1 << size)) + offset
