@@ -157,11 +157,11 @@ def create_milp_glpk(problem_name, info, filename):
     parm.binarize = GLP_OFF
     # res = glp_simplex(lp, None)
     res = glp_intopt(lp, parm)
-    print "Result:",res,"[",0,GLP_EBOUND,GLP_EROOT,GLP_ENOPFS,GLP_ENODFS,GLP_EFAIL,GLP_EMIPGAP,GLP_ETMLIM,GLP_ESTOP,"]"
+    # print "Result:",res,"[",0,GLP_EBOUND,GLP_EROOT,GLP_ENOPFS,GLP_ENODFS,GLP_EFAIL,GLP_EMIPGAP,GLP_ETMLIM,GLP_ESTOP,"]"
     glp_write_lp(lp, None, filename + "_" + problem_name + ".lp")
     glp_print_mip(lp, filename + "_" + problem_name + ".sol")
     feasibility = glp_mip_status(lp)
-    print "Feasibility:",feasibility,"[",GLP_UNDEF,GLP_OPT,GLP_FEAS,GLP_NOFEAS,"]"
+    # print "Feasibility:",feasibility,"[",GLP_UNDEF,GLP_OPT,GLP_FEAS,GLP_NOFEAS,"]"
     if((res == 0) and ((feasibility == GLP_OPT) or (feasibility == GLP_FEAS))):
         # Print Solution
         # Z = glp_mip_obj_val(lp)
@@ -422,6 +422,7 @@ def find_array_races(dct, filename):
     for v in milp_set:
         # create_milp_glpk("milp_" + str(count), v, filename)
         create_milp_gurobi("milp_" + str(count), v, filename)
+        count += 1
     # Array Races
 
 def find_scalar_races(dict, filename):
