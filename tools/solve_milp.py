@@ -159,8 +159,8 @@ def create_milp_glpk(problem_name, info, filename):
     # res = glp_simplex(lp, None)
     res = glp_intopt(lp, parm)
     # print "Result:",res,"[",0,GLP_EBOUND,GLP_EROOT,GLP_ENOPFS,GLP_ENODFS,GLP_EFAIL,GLP_EMIPGAP,GLP_ETMLIM,GLP_ESTOP,"]"
-    glp_write_lp(lp, None, filename + "_" + problem_name + ".lp")
-    glp_print_mip(lp, filename + "_" + problem_name + ".sol")
+    glp_write_lp(lp, None, directory + "/" + filename + "_" + problem_name + ".lp")
+    glp_print_mip(lp, directory + "/" + filename + "_" + problem_name + ".sol")
     feasibility = glp_mip_status(lp)
     # print "Feasibility:",feasibility,"[",GLP_UNDEF,GLP_OPT,GLP_FEAS,GLP_NOFEAS,"]"
     if((res == 0) and ((feasibility == GLP_OPT) or (feasibility == GLP_FEAS))):
@@ -266,14 +266,14 @@ def create_milp_gurobi(problem_name, info, filename):
             j += 1
 
         m.update()
-        m.write(filename + "_" + problem_name + ".lp")
+        m.write(directory + "/" + filename + "_" + problem_name + ".lp")
         # fixed = m.fixed()
         # fixed.params.presolve = 1
         m.setParam('OutputFlag', False)
         m.optimize()
 
         if((m.status == GRB.Status.OPTIMAL) or (m.status == GRB.Status.SUBOPTIMAL)):
-            m.write(filename + "_" + problem_name + ".sol")
+            m.write(directory + "/" + filename + "_" + problem_name + ".sol")
 
             # Print Race
             racing_threads = list()
