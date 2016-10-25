@@ -49,5 +49,5 @@ for c in range(0, num_of_cores):
         processes.append(subprocess.Popen(["solve_milp.py"] + lst))
 
 exit_codes = [p.wait() for p in processes]
-sys.exit(0)
 # print exit_codes
+sys.exit(0)
