@@ -78,6 +78,8 @@ static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 
 #if defined(TLS) || defined(NOTLS)
 	if(__swordomp_status__ == 0) {
+		// Open file
+		datafile.open(std::string(ARCHER_DATA) + "/parallelregion_" + std::to_string(parallel_id));
 		accesses.clear();
 	}
 #else
@@ -95,6 +97,7 @@ static void on_ompt_event_parallel_end(ompt_parallel_id_t parallel_id,
 	DATA(datafile, "PARALLEL_END[" << std::dec << parallel_id << "]\n");
 	if(__swordomp_status__ == 0)
 		DATA(datafile, "PARALLEL_BREAK\n");
+		datafile.close();
 }
 
 static void on_acquired_critical(ompt_wait_id_t wait_id) {
@@ -137,7 +140,10 @@ static void ompt_initialize_fn(ompt_function_lookup_t lookup,
 
 	DEBUG(std::cout, "OMPT Initizialization: Runtime Version: " << std::dec << runtime_version << ", OMPT Version: " << std::dec << ompt_version);
 
-	datafile.open("outputdata.txt");
+	std::string str = "rm -rf " + std::string(ARCHER_DATA);
+	system(str.c_str());
+	str = "mkdir " + std::string(ARCHER_DATA);
+	system(str.c_str());
 
 	ompt_set_callback_t ompt_set_callback = (ompt_set_callback_t) lookup("ompt_set_callback");
 	ompt_get_thread_id = (ompt_get_thread_id_t) lookup("ompt_get_thread_id");

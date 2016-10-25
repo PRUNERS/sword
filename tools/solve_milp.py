@@ -10,6 +10,7 @@ from psutil import virtual_memory
 from swiglpk import *
 import errno
 import math
+import multiprocessing
 import os
 import random
 import re
@@ -214,7 +215,7 @@ def create_milp_glpk(problem_name, info, filename):
 def create_milp_gurobi(problem_name, info, filename):
     try:
         # Create a new model
-        m = Model(filename.split("/")[2] + "_" + problem_name)
+        m = Model(filename + "_" + problem_name)
 
         constraints = []
         bin_variables1 = []
@@ -523,42 +524,18 @@ DATA_BEGIN = "DATA_BEGIN"
 DATA_END = "DATA_END"
 DATA = "DATA"
 
-if(len(sys.argv)) < 3:
-    print "Specify input file and executable!\n"
-    sys.exit(0)
+files = sys.argv[1:-2]
+directory = sys.argv[-2]
+executable = sys.argv[-1]
 
-filename = sys.argv[1]
-executable = sys.argv[2]
-
-dir_log = "./archer_races"
-shutil.rmtree(dir_log, ignore_errors=True)
-mkdir_p(dir_log)
-file_list = []
-nf = None
-newfile = ""
-with open(filename, "r") as f:
-    for line in f:
-        if(line.startswith(PARALLEL_START)):
-            string = re.search(r"\[([A-Za-z0-9,]+)\]", line)
-            parallel_id = int(string.group(1))
-            newfile = dir_log + "/" + "parallelregion_" + str(parallel_id)
-            nf = open(newfile, "w")
-            nf.write(line)
-        elif(line.startswith(PARALLEL_BREAK)):
-            file_list.append(newfile)
-            nf.close()
-        else:
-            nf.write(line)
-f.close()
-
-for filename in file_list:
+for filename in files:
     # print "Reading file " + filename + "..."
     parallel_id = 0
     tid = 0;
     parallel_level = 0
     array_dict = defaultdict(lambda : defaultdict(list))
     scalar_dict = defaultdict(lambda : defaultdict(list))
-    with open(filename, "r") as f:
+    with open(directory + "/" + filename, "r") as f:
         for line in f:
             if(line.startswith(PARALLEL_BREAK)):
                 break

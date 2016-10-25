@@ -16,6 +16,7 @@
 #include <omp.h>
 #include <ompt.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <cstdint>
 #include <iostream>
@@ -25,6 +26,7 @@
 #include <unordered_map>
 
 #define SWORDRT_DEBUG 	1
+#define ARCHER_DATA "archer_data"
 
 std::mutex pmtx;
 std::ofstream datafile;
