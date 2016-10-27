@@ -6,7 +6,6 @@ set(Boost_NO_BOOST_CMAKE ON)
 find_package(Boost 1.41 COMPONENTS REQUIRED)
 message(STATUS "Boost Include: ${Boost_INCLUDE_DIR}")
 message(STATUS "Boost Libraries: ${Boost_LIBRARY_DIRS}")
-message(STATUS "Boost Libraries: ${Boost_LIBRARIES}")
 
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIR})
 LINK_DIRECTORIES(${Boost_LIBRARY_DIRS})
@@ -20,11 +19,11 @@ set(SWORDRT_VERSION_MINOR 1)
 set(LLVM_NO_RTTI 1)
 
 set(CMAKE_BUILD_TYPE Release)
- 
+
 set(TSAN_SOURCES
   rtl/swordrt_rtl.cc)
   # rtl/swordrt_rtl2.cc)
-  
+
 INCLUDE_DIRECTORIES("/home/simone/usr/include")
 set (CMAKE_SHARED_LINKER_FLAGS "-L/home/simone/usr/lib -fopenmp") # -fsanitize=thread
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
