@@ -50,8 +50,8 @@ std::ofstream datafile;
 #define ALWAYS_INLINE			__attribute__((always_inline))
 #define CALLERPC 				((size_t) __builtin_return_address(0))
 
-#define TLS
-//#define NOTLS
+#define TLS		1
+// #define NOTLS	1
 
 enum AccessSize {
 	size1 = 0,
@@ -105,6 +105,7 @@ typedef struct ThreadInfo {
 	size_t stacksize;
 	int __swordomp_status__;
 	uint8_t __swordomp_is_critical__;
+	std::unordered_map<uint64_t, AccessInfo> accesses;
 } ThreadInfo;
 #endif
 
@@ -126,11 +127,14 @@ extern thread_local size_t *stack;
 extern thread_local size_t stacksize;
 extern thread_local int __swordomp_status__;
 extern thread_local uint8_t __swordomp_is_critical__;
+thread_local AccessInfo accessInfo[10];
+thread_local unsigned num_accesses = 1;
 thread_local std::unordered_map<uint64_t, AccessInfo> accesses;
 size_t barrier_id;
 #else
 #define MAX_THREADS 256
 thread_local uint64_t tid;
+thread_local int __swordomp_status__ = 0;
 ThreadInfo threadInfo[MAX_THREADS];
 #endif
 

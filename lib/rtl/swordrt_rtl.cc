@@ -15,18 +15,17 @@
 #include <cmath>
 
 #if defined(TLS) || defined(NOTLS)
-#define GET_STACK	 										\
-		pthread_t self = pthread_self(); 					\
-		pthread_attr_t attr;								\
-		pthread_getattr_np(self, &attr);					\
+#define GET_STACK	 												\
+		pthread_t self = pthread_self(); 							\
+		pthread_attr_t attr;										\
+		pthread_getattr_np(self, &attr);							\
 		pthread_attr_getstack(&attr, (void **) &stack, &stacksize);	\
 		pthread_attr_destroy(&attr);
-
+#define DEF_ACCESS size_t access = (size_t) addr;
 #define CHECK_STACK												\
 		if((access >= (size_t) stack) &&						\
 				(access < (size_t) stack + stacksize))			\
 				return;
-
 #define SAVE_ACCESS(access, size, type)															\
 		std::unordered_map<uint64_t, AccessInfo>::const_iterator item = accesses.find(hash); 	\
 		if(item == accesses.end()) {															\
@@ -45,12 +44,22 @@
 		pthread_getattr_np(self, &attr);					\
 		pthread_attr_getstack(&attr, (void **) &threadInfo[tid - 1].stack, &threadInfo[tid - 1].stacksize);	\
 		pthread_attr_destroy(&attr);
-
-#define CHECK_STACK												\
-		size_t access = (size_t) addr;							\
-		if((access >= (size_t) stack) &&						\
-				(access < (size_t) stack + stacksize))			\
+#define DEF_ACCESS size_t access = (size_t) addr;
+#define CHECK_STACK																				\
+		if((access >= (size_t) threadInfo[tid - 1].stack) &&									\
+				(access < (size_t) threadInfo[tid - 1].stack + threadInfo[tid - 1].stacksize))	\
 				return;
+#define SAVE_ACCESS(access, size, type)														\
+		std::unordered_map<uint64_t, AccessInfo>::const_iterator item = accesses.find(hash); 	\
+		if(item == accesses.end()) {															\
+			accesses.insert(std::make_pair(hash, AccessInfo(access, 0, size, type, CALLERPC)));	\
+		} else {																				\
+			if(access < item->second.address) {													\
+				accesses[hash].address = access;												\
+			} else if(((access - item->second.address) / (1 << size)) >= item->second.count) {	\
+				accesses[hash].count++;															\
+			}																					\
+		}
 #endif
 
 extern "C" {
@@ -83,8 +92,10 @@ static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 		accesses.clear();
 	}
 #else
-	if(threadInfo[tid - 1].__swordomp_status__ == 0) {
-		accesses.clear();
+	if(__swordomp_status__ == 0) {
+		// Open file
+		datafile.open(std::string(ARCHER_DATA) + "/parallelregion_" + std::to_string(parallel_id));
+		threadInfo[tid - 1].accesses.clear();
 	}
 #endif
 
@@ -95,9 +106,18 @@ static void on_ompt_event_parallel_end(ompt_parallel_id_t parallel_id,
 		ompt_task_id_t task_id,
 		ompt_invoker_t invoker) {
 	DATA(datafile, "PARALLEL_END[" << std::dec << parallel_id << "]\n");
-	if(__swordomp_status__ == 0)
+
+#if defined(TLS) || defined(NOTLS)
+	if(__swordomp_status__ == 0) {
 		DATA(datafile, "PARALLEL_BREAK\n");
 		datafile.close();
+	}
+#else
+	if(__swordomp_status__ == 0) {
+		DATA(datafile, "PARALLEL_BREAK\n");
+		datafile.close();
+	}
+#endif
 }
 
 static void on_acquired_critical(ompt_wait_id_t wait_id) {
@@ -119,6 +139,8 @@ static void on_release_critical(ompt_wait_id_t wait_id) {
 static void on_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 		ompt_task_id_t task_id) {
 	std::ostringstream oss;
+
+#if defined(TLS) || defined(NOTLS)
 	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << task_id << "," << tid << "," << __swordomp_status__ << "]\n";
 
 	for (std::unordered_map<uint64_t, AccessInfo>::iterator it = accesses.begin(); it != accesses.end(); ++it) {
@@ -127,6 +149,17 @@ static void on_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 	oss << "DATA_END[" << std::dec << parallel_id << "," << task_id << "," << tid << "," << __swordomp_status__ << "]\n";
 	DATA(datafile, oss.str());
 	accesses.clear();
+#else
+	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << task_id << "," << tid << "," << __swordomp_status__ << "]\n";
+
+	for (std::unordered_map<uint64_t, AccessInfo>::iterator it = threadInfo[tid - 1].accesses.begin(); it != threadInfo[tid - 1].accesses.end(); ++it) {
+		oss << "DATA[" << std::hex << "0x" << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "]\n";
+	}
+	oss << "DATA_END[" << std::dec << parallel_id << "," << task_id << "," << tid << "," << __swordomp_status__ << "]\n";
+	DATA(datafile, oss.str());
+	threadInfo[tid - 1].accesses.clear();
+#endif
+
 }
 
 static void on_ompt_event_barrier_end(ompt_parallel_id_t parallel_id,
