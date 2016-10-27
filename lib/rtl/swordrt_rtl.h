@@ -117,8 +117,6 @@ thread_local size_t *stack;
 thread_local size_t stacksize;
 thread_local int __swordomp_status__ = 0;
 thread_local uint8_t __swordomp_is_critical__ = false;
-thread_local AccessInfo accessInfo[10];
-thread_local unsigned num_accesses = 1;
 thread_local std::unordered_map<uint64_t, AccessInfo> accesses;
 size_t barrier_id;
 #elif NOTLS
@@ -127,8 +125,6 @@ extern thread_local size_t *stack;
 extern thread_local size_t stacksize;
 extern thread_local int __swordomp_status__;
 extern thread_local uint8_t __swordomp_is_critical__;
-thread_local AccessInfo accessInfo[10];
-thread_local unsigned num_accesses = 1;
 thread_local std::unordered_map<uint64_t, AccessInfo> accesses;
 size_t barrier_id;
 #else
