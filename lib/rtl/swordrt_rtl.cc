@@ -21,20 +21,23 @@
 		pthread_getattr_np(self, &attr);							\
 		pthread_attr_getstack(&attr, (void **) &stack, &stacksize);	\
 		pthread_attr_destroy(&attr);
-#define DEF_ACCESS size_t access = (size_t) addr;
+#define DEF_ACCESS												\
+		size_t access = (size_t) addr;							\
+		size_t pc = CALLERPC;
 #define CHECK_STACK												\
 		if((access >= (size_t) stack) &&						\
 				(access < (size_t) stack + stacksize))			\
 				return;
-#define SAVE_ACCESS(access, size, type)															\
-		std::unordered_map<uint64_t, AccessInfo>::const_iterator item = accesses.find(hash); 	\
+#define SAVE_ACCESS(size, type)																	\
+		std::unordered_map<uint64_t, AccessInfo>::iterator item = accesses.find(hash); 			\
 		if(item == accesses.end()) {															\
-			accesses.insert(std::make_pair(hash, AccessInfo(access, 0, size, type, CALLERPC)));	\
+			accesses.insert(std::make_pair(hash, AccessInfo(access, 0, size, type, pc)));		\
 		} else {																				\
 			if(access < item->second.address) {													\
-				accesses[hash].address = access;												\
+				item->second.address = access;													\
+				item->second.count++;															\
 			} else if(((access - item->second.address) / (1 << size)) >= item->second.count) {	\
-				accesses[hash].count++;															\
+				item->second.count++;															\
 			}																					\
 		}
 #else
@@ -44,20 +47,23 @@
 		pthread_getattr_np(self, &attr);					\
 		pthread_attr_getstack(&attr, (void **) &threadInfo[tid - 1].stack, &threadInfo[tid - 1].stacksize);	\
 		pthread_attr_destroy(&attr);
-#define DEF_ACCESS size_t access = (size_t) addr;
+#define DEF_ACCESS												\
+		size_t access = (size_t) addr;							\
+		size_t pc = CALLERPC;
 #define CHECK_STACK																				\
 		if((access >= (size_t) threadInfo[tid - 1].stack) &&									\
 				(access < (size_t) threadInfo[tid - 1].stack + threadInfo[tid - 1].stacksize))	\
 				return;
-#define SAVE_ACCESS(access, size, type)														\
-		std::unordered_map<uint64_t, AccessInfo>::const_iterator item = accesses.find(hash); 	\
+#define SAVE_ACCESS(size, type)																	\
+		std::unordered_map<uint64_t, AccessInfo>::iterator item = accesses.find(hash); 			\
 		if(item == accesses.end()) {															\
-			accesses.insert(std::make_pair(hash, AccessInfo(access, 0, size, type, CALLERPC)));	\
+			accesses.insert(std::make_pair(hash, AccessInfo(access, 0, size, type, pc)));		\
 		} else {																				\
 			if(access < item->second.address) {													\
-				accesses[hash].address = access;												\
+				item->second.address = access;													\
+				item->second.count++;															\
 			} else if(((access - item->second.address) / (1 << size)) >= item->second.count) {	\
-				accesses[hash].count++;															\
+				item->second.count++;															\
 			}																					\
 		}
 #endif
