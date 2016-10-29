@@ -25,8 +25,11 @@
 #include <thread>
 #include <unordered_map>
 
+typedef unsigned __int128 uint128_t;
 #define SWORDRT_DEBUG 	1
 #define ARCHER_DATA "archer_data"
+
+#define GET_ITH_BYTE(i) 	(i * 8)-((i * 8) + 7)
 
 std::mutex pmtx;
 std::ofstream datafile;
@@ -110,6 +113,7 @@ typedef struct ThreadInfo {
 #endif
 
 static ompt_get_thread_id_t ompt_get_thread_id;
+static ompt_get_parallel_id_t ompt_get_parallel_id;
 
 #ifdef TLS
 thread_local uint64_t tid = 0;
@@ -118,7 +122,8 @@ thread_local size_t stacksize;
 thread_local int __swordomp_status__ = 0;
 thread_local uint8_t __swordomp_is_critical__ = false;
 thread_local std::unordered_map<uint64_t, AccessInfo> accesses;
-size_t barrier_id;
+thread_local unsigned __swordrt_prev_offset__ = 0;
+thread_local unsigned __swordrt_barrier__ = 0;
 #elif NOTLS
 extern thread_local uint64_t tid;
 extern thread_local size_t *stack;
@@ -126,7 +131,6 @@ extern thread_local size_t stacksize;
 extern thread_local int __swordomp_status__;
 extern thread_local uint8_t __swordomp_is_critical__;
 thread_local std::unordered_map<uint64_t, AccessInfo> accesses;
-size_t barrier_id;
 #else
 #define MAX_THREADS 256
 thread_local uint64_t tid;

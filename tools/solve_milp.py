@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import sys
+from distutils.log import info
 
 # LIMIT=0
 
@@ -514,6 +515,14 @@ class AccessSize(Enum):
     size8 = 3
     size16 = 4
 
+def create_offset_span_label(parallel_id, lst):
+    pp_id = offset_span_dict_pstart[parallel_id][0]
+    osl = offset_span_dict_pstart[parallel_id][1]
+    if(pp_id == 0):
+        return [osl] + lst
+    lst = [osl] + lst
+    return create_offset_span_label(pp_id, lst)
+
 AccessTypeName = ['None', 'Read', 'Write', 'Atomic Read', 'Atomic Write', 'Critical Read', 'Critical Write']
 AccessTypeVar = ['_n', '_r', '_w', '_ar', '_aw', '_cr', '_cw']
 
@@ -532,35 +541,52 @@ for filename in files:
     # print "Reading file " + filename + "..."
     parallel_id = 0
     tid = 0;
-    parallel_level = 0
+    offset_span_label = ""
+    # { parallel_id: (parent_parallel_id, offset_span)}
+    offset_span_dict_pstart = {}
+    offset_span_dict_pend = {}
     array_dict = defaultdict(lambda : defaultdict(list))
     scalar_dict = defaultdict(lambda : defaultdict(list))
     with open(directory + "/" + filename, "r") as f:
         for line in f:
             if(line.startswith(PARALLEL_BREAK)):
                 break
+            # parallel_id, parent_parallel_id, offset-span label [omp_tid:num_threads]
             elif(line.startswith(PARALLEL_START)):
-                string = re.search(r"\[([A-Za-z0-9,]+)\]", line)
-                parallel_id = int(string.group(1))
-            elif(line.startswith(PARALLEL_END)):
-                parallel_id = 0
-            elif(line.startswith(DATA_BEGIN)):
-                string = re.search(r"\[([A-Za-z0-9,]+)\]", line)
+                string = re.search(r"\[([A-Za-z0-9,:]+)\]", line)
                 info = string.group(1).split(',')
-                tid = info[2]
-                parallel_level = info[3]
+                os = info[2].split(':')
+                offset_span_dict_pstart[int(info[0])] = (int(info[1]), (int(os[0]), int(os[1])))
+            elif(line.startswith(PARALLEL_END)):
+#                 string = re.search(r"\[([A-Za-z0-9,:]+)\]", line)
+#                 info = string.group(1).split(',')
+#                 os = info[2].split(':')
+#                 offset_span_dict_pend[int(info[0])] = (int(info[1]), (int(os[0]), int(os[1])))
+                pass
+            # parallel_id, ompt_tid, offset-span label [omp_tid:num_threads], barrier
+            elif(line.startswith(DATA_BEGIN)):
+                string = re.search(r"\[([A-Za-z0-9,:]+)\]", line)
+                info = string.group(1).split(',')
+                parallel_id = int(info[0])
+                tid = int(info[1])
+                os = info[2].split(':')
+                oslabel = (int(os[0]), int(os[1]))
+                barrier = int(info[3])
             elif(line.startswith(DATA_END)):
-                tid = 0;
+                pass
+            # hash, address, count, size, type, pc
             elif(line.startswith(DATA)):
                 string = re.search(r"\[([A-Za-z0-9,]+)\]", line)
                 info = string.group(1).split(',')
-                if(int(info[2]) > 1):
-                    array_dict[info[0]][tid].extend(info[1:])
-                    array_dict[info[0]][tid].extend(parallel_level)
-                else:
-                    scalar_dict[info[0]][tid].extend(info[1:2] + info[3:])
-                    scalar_dict[info[0]][tid].extend(parallel_level)
+                offset_span_label = create_offset_span_label(parallel_id, [oslabel])
+                print offset_span_label
+#                 if(int(info[2]) > 1):
+#                     array_dict[info[0]][tid].extend(info[1:])
+#                     array_dict[info[0]][tid].extend(offset-span_label)
+#                 else:
+#                     scalar_dict[info[0]][tid].extend(info[1:2] + info[3:])
+#                     scalar_dict[info[0]][tid].extend(offset_span_label)
     # print "Checking for races..."
     # print array_dict
-    find_array_races(array_dict, filename)
-    find_scalar_races(scalar_dict, filename)
+    # find_array_races(array_dict, filename)
+    # find_scalar_races(scalar_dict, filename)

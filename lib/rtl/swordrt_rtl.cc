@@ -95,7 +95,11 @@ static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 	if(__swordomp_status__ == 0) {
 		// Open file
 		datafile.open(std::string(ARCHER_DATA) + "/parallelregion_" + std::to_string(parallel_id));
+		DATA(datafile, "PARALLEL_START[" << std::dec << parallel_id << "," << ompt_get_parallel_id(0) << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "]\n");
 		accesses.clear();
+	} else {
+		DATA(datafile, "PARALLEL_START[" << std::dec << parallel_id << "," << ompt_get_parallel_id(0) << "," << __swordrt_prev_offset__ + omp_get_thread_num() << ":" << omp_get_num_threads() << "]\n");
+		// __swordrt_prev_offset__ = omp_get_thread_num() + omp_get_num_threads();
 	}
 #else
 	if(__swordomp_status__ == 0) {
@@ -104,19 +108,19 @@ static void on_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 		threadInfo[tid - 1].accesses.clear();
 	}
 #endif
-
-	DATA(datafile, "PARALLEL_START[" << std::dec << parallel_id << "]\n");
 }
 
 static void on_ompt_event_parallel_end(ompt_parallel_id_t parallel_id,
 		ompt_task_id_t task_id,
 		ompt_invoker_t invoker) {
-	DATA(datafile, "PARALLEL_END[" << std::dec << parallel_id << "]\n");
-
 #if defined(TLS) || defined(NOTLS)
 	if(__swordomp_status__ == 0) {
+		// DATA(datafile, "PARALLEL_END[" << std::dec << parallel_id << "," << ompt_get_parallel_id(0) << "," << omp_get_thread_num() + omp_get_num_threads() << ":" << omp_get_num_threads() << "]\n");
 		DATA(datafile, "PARALLEL_BREAK\n");
 		datafile.close();
+	} else {
+		// DATA(datafile, "PARALLEL_END[" << std::dec << parallel_id << "," << ompt_get_parallel_id(0) << "," << __swordrt_prev_offset__ + omp_get_thread_num() + omp_get_num_threads() << ":" << omp_get_num_threads() << "]\n");
+		__swordrt_prev_offset__ += omp_get_thread_num() + omp_get_num_threads();
 	}
 #else
 	if(__swordomp_status__ == 0) {
@@ -146,30 +150,26 @@ static void on_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 		ompt_task_id_t task_id) {
 	std::ostringstream oss;
 
-#if defined(TLS) || defined(NOTLS)
-	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << task_id << "," << tid << "," << __swordomp_status__ << "]\n";
+	__swordrt_barrier__++;
 
+#if defined(TLS) || defined(NOTLS)
+	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << tid << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
+	oss << "DATA[244,0x7f57755ca728,0,3,1,0x401121]\n";
 	for (std::unordered_map<uint64_t, AccessInfo>::iterator it = accesses.begin(); it != accesses.end(); ++it) {
-		oss << "DATA[" << std::hex << "0x" << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "]\n";
+		oss << "DATA[" << std::dec << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "]\n";
 	}
-	oss << "DATA_END[" << std::dec << parallel_id << "," << task_id << "," << tid << "," << __swordomp_status__ << "]\n";
+	oss << "DATA_END[" << std::dec << parallel_id << "," << tid << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
 	DATA(datafile, oss.str());
 	accesses.clear();
 #else
-	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << task_id << "," << tid << "," << __swordomp_status__ << "]\n";
-
+	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << tid << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
 	for (std::unordered_map<uint64_t, AccessInfo>::iterator it = threadInfo[tid - 1].accesses.begin(); it != threadInfo[tid - 1].accesses.end(); ++it) {
-		oss << "DATA[" << std::hex << "0x" << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "]\n";
+		oss << "DATA[" << std::dec << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "]\n";
 	}
-	oss << "DATA_END[" << std::dec << parallel_id << "," << task_id << "," << tid << "," << __swordomp_status__ << "]\n";
+	oss << "DATA_END[" << std::dec << parallel_id << "," << tid << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
 	DATA(datafile, oss.str());
 	threadInfo[tid - 1].accesses.clear();
 #endif
-
-}
-
-static void on_ompt_event_barrier_end(ompt_parallel_id_t parallel_id,
-		ompt_task_id_t task_id) {
 
 }
 
@@ -186,6 +186,7 @@ static void ompt_initialize_fn(ompt_function_lookup_t lookup,
 
 	ompt_set_callback_t ompt_set_callback = (ompt_set_callback_t) lookup("ompt_set_callback");
 	ompt_get_thread_id = (ompt_get_thread_id_t) lookup("ompt_get_thread_id");
+	ompt_get_parallel_id = (ompt_get_parallel_id_t) lookup("ompt_get_parallel_id");
 
 	ompt_set_callback(ompt_event_thread_begin,
 			(ompt_callback_t) &on_ompt_event_thread_begin);
@@ -199,8 +200,6 @@ static void ompt_initialize_fn(ompt_function_lookup_t lookup,
 			(ompt_callback_t) &on_release_critical);
 	ompt_set_callback(ompt_event_barrier_begin,
 			(ompt_callback_t) &on_ompt_event_barrier_begin);
-	ompt_set_callback(ompt_event_barrier_end,
-			(ompt_callback_t) &on_ompt_event_barrier_end);
 }
 
 ompt_initialize_t ompt_tool(void) {
