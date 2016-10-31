@@ -263,7 +263,7 @@ def create_milp_gurobi(problem_name, info, filename):
         len1 = len(t_col[1])
         length = len0 if len0 < len1 else len1
         for t in range(0, length):
-            m.addConstr(t_col[0][t] + t_col[1][t], GRB.EQUAL, 1, "atmost" + str(j))
+            m.addConstr(t_col[0][t] + t_col[1][t], GRB.LESS_EQUAL, 1, "atmost" + str(j))
             j += 1
 
         m.update()
@@ -316,6 +316,9 @@ def create_milp_gurobi(problem_name, info, filename):
     except AttributeError as attr_err:
         print 'Encountered an attribute error', attr_err
 
+def concurrent(osl1, osl2):
+    return True
+
 def printraces(race):
     command = path[0].rstrip() + ' -pretty-print' + ' < <(echo "' + executable + ' ' + hex(race[0][4]) + '")'
     proc = subprocess.Popen(command, shell=True, executable='/bin/bash',
@@ -367,7 +370,7 @@ def find_array_races(dct, filename):
         lst = []
         for k1,v1 in v.iteritems():
             # lst.append((int(k, 16), int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]), int(v1[3]), int(v1[4], 16), int(v1[5], 16)))
-            lst.append((int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]), int(v1[3]), int(v1[4], 16), int(v1[5], 16)))
+            lst.append((int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]), int(v1[3]), int(v1[4], 16), tuple(v1[5])))
         array_access_list.append(lst)
 
     # tid, address, count, size, type, pc, barrier
@@ -375,7 +378,7 @@ def find_array_races(dct, filename):
     combinat = combinations(array_access_list, r = 2)
     for key1, key2 in combinat:
         # Same barrier interval and same access size?
-        if((key1[0][6] == key2[0][6]) and (key1[0][3] == key2[0][3])):
+        if(concurrent(key1[0][6],key2[0][6]) and (key1[0][3] == key2[0][3])):
             if((key1[0][4] == AccessType.unsafe_write) or
                (key2[0][4] == AccessType.unsafe_write) or
                ((key1[0][4] == AccessType.unsafe_read) and
@@ -433,7 +436,9 @@ def find_scalar_races(dict, filename):
 
     for k,v in dict.iteritems():
         for k1,v1 in v.iteritems():
-            scalar_access_set.add((int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]) , int(v1[3], 16), int(v1[4])))
+            for v2 in v1:
+                # 1 [['0x7f57755ca728'], '3', '1', '0x401121', [(0, 1), (0, 2), (0, 2)]]
+                scalar_access_set.add((int(k1), int(v2[0], 16), int(v2[1]), int(v2[2]) , int(v2[3], 16), tuple(v2[4])))
 
     scalar_race_set = set()
     # (tid, address, size, type, pc)
@@ -558,10 +563,10 @@ for filename in files:
                 os = info[2].split(':')
                 offset_span_dict_pstart[int(info[0])] = (int(info[1]), (int(os[0]), int(os[1])))
             elif(line.startswith(PARALLEL_END)):
-#                 string = re.search(r"\[([A-Za-z0-9,:]+)\]", line)
-#                 info = string.group(1).split(',')
-#                 os = info[2].split(':')
-#                 offset_span_dict_pend[int(info[0])] = (int(info[1]), (int(os[0]), int(os[1])))
+                # string = re.search(r"\[([A-Za-z0-9,:]+)\]", line)
+                # info = string.group(1).split(',')
+                # os = info[2].split(':')
+                # offset_span_dict_pend[int(info[0])] = (int(info[1]), (int(os[0]), int(os[1])))
                 pass
             # parallel_id, ompt_tid, offset-span label [omp_tid:num_threads], barrier
             elif(line.startswith(DATA_BEGIN)):
@@ -578,15 +583,17 @@ for filename in files:
             elif(line.startswith(DATA)):
                 string = re.search(r"\[([A-Za-z0-9,]+)\]", line)
                 info = string.group(1).split(',')
+                # label to identify if two threads are concurrent or not
                 offset_span_label = create_offset_span_label(parallel_id, [oslabel])
-                print offset_span_label
-#                 if(int(info[2]) > 1):
-#                     array_dict[info[0]][tid].extend(info[1:])
-#                     array_dict[info[0]][tid].extend(offset-span_label)
-#                 else:
-#                     scalar_dict[info[0]][tid].extend(info[1:2] + info[3:])
-#                     scalar_dict[info[0]][tid].extend(offset_span_label)
+                if(int(info[2]) > 1):
+                    lst = info[1:]
+                    lst.append(offset_span_label)
+                    array_dict[info[0]][tid].extend(lst)
+                else:
+                    lst = info[1:2] + info[3:]
+                    lst.append(offset_span_label)
+                    scalar_dict[info[0]][tid].append(lst)
     # print "Checking for races..."
     # print array_dict
-    # find_array_races(array_dict, filename)
-    # find_scalar_races(scalar_dict, filename)
+    find_array_races(array_dict, filename)
+    find_scalar_races(scalar_dict, filename)
