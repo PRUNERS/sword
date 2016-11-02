@@ -245,16 +245,19 @@ def create_milp_gurobi(problem_name, info, filename):
 
         # tid, address, count, size, type, pc, barrier
         idx = 0
+        # var = 0
         t_col = []
         for item in info:
             t_col.append([])
             for v in item:
                 i_T = m.addVar(name = 'i' + str(v[0]) + AccessTypeVar[v[4]] + "_" + str(idx), lb=(v[1] - offset) / (1 << v[3]), ub=((v[1] - offset) + v[2] * (1 << v[3])) / (1 << v[3]), vtype=GRB.INTEGER)
                 T = m.addVar(name = 'T' + str(v[0]) + AccessTypeVar[v[4]] + "_" + str(idx), vtype=GRB.BINARY, obj = 1)
+                # m.addVar(name = "Pippo_" + str(var), vtype=GRB.INTEGER, lb = v[5], ub = v[5], obj = 0)
                 m.update()
                 t_col[idx].append(T)
                 m.addConstr(i_T - i + LIMIT * T <= LIMIT, "T" + str(v[0]) + AccessTypeVar[v[4]] + "_" + str(idx) + "_1")
                 m.addConstr(i - i_T + LIMIT * T <= LIMIT, "T" + str(v[0]) + AccessTypeVar[v[4]] + "_" + str(idx) + "_2")
+                # var += 1
             m.addConstr(sum(t for t in t_col[idx]), GRB.EQUAL, 1, "exactly" + str(idx))
             idx += 1
 
@@ -275,6 +278,7 @@ def create_milp_gurobi(problem_name, info, filename):
 
         if((m.status == GRB.Status.OPTIMAL) or (m.status == GRB.Status.SUBOPTIMAL)):
             m.write(directory + "/" + filename + "_" + problem_name + ".sol")
+            # print directory + "/" + filename + "_" + problem_name + ".sol"
 
             # Print Race
             racing_threads = list()
@@ -295,20 +299,22 @@ def create_milp_gurobi(problem_name, info, filename):
             # tid, address, count, size, type1, pc, barrier
             array_race_list = []
             accesses = []
+            # check this, probably need to loop and find the right one, they are not in order
             for t in racing_threads:
                 val = info[t[2]]
                 for v in val:
                     if((t[0] == v[0]) and (t[1] == v[4])):
                        accesses.append(v)
                        break
-            list1 = [accesses[0][0], i]
-            list1.extend(accesses[0][3:])
-            array_race_list.append(tuple(list1))
-            list2 = [accesses[1][0], i]
-            list2.extend(accesses[1][3:])
-            array_race_list.append(tuple(list2))
+            if(len(accesses) > 1):
+                list1 = [accesses[0][0], i]
+                list1.extend(accesses[0][3:])
+                array_race_list.append(tuple(list1))
+                list2 = [accesses[1][0], i]
+                list2.extend(accesses[1][3:])
+                array_race_list.append(tuple(list2))
 
-            printarrayraces(array_race_list)
+                printarrayraces(array_race_list)
             # # Print Race
 
     except GurobiError as gurobi_err:
@@ -316,8 +322,75 @@ def create_milp_gurobi(problem_name, info, filename):
     except AttributeError as attr_err:
         print 'Encountered an attribute error', attr_err
 
-def concurrent(osl1, osl2):
-    return True
+def concurrent_scalar(set1, set2):
+    # (8, 140737116268256, 2, 2, 6916502, ((0, 1), (7, 24)), 1)
+    osl1 = set1[5]
+    osl2 = set2[5]
+    concurr = True
+    # case1
+    if(len(osl1) < len(osl2)):
+        length = len(osl1)
+        for i in range(length):
+            if(osl1[i] != osl2[i]):
+                break
+        else:
+            concurr = False
+    elif(len(osl1) > len(osl2)):
+        length = len(osl2)
+        for i in range(length):
+            if(osl1[i] != osl2[i]):
+                break
+        else:
+            concurr = False
+    else:
+        # case2
+        length = len(osl1)
+        for i in range(length):
+            if(osl1[i] != osl2[i]):
+                if(osl1[i][1] == osl2[i][1]):
+                    s = osl1[i][1]
+                    if((i + 1 == length) or ((osl1[i][0] % s) == (osl2[i][0] % s))):
+                        concurr = False
+                break
+    return concurr
+
+def concurrent_array(set1, set2):
+    osl1 = osl2 = 0
+    for s1 in set1:
+        for s2 in set2:
+            if((s1[0] != s2[0]) and (s2[6] != osl1)):
+                osl1 = s1[6]
+                osl2 = s2[6]
+                break
+    if((osl1 == 0) or (osl2 == 0)):
+       return False
+    concurr = True
+    # case1
+    if(len(osl1) < len(osl2)):
+        length = len(osl1)
+        for i in range(length):
+            if(osl1[i] != osl2[i]):
+                break
+        else:
+            concurr = False
+    elif(len(osl1) > len(osl2)):
+        length = len(osl2)
+        for i in range(length):
+            if(osl1[i] != osl2[i]):
+                break
+        else:
+            concurr = False
+    else:
+        # case2
+        length = len(osl1)
+        for i in range(length):
+            if(osl1[i] != osl2[i]):
+                if(osl1[i][1] == osl2[i][1]):
+                    s = osl1[i][1]
+                    if((i + 1 == length) or ((osl1[i][0] % s) == (osl2[i][0] % s))):
+                        concurr = False
+                break
+    return concurr
 
 def printraces(race):
     command = path[0].rstrip() + ' -pretty-print' + ' < <(echo "' + executable + ' ' + hex(race[0][4]) + '")'
@@ -333,7 +406,7 @@ def printraces(race):
                             stderr=subprocess.STDOUT)
     race1 = proc.stdout.readline()
     print "--------------------------------------------------"
-    print "WARNING: Archer: data race (program=" + executable + ")"
+    print "WARNING: Archer: scalar data race (program=" + executable + ")"
     print AccessTypeName[race[0][3]] + " of size " + str(1 << race[0][2]) + " at " + hex(race[0][1]) + " by thread T" + str(race[0][0]) + " in " + race0.rstrip()
     print AccessTypeName[race[1][3]] + " of size " + str(1 << race[1][2]) + " at " + hex(race[1][1]) + " by thread T" + str(race[1][0]) + " in " + race1.rstrip()
     print "--------------------------------------------------"
@@ -354,7 +427,7 @@ def printarrayraces(race):
                             stderr=subprocess.STDOUT)
     race1 = proc.stdout.readline()
     print "--------------------------------------------------"
-    print "WARNING: Archer: data race (program=" + executable + ")"
+    print "WARNING: Archer: array data race (program=" + executable + ")"
     print AccessTypeName[race[0][3]] + " of size " + str(1 << race[0][2]) + " at " + hex(race[0][1]) + " by thread T" + str(race[0][0]) + " in " + race0.rstrip()
     print AccessTypeName[race[1][3]] + " of size " + str(1 << race[1][2]) + " at " + hex(race[1][1]) + " by thread T" + str(race[1][0]) + " in " + race1.rstrip()
     print "--------------------------------------------------"
@@ -370,15 +443,16 @@ def find_array_races(dct, filename):
         lst = []
         for k1,v1 in v.iteritems():
             # lst.append((int(k, 16), int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]), int(v1[3]), int(v1[4], 16), int(v1[5], 16)))
-            lst.append((int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]), int(v1[3]), int(v1[4], 16), tuple(v1[5])))
+            lst.append((int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]), int(v1[3]), int(v1[4], 16), tuple(v1[5]), int(v1[6])))
         array_access_list.append(lst)
 
     # tid, address, count, size, type, pc, barrier
     # (1, 24385376, 49, 3, 2, 4197942, 0)
     combinat = combinations(array_access_list, r = 2)
     for key1, key2 in combinat:
-        # Same barrier interval and same access size?
-        if(concurrent(key1[0][6],key2[0][6]) and (key1[0][3] == key2[0][3])):
+        # (Concurrent through osl or same barrier interval) and same access size
+        # tid, access, count, size, type, pc, osl, barrier
+        if((key1[0][3] == key2[0][3]) and ((key1[0][7] == key2[0][7]) or ((key1[0][7] != key2[0][7]) and concurrent_array(key1,key2)))):
             if((key1[0][4] == AccessType.unsafe_write) or
                (key2[0][4] == AccessType.unsafe_write) or
                ((key1[0][4] == AccessType.unsafe_read) and
@@ -436,16 +510,18 @@ def find_scalar_races(dict, filename):
 
     for k,v in dict.iteritems():
         for k1,v1 in v.iteritems():
-            for v2 in v1:
-                # 1 [['0x7f57755ca728'], '3', '1', '0x401121', [(0, 1), (0, 2), (0, 2)]]
-                scalar_access_set.add((int(k1), int(v2[0], 16), int(v2[1]), int(v2[2]) , int(v2[3], 16), tuple(v2[4])))
+            scalar_access_set.add((int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]) , int(v1[3], 16), tuple(v1[4]), int(v1[5])))
 
     scalar_race_set = set()
     # (tid, address, size, type, pc)
     for key1, key2 in combinations(scalar_access_set, r = 2):
-        # tid, access, size, type, pc, barrier
+        # tid, access, size, type, pc, osl, barrier
         if(key1[0] != key2[0]):
-            if((key1[1] == key2[1]) and (key1[2] == key2[2]) and (key1[5] == key2[5])):
+            # (8, 140737116268256, 2, 2, 6916502, ((0, 1), (7, 24)), 1)
+            # if((key1[1] == key2[1]) and (key1[2] == key2[2]) and (key1[6] == key2[6])):
+            # same size memory access, same barrier or different barrier but concurrent
+            if((key1[1] == key2[1]) and (key1[2] == key2[2]) and
+                ((key1[6] == key2[6]) or ((key1[6] != key2[6]) and concurrent_scalar(key1,key2)))):
                 if((key1[3] == AccessType.unsafe_write) or
                (key2[3] == AccessType.unsafe_write) or
                ((key1[3] == AccessType.unsafe_read) and
@@ -589,11 +665,12 @@ for filename in files:
                     lst = info[1:]
                     lst.append(offset_span_label)
                     array_dict[info[0]][tid].extend(lst)
+                    array_dict[info[0]][tid].append(barrier)
                 else:
                     lst = info[1:2] + info[3:]
                     lst.append(offset_span_label)
-                    scalar_dict[info[0]][tid].append(lst)
+                    scalar_dict[info[0]][tid].extend(lst)
+                    scalar_dict[info[0]][tid].append(barrier)
     # print "Checking for races..."
-    # print array_dict
     find_array_races(array_dict, filename)
-    find_scalar_races(scalar_dict, filename)
+    # find_scalar_races(scalar_dict, filename)

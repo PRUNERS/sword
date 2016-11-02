@@ -154,7 +154,6 @@ static void on_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 
 #if defined(TLS) || defined(NOTLS)
 	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << tid << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
-	oss << "DATA[244,0x7f57755ca728,0,3,1,0x401121]\n";
 	for (std::unordered_map<uint64_t, AccessInfo>::iterator it = accesses.begin(); it != accesses.end(); ++it) {
 		oss << "DATA[" << std::dec << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "]\n";
 	}
