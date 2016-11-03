@@ -28,17 +28,29 @@
 		if((access >= (size_t) stack) &&						\
 				(access < (size_t) stack + stacksize))			\
 				return;
-#define SAVE_ACCESS(size, type)																	\
-		std::unordered_map<uint64_t, AccessInfo>::iterator item = accesses.find(hash); 			\
-		if(item == accesses.end()) {															\
-			accesses.insert(std::make_pair(hash, AccessInfo(access, 0, size, type, pc)));		\
-		} else {																				\
-			if(access < item->second.address) {													\
-				item->second.address = access;													\
-				item->second.count++;															\
-			} else if(((access - item->second.address) / (1 << size)) >= item->second.count) {	\
-				item->second.count++;															\
-			}																					\
+#define SAVE_ACCESS(size, type)																			\
+		std::unordered_map<uint64_t, AccessInfo>::iterator item = accesses.find(hash); 					\
+		if(item == accesses.end()) {																	\
+			accesses.insert(std::make_pair(hash, AccessInfo(access, access, UINT_MAX, 0, size, type, pc)));	\
+		} else {																						\
+			if(access < item->second.address) {															\
+				item->second.address = access;															\
+				item->second.count++;																	\
+				int64_t diff = item->second.prev_address - access;										\
+				unsigned stride = diff / (1 << size);													\
+				if(stride < item->second.stride)														\
+					item->second.stride = stride;														\
+				INFO(std::cout, "PATTERN:" << tid << "," << hash << ","<< access << "," << item->second.prev_address << "," << item->second.stride << "," << (1 << size) << "," << pc);			\
+				item->second.prev_address = access;														\
+			} else if(((access - item->second.address) / (1 << size)) >= item->second.count + 1) {			\
+				item->second.count++;																	\
+				int64_t diff = access - item->second.prev_address;										\
+				unsigned stride = diff / (1 << size);													\
+				if(stride < item->second.stride)														\
+					item->second.stride = stride;														\
+				INFO(std::cout, "PATTERN:" << tid << "," << hash << ","<< access << "," << item->second.prev_address << "," << item->second.stride << "," << (1 << size) << "," << pc);			\
+				item->second.prev_address = access;														\
+			}																							\
 		}
 #else
 #define GET_STACK	 										\
@@ -155,7 +167,7 @@ static void on_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 #if defined(TLS) || defined(NOTLS)
 	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << tid << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
 	for (std::unordered_map<uint64_t, AccessInfo>::iterator it = accesses.begin(); it != accesses.end(); ++it) {
-		oss << "DATA[" << std::dec << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "]\n";
+		oss << "DATA[" << std::dec << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "," << std::dec << it->second.stride << "]\n";
 	}
 	oss << "DATA_END[" << std::dec << parallel_id << "," << tid << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
 	DATA(datafile, oss.str());
@@ -163,7 +175,7 @@ static void on_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 #else
 	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << tid << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
 	for (std::unordered_map<uint64_t, AccessInfo>::iterator it = threadInfo[tid - 1].accesses.begin(); it != threadInfo[tid - 1].accesses.end(); ++it) {
-		oss << "DATA[" << std::dec << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "]\n";
+		oss << "DATA[" << std::dec << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "," << it->second.stride << "]\n";
 	}
 	oss << "DATA_END[" << std::dec << parallel_id << "," << tid << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
 	DATA(datafile, oss.str());
@@ -175,7 +187,6 @@ static void on_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 static void ompt_initialize_fn(ompt_function_lookup_t lookup,
 		const char *runtime_version,
 		unsigned int ompt_version) {
-
 	DEBUG(std::cout, "OMPT Initizialization: Runtime Version: " << std::dec << runtime_version << ", OMPT Version: " << std::dec << ompt_version);
 
 	std::string str = "rm -rf " + std::string(ARCHER_DATA);

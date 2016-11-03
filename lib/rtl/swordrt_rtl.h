@@ -45,6 +45,12 @@ std::ofstream datafile;
 			std::unique_lock<std::mutex> lock(pmtx);			\
 			stream << "DEBUG INFO[" << x << "][" << __FUNCTION__ << ":" << __FILE__ << ":" << std::dec << __LINE__ << "]" << std::endl;	\
 		} while(0)
+#define INFO(stream, x)
+//#define INFO(stream, x) 										\
+//		do {													\
+//			std::unique_lock<std::mutex> lock(pmtx);			\
+//			stream << x << std::endl;	\
+//		} while(0)
 #else
 #define ASSERT(x)
 #define DEBUG(stream, x)
@@ -79,6 +85,8 @@ enum AccessType {
 struct AccessInfo
 {
 	size_t address;
+	size_t prev_address;
+	unsigned stride;
 	size_t count;
 	AccessSize size;
 	AccessType type;
@@ -86,17 +94,21 @@ struct AccessInfo
 
 	AccessInfo() {
 		address = 0;
+		prev_address = 0;
+		stride = 0;
 		count = 0;
 		size = size4;
 		type = none;
 		pc = 0;
 	}
 
-	AccessInfo(size_t a, size_t c,	AccessSize s,
-			AccessType t, size_t p) {
+	AccessInfo(size_t a, size_t pa, unsigned s,
+			size_t c, AccessSize as, AccessType t, size_t p) {
 		address = a;
+		prev_address = pa;
+		stride = s;
 		count = c;
-		size = s;
+		size = as;
 		type = t;
 		pc = p;
 	}

@@ -19,8 +19,6 @@ import subprocess
 import sys
 from distutils.log import info
 
-# LIMIT=0
-
 symbolizer = 'which llvm-symbolizer'
 process = subprocess.Popen(symbolizer.split(), stdout=subprocess.PIPE)
 path = process.communicate()
@@ -324,8 +322,8 @@ def create_milp_gurobi(problem_name, info, filename):
 
 def concurrent_scalar(set1, set2):
     # (8, 140737116268256, 2, 2, 6916502, ((0, 1), (7, 24)), 1)
-    osl1 = set1[5]
-    osl2 = set2[5]
+    osl1 = set1[6]
+    osl2 = set2[6]
     concurr = True
     # case1
     if(len(osl1) < len(osl2)):
@@ -358,9 +356,9 @@ def concurrent_array(set1, set2):
     osl1 = osl2 = 0
     for s1 in set1:
         for s2 in set2:
-            if((s1[0] != s2[0]) and (s2[6] != osl1)):
-                osl1 = s1[6]
-                osl2 = s2[6]
+            if((s1[0] != s2[0]) and (s2[7] != osl1)):
+                osl1 = s1[7]
+                osl2 = s2[7]
                 break
     if((osl1 == 0) or (osl2 == 0)):
        return False
@@ -443,7 +441,7 @@ def find_array_races(dct, filename):
         lst = []
         for k1,v1 in v.iteritems():
             # lst.append((int(k, 16), int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]), int(v1[3]), int(v1[4], 16), int(v1[5], 16)))
-            lst.append((int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]), int(v1[3]), int(v1[4], 16), tuple(v1[5]), int(v1[6])))
+            lst.append((int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]), int(v1[3]), int(v1[4], 16), int(v1[5]), tuple(v1[6]), int(v1[7])))
         array_access_list.append(lst)
 
     # tid, address, count, size, type, pc, barrier
@@ -451,8 +449,8 @@ def find_array_races(dct, filename):
     combinat = combinations(array_access_list, r = 2)
     for key1, key2 in combinat:
         # (Concurrent through osl or same barrier interval) and same access size
-        # tid, access, count, size, type, pc, osl, barrier
-        if((key1[0][3] == key2[0][3]) and ((key1[0][7] == key2[0][7]) or ((key1[0][7] != key2[0][7]) and concurrent_array(key1,key2)))):
+        # tid, access, count, size, type, pc, stride, osl, barrier
+        if((key1[0][3] == key2[0][3]) and ((key1[0][8] == key2[0][8]) or ((key1[0][8] != key2[0][8]) and concurrent_array(key1,key2)))):
             if((key1[0][4] == AccessType.unsafe_write) or
                (key2[0][4] == AccessType.unsafe_write) or
                ((key1[0][4] == AccessType.unsafe_read) and
@@ -510,7 +508,7 @@ def find_scalar_races(dict, filename):
 
     for k,v in dict.iteritems():
         for k1,v1 in v.iteritems():
-            scalar_access_set.add((int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]) , int(v1[3], 16), tuple(v1[4]), int(v1[5])))
+            scalar_access_set.add((int(k1), int(v1[0], 16), int(v1[1]), int(v1[2]), int(v1[3], 16), int(v1[4]), tuple(v1[5]), int(v1[6])))
 
     scalar_race_set = set()
     # (tid, address, size, type, pc)
@@ -521,7 +519,7 @@ def find_scalar_races(dict, filename):
             # if((key1[1] == key2[1]) and (key1[2] == key2[2]) and (key1[6] == key2[6])):
             # same size memory access, same barrier or different barrier but concurrent
             if((key1[1] == key2[1]) and (key1[2] == key2[2]) and
-                ((key1[6] == key2[6]) or ((key1[6] != key2[6]) and concurrent_scalar(key1,key2)))):
+                ((key1[7] == key2[7]) or ((key1[7] != key2[7]) and concurrent_scalar(key1,key2)))):
                 if((key1[3] == AccessType.unsafe_write) or
                (key2[3] == AccessType.unsafe_write) or
                ((key1[3] == AccessType.unsafe_read) and
@@ -673,4 +671,4 @@ for filename in files:
                     scalar_dict[info[0]][tid].append(barrier)
     # print "Checking for races..."
     find_array_races(array_dict, filename)
-    # find_scalar_races(scalar_dict, filename)
+    find_scalar_races(scalar_dict, filename)
