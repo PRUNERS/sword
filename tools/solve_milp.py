@@ -297,7 +297,7 @@ def create_milp_gurobi(problem_name, info, filename):
             # tid, address, count, size, type1, pc, barrier
             array_race_list = []
             accesses = []
-            # check this, probably need to loop and find the right one, they are not in order
+            # SIMONE: check this, probably need to loop and find the right one, they are not in order
             for t in racing_threads:
                 val = info[t[2]]
                 for v in val:

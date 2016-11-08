@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <iostream>
 #include <fstream>
+#include <set>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -28,11 +29,13 @@
 typedef unsigned __int128 uint128_t;
 #define SWORDRT_DEBUG 	1
 #define ARCHER_DATA "archer_data"
+#define LESSTHAN(a,b) (a < b)
 
 #define GET_ITH_BYTE(i) 	(i * 8)-((i * 8) + 7)
 
 std::mutex pmtx;
 std::ofstream datafile;
+std::ofstream setdatafile;
 #ifdef SWORDRT_DEBUG
 #define ASSERT(x) assert(x);
 #define DATA(stream, x) 										\
@@ -45,12 +48,12 @@ std::ofstream datafile;
 			std::unique_lock<std::mutex> lock(pmtx);			\
 			stream << "DEBUG INFO[" << x << "][" << __FUNCTION__ << ":" << __FILE__ << ":" << std::dec << __LINE__ << "]" << std::endl;	\
 		} while(0)
-#define INFO(stream, x)
-//#define INFO(stream, x) 										\
-//		do {													\
-//			std::unique_lock<std::mutex> lock(pmtx);			\
-//			stream << x << std::endl;	\
-//		} while(0)
+// #define INFO(stream, x)
+#define INFO(stream, x) 										\
+		do {													\
+			std::unique_lock<std::mutex> lock(pmtx);			\
+			stream << x << std::endl;	\
+		} while(0)
 #else
 #define ASSERT(x)
 #define DEBUG(stream, x)
@@ -87,7 +90,8 @@ struct AccessInfo
 	size_t address;
 	size_t prev_address;
 	unsigned stride;
-	size_t count;
+	uint64_t diff;
+	uint64_t count;
 	AccessSize size;
 	AccessType type;
 	size_t pc;
@@ -96,17 +100,19 @@ struct AccessInfo
 		address = 0;
 		prev_address = 0;
 		stride = 0;
+		diff = 0;
 		count = 0;
 		size = size4;
 		type = none;
 		pc = 0;
 	}
 
-	AccessInfo(size_t a, size_t pa, unsigned s,
-			size_t c, AccessSize as, AccessType t, size_t p) {
+	AccessInfo(size_t a, size_t pa, unsigned s, uint64_t d,
+			uint64_t c, AccessSize as, AccessType t, size_t p) {
 		address = a;
 		prev_address = pa;
 		stride = s;
+		diff = d;
 		count = c;
 		size = as;
 		type = t;
@@ -127,6 +133,12 @@ typedef struct ThreadInfo {
 static ompt_get_thread_id_t ompt_get_thread_id;
 static ompt_get_parallel_id_t ompt_get_parallel_id;
 
+std::mutex smtx;
+std::set<uint64_t> total_tsan_checks;
+std::set<std::pair<uint64_t, uint64_t>> pairs_tsan_checks;
+std::set<uint64_t> entry_tsan_checks;
+bool tsan_enabled;
+
 #ifdef TLS
 thread_local uint64_t tid = 0;
 thread_local size_t *stack;
@@ -134,8 +146,10 @@ thread_local size_t stacksize;
 thread_local int __swordomp_status__ = 0;
 thread_local uint8_t __swordomp_is_critical__ = false;
 thread_local std::unordered_map<uint64_t, AccessInfo> accesses;
+thread_local std::set<uint64_t> tsan_checks;
 thread_local unsigned __swordrt_prev_offset__ = 0;
 thread_local unsigned __swordrt_barrier__ = 0;
+thread_local uint64_t __swordrt_hash__ = 0;
 #elif NOTLS
 extern thread_local uint64_t tid;
 extern thread_local size_t *stack;

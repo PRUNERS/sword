@@ -25,11 +25,13 @@ set(TSAN_SOURCES
   # rtl/swordrt_rtl2.cc)
 
 INCLUDE_DIRECTORIES("/home/simone/usr/include")
-set (CMAKE_SHARED_LINKER_FLAGS "-L/home/simone/usr/lib -fopenmp") # -fsanitize=thread
+set(CMAKE_SHARED_LINKER_FLAGS "-L/home/simone/usr/lib -fopenmp /home/simone/usr/lib/clang/4.0.0/lib/linux/libclang_rt.tsan-x86_64.a") # -fsanitize=thread
+# set(CMAKE_EXE_LINKER_FLAGS "/home/simone/usr/lib/clang/4.0.0/lib/linux/libclang_rt.tsan-x86_64.a")
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_BINARY_DIR}/projects/openmp/runtime/src
   /home/simone/LLVM/llvm/projects/sword-rt/lib/rtl
-  /home/simone/LLVM/llvm/projects/sword-rt/lib/cuckoofilter)
+  /home/simone/LLVM/llvm/projects/compiler-rt/lib/tsan/rtl
+  /home/simone/LLVM/llvm/projects/compiler-rt/lib)
 add_library(sword-rt SHARED ${TSAN_SOURCES})
 add_library(sword-rt-static STATIC ${TSAN_SOURCES})
 

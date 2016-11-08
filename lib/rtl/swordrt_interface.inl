@@ -1,5 +1,17 @@
+#include <swordrt_tsan_interface.h>
 
 // UTIL
+
+void __swordrt_init() {
+	tsan_enabled = false;
+	FILE *fp;
+	std::string filename = std::string(ARCHER_DATA) + "/tsanchecks";
+	if((fp = fopen(filename.c_str(), "r")) != NULL) {
+		DEBUG(std::cout, "Calling tsan_init");
+		__tsan_init();
+		tsan_enabled = true;
+	}
+}
 
 int __swordomp_get_status() {
 #if defined(TLS) || defined(NOTLS)
@@ -25,10 +37,31 @@ void __swordomp_status_dec() {
 #endif
 }
 
+void __swordomp_func_entry(uint64_t hash, void *pc) {
+	__swordrt_hash__ = hash;
+	// if tsan is enabled and hash in list of tsan checks than call __tsan_func_entry
+	if(tsan_enabled) {
+		std::set<uint64_t>::iterator it = entry_tsan_checks.find(hash);
+		if(it != entry_tsan_checks.end())
+			__tsan_func_entry(pc);
+	}
+}
+
+void __swordomp_func_exit(uint64_t hash) {
+	// if tsan is enabled and hash in list of tsan checks than call __tsan_func_exit
+	if(tsan_enabled) {
+		std::set<uint64_t>::iterator it = entry_tsan_checks.find(hash);
+		if(it != entry_tsan_checks.end())
+			__tsan_func_exit();
+	}
+}
+
 // UTIL
 
 // READS
 void __swordomp_read1(void *addr, uint64_t hash) {
+	TSAN_CHECK(read1);
+	
 	DEF_ACCESS
 	CHECK_STACK
 
@@ -45,6 +78,8 @@ void __swordomp_read1(void *addr, uint64_t hash) {
 	
 
 void __swordomp_read2(void *addr, uint64_t hash) {
+	TSAN_CHECK(read2);
+
 	DEF_ACCESS
 	CHECK_STACK
 
@@ -60,6 +95,8 @@ void __swordomp_read2(void *addr, uint64_t hash) {
 }
 
 void __swordomp_read4(void *addr, uint64_t hash) {
+	TSAN_CHECK(read4);
+			
 	DEF_ACCESS
 	CHECK_STACK
 
@@ -75,6 +112,8 @@ void __swordomp_read4(void *addr, uint64_t hash) {
 }
 
 void __swordomp_read8(void *addr, uint64_t hash) {
+	TSAN_CHECK(read8);
+			
 	DEF_ACCESS
 	CHECK_STACK
 
@@ -92,6 +131,8 @@ void __swordomp_read8(void *addr, uint64_t hash) {
 
 // WRITES
 void __swordomp_write1(void *addr, uint64_t hash) {
+	TSAN_CHECK(write1);
+			
 	DEF_ACCESS
 	CHECK_STACK
 
@@ -107,6 +148,8 @@ void __swordomp_write1(void *addr, uint64_t hash) {
 }
 
 void __swordomp_write2(void *addr, uint64_t hash) {
+	TSAN_CHECK(write2);
+			
 	DEF_ACCESS
 	CHECK_STACK
 
@@ -122,6 +165,8 @@ void __swordomp_write2(void *addr, uint64_t hash) {
 }
 
 void __swordomp_write4(void *addr, uint64_t hash) {
+	TSAN_CHECK(write4);
+			
 	DEF_ACCESS
 	CHECK_STACK
 
@@ -137,6 +182,8 @@ void __swordomp_write4(void *addr, uint64_t hash) {
 }
 
 void __swordomp_write8(void *addr, uint64_t hash) {
+	TSAN_CHECK(write8);
+	
 	DEF_ACCESS
 	CHECK_STACK
 
