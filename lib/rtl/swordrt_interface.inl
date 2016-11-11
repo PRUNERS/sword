@@ -1,15 +1,27 @@
 #include <swordrt_tsan_interface.h>
+#include <dlfcn.h>
 
 // UTIL
 
 void __swordrt_init() {
-	tsan_enabled = false;
-	FILE *fp;
-	std::string filename = std::string(ARCHER_DATA) + "/tsanchecks";
-	if((fp = fopen(filename.c_str(), "r")) != NULL) {
-		DEBUG(std::cout, "Calling tsan_init");
-		__tsan_init();
-		tsan_enabled = true;
+	access_tsan_enabled = false;
+	entry_tsan_enabled = false;
+
+	std::string entry_filename = std::string(ARCHER_DATA) + "/entry_tsan_checks";
+	if((fopen(entry_filename.c_str(), "r")) != NULL) {
+		std::string access_filename = std::string(ARCHER_DATA) + "/access_tsan_checks";
+		if((fopen(access_filename.c_str(), "r")) != NULL) {
+	        handle = dlopen("/home/simone/usr/lib/libsword-rt_tsan_strong.so", RTLD_LAZY);
+	        if (!handle) {
+	            fputs (dlerror(), stderr);
+	            exit(1);
+	        }
+			
+			// DEBUG(std::cout, "Calling tsan_init");
+			__tsan_init();
+			access_tsan_enabled = true;
+			entry_tsan_enabled = true;
+		}
 	}
 }
 
@@ -40,8 +52,8 @@ void __swordomp_status_dec() {
 void __swordomp_func_entry(uint64_t hash, void *pc) {
 	__swordrt_hash__ = hash;
 	// if tsan is enabled and hash in list of tsan checks than call __tsan_func_entry
-	if(tsan_enabled) {
-		std::set<uint64_t>::iterator it = entry_tsan_checks.find(hash);
+	if(entry_tsan_enabled) {
+		std::unordered_set<uint64_t>::iterator it = entry_tsan_checks.find(hash);
 		if(it != entry_tsan_checks.end())
 			__tsan_func_entry(pc);
 	}
@@ -49,8 +61,8 @@ void __swordomp_func_entry(uint64_t hash, void *pc) {
 
 void __swordomp_func_exit(uint64_t hash) {
 	// if tsan is enabled and hash in list of tsan checks than call __tsan_func_exit
-	if(tsan_enabled) {
-		std::set<uint64_t>::iterator it = entry_tsan_checks.find(hash);
+	if(entry_tsan_enabled) {
+		std::unordered_set<uint64_t, Hasher>::iterator it = entry_tsan_checks.find(hash);
 		if(it != entry_tsan_checks.end())
 			__tsan_func_exit();
 	}

@@ -21,12 +21,24 @@
 #include <cstdint>
 #include <iostream>
 #include <fstream>
-#include <set>
 #include <string>
 #include <thread>
+#include <unordered_set>
 #include <unordered_map>
 
-typedef unsigned __int128 uint128_t;
+struct Hasher
+{
+	std::size_t operator()(const uint64_t k) const { return k; }
+};
+
+class HasherEqualFn
+{
+public:
+  bool operator() (uint64_t const& t1, uint64_t const& t2) const {
+    return (t1 == t2);
+  }
+};
+
 #define SWORDRT_DEBUG 	1
 #define ARCHER_DATA "archer_data"
 #define LESSTHAN(a,b) (a < b)
@@ -35,13 +47,16 @@ typedef unsigned __int128 uint128_t;
 
 std::mutex pmtx;
 std::ofstream datafile;
-std::ofstream setdatafile;
+std::ofstream entrydatafile;
+std::ofstream accessdatafile;
+void *handle;
 #ifdef SWORDRT_DEBUG
 #define ASSERT(x) assert(x);
 #define DATA(stream, x) 										\
 		do {													\
 			std::unique_lock<std::mutex> lock(pmtx);			\
 			stream << x;										\
+			stream.flush();										\
 		} while(0)
 #define DEBUG(stream, x) 										\
 		do {													\
@@ -134,10 +149,10 @@ static ompt_get_thread_id_t ompt_get_thread_id;
 static ompt_get_parallel_id_t ompt_get_parallel_id;
 
 std::mutex smtx;
-std::set<uint64_t> total_tsan_checks;
-std::set<std::pair<uint64_t, uint64_t>> pairs_tsan_checks;
-std::set<uint64_t> entry_tsan_checks;
-bool tsan_enabled;
+std::unordered_set<uint64_t/* , Hasher */> access_tsan_checks;
+std::unordered_set<uint64_t/* , Hasher */> entry_tsan_checks;
+bool access_tsan_enabled;
+bool entry_tsan_enabled;
 
 #ifdef TLS
 thread_local uint64_t tid = 0;
@@ -145,8 +160,8 @@ thread_local size_t *stack;
 thread_local size_t stacksize;
 thread_local int __swordomp_status__ = 0;
 thread_local uint8_t __swordomp_is_critical__ = false;
-thread_local std::unordered_map<uint64_t, AccessInfo> accesses;
-thread_local std::set<uint64_t> tsan_checks;
+thread_local std::unordered_map<uint64_t, AccessInfo/* , Hasher, HasherEqualFn */> accesses;
+thread_local std::unordered_set<uint64_t/* , Hasher */> tsan_checks;
 thread_local unsigned __swordrt_prev_offset__ = 0;
 thread_local unsigned __swordrt_barrier__ = 0;
 thread_local uint64_t __swordrt_hash__ = 0;

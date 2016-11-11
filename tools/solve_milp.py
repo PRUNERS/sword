@@ -276,7 +276,7 @@ def create_milp_gurobi(problem_name, info, filename):
 
         if((m.status == GRB.Status.OPTIMAL) or (m.status == GRB.Status.SUBOPTIMAL)):
             m.write(directory + "/" + filename + "_" + problem_name + ".sol")
-            # print directory + "/" + filename + "_" + problem_name + ".sol"
+            print directory + "/" + filename + "_" + problem_name + ".sol"
 
             # Print Race
             racing_threads = list()
