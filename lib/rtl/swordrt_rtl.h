@@ -77,9 +77,6 @@ void *handle;
 #define ALWAYS_INLINE			__attribute__((always_inline))
 #define CALLERPC 				((size_t) __builtin_return_address(0))
 
-#define TLS		1
-// #define NOTLS	1
-
 enum AccessSize {
 	size1 = 0,
 	size2,
@@ -135,16 +132,6 @@ struct AccessInfo
 	}
 };
 
-#if !defined(TLS) && !defined(NOTLS)
-typedef struct ThreadInfo {
-	size_t *stack;
-	size_t stacksize;
-	int __swordomp_status__;
-	uint8_t __swordomp_is_critical__;
-	std::unordered_map<uint64_t, AccessInfo> accesses;
-} ThreadInfo;
-#endif
-
 static ompt_get_thread_id_t ompt_get_thread_id;
 static ompt_get_parallel_id_t ompt_get_parallel_id;
 
@@ -156,7 +143,6 @@ bool entry_tsan_enabled;
 uint64_t swordrt_min = UINTMAX_MAX;
 uint64_t swordrt_max = 0;
 
-#ifdef TLS
 thread_local uint64_t tid = 0;
 thread_local size_t *stack;
 thread_local size_t stacksize;
@@ -167,18 +153,5 @@ thread_local std::unordered_set<uint64_t/* , Hasher */> tsan_checks;
 thread_local unsigned __swordrt_prev_offset__ = 0;
 thread_local unsigned __swordrt_barrier__ = 0;
 thread_local uint64_t __swordrt_hash__ = 0;
-#elif NOTLS
-extern thread_local uint64_t tid;
-extern thread_local size_t *stack;
-extern thread_local size_t stacksize;
-extern thread_local int __swordomp_status__;
-extern thread_local uint8_t __swordomp_is_critical__;
-thread_local std::unordered_map<uint64_t, AccessInfo> accesses;
-#else
-#define MAX_THREADS 256
-thread_local uint64_t tid;
-thread_local int __swordomp_status__ = 0;
-ThreadInfo threadInfo[MAX_THREADS];
-#endif
 
 #endif  // SWORDRT_RTL_H

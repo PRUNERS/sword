@@ -12,11 +12,11 @@ void __swordrt_init(uint64_t *min, uint64_t *max) {
 	if((fopen(entry_filename.c_str(), "r")) != NULL) {
 		std::string access_filename = std::string(ARCHER_DATA) + "/access_tsan_checks";
 		if((fopen(access_filename.c_str(), "r")) != NULL) {
-	        handle = dlopen("/home/simone/usr/lib/libsword-rt_tsan_strong.so", RTLD_LAZY);
-	        if (!handle) {
-	            fputs (dlerror(), stderr);
-	            exit(-1);
-	        }
+			handle = dlopen("/home/simone/usr/lib/libsword-rt_tsan_strong.so", RTLD_LAZY);
+			if (!handle) {
+				fputs (dlerror(), stderr);
+				exit(-1);
+			}
 
 			// DEBUG(std::cout, "Calling tsan_init");
 			__tsan_init();
@@ -33,27 +33,15 @@ void __swordrt_init(uint64_t *min, uint64_t *max) {
 }
 
 int __swordomp_get_status() {
-#if defined(TLS) || defined(NOTLS)
 	return __swordomp_status__;
-#else
-	return threadInfo[tid - 1].__swordomp_status__;
-#endif
 }
 
 void __swordomp_status_inc() {
-#if defined(TLS) || defined(NOTLS)
 	__swordomp_status__++;
-#else
-	threadInfo[tid - 1].__swordomp_status__++;
-#endif
 }
 
 void __swordomp_status_dec() {
-#if defined(TLS) || defined(NOTLS)
 	__swordomp_status__++;
-#else
-	threadInfo[tid - 1].__swordomp_status__--;
-#endif
 }
 
 void __swordomp_func_entry(uint64_t hash, void *pc) {
@@ -84,11 +72,7 @@ void __swordomp_read1(void *addr, uint64_t hash) {
 	DEF_ACCESS
 	CHECK_STACK
 
-#if defined(TLS) || defined(NOTLS)
 	if(!__swordomp_is_critical__) {
-#else
-	if(!threadInfo[tid - 1].__swordomp_is_critical__) {
-#endif
 		SAVE_ACCESS(size1, unsafe_read)
 	} else {
 		SAVE_ACCESS(size1, mutex_read)
@@ -102,11 +86,7 @@ void __swordomp_read2(void *addr, uint64_t hash) {
 	DEF_ACCESS
 	CHECK_STACK
 
-#if defined(TLS) || defined(NOTLS)
 	if(!__swordomp_is_critical__) {
-#else
-	if(!threadInfo[tid - 1].__swordomp_is_critical__) {
-#endif
 		SAVE_ACCESS(size2, unsafe_read)
 	} else {
 		SAVE_ACCESS(size2, mutex_read)
@@ -119,11 +99,7 @@ void __swordomp_read4(void *addr, uint64_t hash) {
 	DEF_ACCESS
 	CHECK_STACK
 
-#if defined(TLS) || defined(NOTLS)
 	if(!__swordomp_is_critical__) {
-#else
-	if(!threadInfo[tid - 1].__swordomp_is_critical__) {
-#endif
 		SAVE_ACCESS(size4, unsafe_read)
 	} else {
 		SAVE_ACCESS(size4, mutex_read)
@@ -136,11 +112,7 @@ void __swordomp_read8(void *addr, uint64_t hash) {
 	DEF_ACCESS
 	CHECK_STACK
 
-#if defined(TLS) || defined(NOTLS)
 	if(!__swordomp_is_critical__) {
-#else
-	if(!threadInfo[tid - 1].__swordomp_is_critical__) {
-#endif
 		SAVE_ACCESS(size8, unsafe_read)
 	} else {
 		SAVE_ACCESS(size8, mutex_read)
@@ -155,11 +127,7 @@ void __swordomp_write1(void *addr, uint64_t hash) {
 	DEF_ACCESS
 	CHECK_STACK
 
-#if defined(TLS) || defined(NOTLS)
 	if(!__swordomp_is_critical__) {
-#else
-	if(!threadInfo[tid - 1].__swordomp_is_critical__) {
-#endif
 		SAVE_ACCESS(size1, unsafe_write)
 	} else {
 		SAVE_ACCESS(size1, mutex_write)
@@ -172,11 +140,7 @@ void __swordomp_write2(void *addr, uint64_t hash) {
 	DEF_ACCESS
 	CHECK_STACK
 
-#if defined(TLS) || defined(NOTLS)
 	if(!__swordomp_is_critical__) {
-#else
-	if(!threadInfo[tid - 1].__swordomp_is_critical__) {
-#endif
 		SAVE_ACCESS(size2, unsafe_write)
 	} else {
 		SAVE_ACCESS(size2, mutex_write)
@@ -189,11 +153,7 @@ void __swordomp_write4(void *addr, uint64_t hash) {
 	DEF_ACCESS
 	CHECK_STACK
 
-#if defined(TLS) || defined(NOTLS)
 	if(!__swordomp_is_critical__) {
-#else
-	if(!threadInfo[tid - 1].__swordomp_is_critical__) {
-#endif
 		SAVE_ACCESS(size4, unsafe_write)
 	} else {
 		SAVE_ACCESS(size4, mutex_write)
@@ -206,11 +166,7 @@ void __swordomp_write8(void *addr, uint64_t hash) {
 	DEF_ACCESS
 	CHECK_STACK
 
-#if defined(TLS) || defined(NOTLS)
 	if(!__swordomp_is_critical__) {
-#else
-	if(!threadInfo[tid - 1].__swordomp_is_critical__) {
-#endif
 		SAVE_ACCESS(size8, unsafe_write)
 	} else {
 		SAVE_ACCESS(size8, mutex_write)
