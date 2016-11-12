@@ -1,4 +1,4 @@
-//===-- swordrt_rtl.h ----------------------------------------------*- C++ -*-===//
+//===-- swordrt_rtl.h ------------------------------------------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -26,30 +26,11 @@
 #include <unordered_set>
 #include <unordered_map>
 
-struct Hasher
-{
-	std::size_t operator()(const uint64_t k) const { return k; }
-};
-
-class HasherEqualFn
-{
-public:
-  bool operator() (uint64_t const& t1, uint64_t const& t2) const {
-    return (t1 == t2);
-  }
-};
+#define ALWAYS_INLINE			__attribute__((always_inline))
+#define CALLERPC 				((size_t) __builtin_return_address(0))
+#define ARCHER_DATA 			"archer_data"
 
 #define SWORDRT_DEBUG 	1
-#define ARCHER_DATA "archer_data"
-#define LESSTHAN(a,b) (a < b)
-
-#define GET_ITH_BYTE(i) 	(i * 8)-((i * 8) + 7)
-
-std::mutex pmtx;
-std::ofstream datafile;
-std::ofstream entrydatafile;
-std::ofstream accessdatafile;
-void *handle;
 #ifdef SWORDRT_DEBUG
 #define ASSERT(x) assert(x);
 #define DATA(stream, x) 										\
@@ -61,7 +42,9 @@ void *handle;
 #define DEBUG(stream, x) 										\
 		do {													\
 			std::unique_lock<std::mutex> lock(pmtx);			\
-			stream << "DEBUG INFO[" << x << "][" << __FUNCTION__ << ":" << __FILE__ << ":" << std::dec << __LINE__ << "]" << std::endl;	\
+			stream << "DEBUG INFO[" << x << "][" << 			\
+			__FUNCTION__ << ":" << __FILE__ << ":" << 			\
+			std::dec << __LINE__ << "]" << std::endl;			\
 		} while(0)
 // #define INFO(stream, x)
 #define INFO(stream, x) 										\
@@ -73,9 +56,6 @@ void *handle;
 #define ASSERT(x)
 #define DEBUG(stream, x)
 #endif
-
-#define ALWAYS_INLINE			__attribute__((always_inline))
-#define CALLERPC 				((size_t) __builtin_return_address(0))
 
 enum AccessSize {
 	size1 = 0,
@@ -132,17 +112,23 @@ struct AccessInfo
 	}
 };
 
+// Global Variable
+std::mutex pmtx;
+std::ofstream datafile;
+std::ofstream entrydatafile;
+std::ofstream accessdatafile;
+void *handle;
+uint64_t swordrt_min = UINTMAX_MAX;
+uint64_t swordrt_max = 0;
 static ompt_get_thread_id_t ompt_get_thread_id;
 static ompt_get_parallel_id_t ompt_get_parallel_id;
-
 std::mutex smtx;
 std::unordered_set<uint64_t/* , Hasher */> access_tsan_checks;
 std::unordered_set<uint64_t/* , Hasher */> entry_tsan_checks;
 bool access_tsan_enabled;
 bool entry_tsan_enabled;
-uint64_t swordrt_min = UINTMAX_MAX;
-uint64_t swordrt_max = 0;
 
+// Thread Local Variable
 thread_local uint64_t tid = 0;
 thread_local size_t *stack;
 thread_local size_t stacksize;

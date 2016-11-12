@@ -48,7 +48,7 @@ void __swordomp_func_entry(uint64_t hash, void *pc) {
 	__swordrt_hash__ = hash;
 	// if tsan is enabled and hash in list of tsan checks than call __tsan_func_entry
 	if(entry_tsan_enabled) {
-		std::unordered_set<uint64_t>::iterator it = entry_tsan_checks.find(hash);
+		std::unordered_set<uint64_t/* , Hasher */>::iterator it = entry_tsan_checks.find(hash);
 		if(it != entry_tsan_checks.end())
 			__tsan_func_entry(pc);
 	}
@@ -57,7 +57,7 @@ void __swordomp_func_entry(uint64_t hash, void *pc) {
 void __swordomp_func_exit(uint64_t hash) {
 	// if tsan is enabled and hash in list of tsan checks than call __tsan_func_exit
 	if(entry_tsan_enabled) {
-		std::unordered_set<uint64_t, Hasher>::iterator it = entry_tsan_checks.find(hash);
+		std::unordered_set<uint64_t/* , Hasher */>::iterator it = entry_tsan_checks.find(hash);
 		if(it != entry_tsan_checks.end())
 			__tsan_func_exit();
 	}
