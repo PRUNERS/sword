@@ -3,7 +3,8 @@
 
 // UTIL
 
-void __swordrt_init() {
+void __swordrt_init(uint64_t *min, uint64_t *max) {
+	// INFO(std::cout, min << ":" << max);
 	access_tsan_enabled = false;
 	entry_tsan_enabled = false;
 
@@ -14,15 +15,21 @@ void __swordrt_init() {
 	        handle = dlopen("/home/simone/usr/lib/libsword-rt_tsan_strong.so", RTLD_LAZY);
 	        if (!handle) {
 	            fputs (dlerror(), stderr);
-	            exit(1);
+	            exit(-1);
 	        }
-			
+
 			// DEBUG(std::cout, "Calling tsan_init");
 			__tsan_init();
 			access_tsan_enabled = true;
 			entry_tsan_enabled = true;
+			return;
 		}
 	}
+
+	if(*min < swordrt_min)
+		swordrt_min = *min;
+	if(*max > swordrt_max)
+		swordrt_max = *max;
 }
 
 int __swordomp_get_status() {
@@ -73,7 +80,7 @@ void __swordomp_func_exit(uint64_t hash) {
 // READS
 void __swordomp_read1(void *addr, uint64_t hash) {
 	TSAN_CHECK(read1);
-	
+
 	DEF_ACCESS
 	CHECK_STACK
 
@@ -87,7 +94,7 @@ void __swordomp_read1(void *addr, uint64_t hash) {
 		SAVE_ACCESS(size1, mutex_read)
 	}
 }
-	
+
 
 void __swordomp_read2(void *addr, uint64_t hash) {
 	TSAN_CHECK(read2);
@@ -108,7 +115,7 @@ void __swordomp_read2(void *addr, uint64_t hash) {
 
 void __swordomp_read4(void *addr, uint64_t hash) {
 	TSAN_CHECK(read4);
-			
+
 	DEF_ACCESS
 	CHECK_STACK
 
@@ -125,7 +132,7 @@ void __swordomp_read4(void *addr, uint64_t hash) {
 
 void __swordomp_read8(void *addr, uint64_t hash) {
 	TSAN_CHECK(read8);
-			
+
 	DEF_ACCESS
 	CHECK_STACK
 
@@ -144,7 +151,7 @@ void __swordomp_read8(void *addr, uint64_t hash) {
 // WRITES
 void __swordomp_write1(void *addr, uint64_t hash) {
 	TSAN_CHECK(write1);
-			
+
 	DEF_ACCESS
 	CHECK_STACK
 
@@ -161,7 +168,7 @@ void __swordomp_write1(void *addr, uint64_t hash) {
 
 void __swordomp_write2(void *addr, uint64_t hash) {
 	TSAN_CHECK(write2);
-			
+
 	DEF_ACCESS
 	CHECK_STACK
 
@@ -178,7 +185,7 @@ void __swordomp_write2(void *addr, uint64_t hash) {
 
 void __swordomp_write4(void *addr, uint64_t hash) {
 	TSAN_CHECK(write4);
-			
+
 	DEF_ACCESS
 	CHECK_STACK
 
@@ -195,7 +202,7 @@ void __swordomp_write4(void *addr, uint64_t hash) {
 
 void __swordomp_write8(void *addr, uint64_t hash) {
 	TSAN_CHECK(write8);
-	
+
 	DEF_ACCESS
 	CHECK_STACK
 
@@ -216,31 +223,31 @@ void __swordomp_write8(void *addr, uint64_t hash) {
 // LOAD
 void __swordomp_atomic8_load(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size1, atomic_read)
 }
 
 void __swordomp_atomic16_load(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size2, atomic_read)
 }
 
 void __swordomp_atomic32_load(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size4, atomic_read)
 }
 
 void __swordomp_atomic64_load(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size8, atomic_read)
 }
 
 void __swordomp_atomic128_load(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size16, atomic_read)
 }
 // LOAD
@@ -248,31 +255,31 @@ void __swordomp_atomic128_load(void *addr, uint64_t hash) {
 // STORE
 void __swordomp_atomic8_store(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size1, atomic_write)
 }
 
 void __swordomp_atomic16_store(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size2, atomic_write)
 }
 
 void __swordomp_atomic32_store(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size4, atomic_write)
 }
 
 void __swordomp_atomic64_store(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size8, atomic_write)
 }
 
 void __swordomp_atomic128_store(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size16, atomic_write)
 }
 // STORE
@@ -280,31 +287,31 @@ void __swordomp_atomic128_store(void *addr, uint64_t hash) {
 // ADD
 void __swordomp_atomic8_fetch_add(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size1, atomic_write)
 }
 
 void __swordomp_atomic16_fetch_add(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size2, atomic_write)
 }
 
 void __swordomp_atomic32_fetch_add(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size4, atomic_write)
 }
 
 void __swordomp_atomic64_fetch_add(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size8, atomic_write)
 }
 
 void __swordomp_atomic128_fetch_add(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size16, atomic_write)
 }
 // ADD
@@ -312,31 +319,31 @@ void __swordomp_atomic128_fetch_add(void *addr, uint64_t hash) {
 // SUB
 void __swordomp_atomic8_fetch_sub(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size1, atomic_write)
 }
 
 void __swordomp_atomic16_fetch_sub(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size2, atomic_write)
 }
 
 void __swordomp_atomic32_fetch_sub(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size4, atomic_write)
 }
 
 void __swordomp_atomic64_fetch_sub(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size8, atomic_write)
 }
 
 void __swordomp_atomic128_fetch_sub(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size16, atomic_write)
 }
 // SUB
@@ -344,31 +351,31 @@ void __swordomp_atomic128_fetch_sub(void *addr, uint64_t hash) {
 // COMPARE EXCHANGE
 void __swordomp_atomic8_compare_exchange_val(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size1, atomic_write)
 }
 
 void __swordomp_atomic16_compare_exchange_val(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size2, atomic_write)
 }
 
 void __swordomp_atomic32_compare_exchange_val(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size4, atomic_write)
 }
 
 void __swordomp_atomic64_compare_exchange_val(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size8, atomic_write)
 }
 
 void __swordomp_atomic128_compare_exchange_val(void *addr, uint64_t hash) {
 	DEF_ACCESS
-	CHECK_STACK	
+	CHECK_STACK
 	SAVE_ACCESS(size16, atomic_write)
 }
 // COMPARE EXCHANGE

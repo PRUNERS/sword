@@ -153,6 +153,8 @@ std::unordered_set<uint64_t/* , Hasher */> access_tsan_checks;
 std::unordered_set<uint64_t/* , Hasher */> entry_tsan_checks;
 bool access_tsan_enabled;
 bool entry_tsan_enabled;
+uint64_t swordrt_min = UINTMAX_MAX;
+uint64_t swordrt_max = 0;
 
 #ifdef TLS
 thread_local uint64_t tid = 0;
