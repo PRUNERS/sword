@@ -3,7 +3,8 @@
 
 // UTIL
 
-void __swordrt_init(uint64_t *min, uint64_t *max) {
+void __swordrt_init(uint64_t *access_min, uint64_t *access_max,
+		uint64_t *function_min, uint64_t *function_max) {
 	// INFO(std::cout, min << ":" << max);
 	access_tsan_enabled = false;
 	entry_tsan_enabled = false;
@@ -22,14 +23,18 @@ void __swordrt_init(uint64_t *min, uint64_t *max) {
 			__tsan_init();
 			access_tsan_enabled = true;
 			entry_tsan_enabled = true;
-			return;
 		}
 	}
 
-	if(*min < swordrt_min)
-		swordrt_min = *min;
-	if(*max > swordrt_max)
-		swordrt_max = *max;
+	if(*access_min < swordrt_accesses_min)
+		swordrt_accesses_min = *access_min;
+	if(*access_max > swordrt_accesses_max)
+		swordrt_accesses_max = *access_max;
+
+	if(*function_min < swordrt_function_min)
+		swordrt_function_min = *function_min;
+	if(*function_max > swordrt_function_max)
+		swordrt_function_max = *function_max;
 }
 
 int __swordomp_get_status() {
