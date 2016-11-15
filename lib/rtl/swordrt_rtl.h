@@ -81,7 +81,6 @@ struct AccessInfo
 {
 	size_t address;
 	size_t prev_address;
-	unsigned stride;
 	uint64_t diff;
 	uint64_t count;
 	AccessSize size;
@@ -91,7 +90,6 @@ struct AccessInfo
 	AccessInfo() {
 		address = 0;
 		prev_address = 0;
-		stride = 0;
 		diff = 0;
 		count = 0;
 		size = size4;
@@ -99,11 +97,10 @@ struct AccessInfo
 		pc = 0;
 	}
 
-	AccessInfo(size_t a, size_t pa, unsigned s, uint64_t d,
+	AccessInfo(size_t a, size_t pa, uint64_t d,
 			uint64_t c, AccessSize as, AccessType t, size_t p) {
 		address = a;
 		prev_address = pa;
-		stride = s;
 		diff = d;
 		count = c;
 		size = as;

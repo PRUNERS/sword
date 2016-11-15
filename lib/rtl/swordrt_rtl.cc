@@ -30,7 +30,7 @@
 				return;
 #define TSAN_CHECK(name)										\
 		if(access_tsan_enabled) {								\
-			std::unordered_set<uint64_t/* , Hasher */>::iterator it =	\
+			std::unordered_set<uint64_t>::iterator it =	\
 				access_tsan_checks.find(hash);					\
 			if(it != access_tsan_checks.end())					\
 				__tsan_ ## name(addr);							\
@@ -40,9 +40,9 @@
 		if(tsan_checks.find(hash) != tsan_checks.end())									\
 			return;																		\
 		uint64_t diff;																	\
-		std::unordered_map<uint64_t, AccessInfo/* , Hasher, HasherEqualFn */>::iterator item = accesses.find(hash); 	\
+		std::unordered_map<uint64_t, AccessInfo>::iterator item = accesses.find(hash); 	\
 		if(item == accesses.end()) {													\
-			accesses.insert(std::make_pair(hash, AccessInfo(access, access, UINT_MAX,	\
+			accesses.insert(std::make_pair(hash, AccessInfo(access, access,				\
 							0, ULLONG_MAX, size, type, pc)));							\
 		} else {																		\
 			switch(item->second.count) {												\
@@ -55,13 +55,11 @@
 					item->second.address = access;										\
 					item->second.count = 1;												\
 					item->second.diff = diff;											\
-				    item->second.stride = 1;											\
 				    item->second.prev_address = access;									\
 				} else if(access > item->second.address) {								\
 					diff = access - item->second.prev_address;							\
 					item->second.count = 1;												\
 					item->second.diff = diff;											\
-				    item->second.stride = 1;											\
 				    item->second.prev_address = access;									\
 				} else {																\
 					item->second.count = 0;												\
@@ -73,7 +71,6 @@
 					if(diff == item->second.diff) {										\
 						item->second.address = access;									\
 						item->second.count++;											\
-					    item->second.stride = 1;										\
 					    item->second.prev_address = access;								\
 					} else {															\
 						/* Check with Tsan */											\
@@ -83,7 +80,6 @@
 					diff = access - item->second.prev_address;							\
 					if(diff == item->second.diff) {										\
 						item->second.count++;											\
-					    item->second.stride = 1;										\
 					    item->second.prev_address = access;								\
 					} else {															\
 						/* Check with Tsan */											\
@@ -97,7 +93,7 @@
 			}																			\
 		}
 
-//INFO(std::cout, "PATTERN:" << tid << "," << hash << ","<< access << "," << item->second.prev_address << "," << item->second.stride <<	"," << (1 << size) << "," << pc);
+//INFO(std::cout, "PATTERN:" << tid << "," << hash << ","<< access << "," << item->second.prev_address <<	"," << (1 << size) << "," << pc);
 
 extern "C" {
 
@@ -130,13 +126,13 @@ static void on_swordrt_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 
 	if(access_tsan_checks.size() > 0) {
 		std::ostringstream oss;
-		for(std::unordered_set<uint64_t/* , Hasher */>::iterator it = access_tsan_checks.begin(); it != access_tsan_checks.end(); ++it)
+		for(std::unordered_set<uint64_t>::iterator it = access_tsan_checks.begin(); it != access_tsan_checks.end(); ++it)
 			oss << *it << "\n";
 		DATA(accessdatafile, oss.str());
 	}
 	if(entry_tsan_checks.size() > 0) {
 		std::ostringstream oss;
-		for(std::unordered_set<uint64_t/* , Hasher */>::iterator it = entry_tsan_checks.begin(); it != entry_tsan_checks.end(); ++it)
+		for(std::unordered_set<uint64_t>::iterator it = entry_tsan_checks.begin(); it != entry_tsan_checks.end(); ++it)
 			oss << *it << "\n";
 		DATA(entrydatafile, oss.str());
 	}
@@ -169,14 +165,14 @@ static void on_swordrt_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 
 	__swordrt_barrier__++;
 
-	for(std::unordered_set<uint64_t/* , Hasher */>::iterator it = tsan_checks.begin(); it != tsan_checks.end(); ++it)
+	for(std::unordered_set<uint64_t>::iterator it = tsan_checks.begin(); it != tsan_checks.end(); ++it)
 		accesses.erase(*it);
 
 	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << tid << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
-	for (std::unordered_map<uint64_t, AccessInfo/* , Hasher, HasherEqualFn */>::iterator it = accesses.begin(); it != accesses.end(); ++it) {
+	for (std::unordered_map<uint64_t, AccessInfo>::iterator it = accesses.begin(); it != accesses.end(); ++it) {
 		if(it->second.count == ULLONG_MAX)
 			it->second.count = 0;
-		oss << "DATA[" << std::dec << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "," << std::dec << it->second.stride << "]\n";
+		oss << "DATA[" << std::dec << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "," << std::dec << it->second.diff << "]\n";
 	}
 	oss << "DATA_END[" << std::dec << parallel_id << "," << tid << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
 	DATA(datafile, oss.str());
@@ -184,7 +180,7 @@ static void on_swordrt_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 
 	smtx.lock();
 	if(tsan_checks.size() > 0) {
-		for(std::unordered_set<uint64_t/* , Hasher */>::iterator it = tsan_checks.begin(); it != tsan_checks.end(); ++it)
+		for(std::unordered_set<uint64_t>::iterator it = tsan_checks.begin(); it != tsan_checks.end(); ++it)
 			access_tsan_checks.insert(*it);
 		entry_tsan_checks.insert(__swordrt_hash__);
 	}
@@ -192,7 +188,7 @@ static void on_swordrt_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 	tsan_checks.clear();
 //	if(tsan_checks.size() > 0) {
 //		std::ostringstream access_str;
-//		for(std::unordered_set<uint64_t/* , Hasher */>::iterator it = tsan_checks.begin(); it != tsan_checks.end(); ++it)
+//		for(std::unordered_set<uint64_t>::iterator it = tsan_checks.begin(); it != tsan_checks.end(); ++it)
 //			access_str << *it << "\n";
 //		tsan_checks.clear();
 //		std::ostringstream entry_str;
