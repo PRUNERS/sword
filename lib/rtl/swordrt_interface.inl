@@ -1,6 +1,3 @@
-#include <swordrt_tsan_interface.h>
-#include <dlfcn.h>
-
 // UTIL
 
 void __swordrt_init(uint64_t *access_min, uint64_t *access_max,

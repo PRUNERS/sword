@@ -11,6 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "swordrt_rtl.h"
+#include "swordrt_tsan_interface.h"
+#include <dlfcn.h>
 
 #include <sstream>
 #include <cmath>
