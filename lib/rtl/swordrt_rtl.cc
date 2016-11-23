@@ -42,6 +42,7 @@
 		uint64_t diff;																	\
 		std::unordered_map<uint64_t, AccessInfo>::iterator item = accesses.find(hash); 	\
 		if(item == accesses.end()) {													\
+			/* First access */															\
 			accesses.insert(std::make_pair(hash, AccessInfo(access, access,				\
 							0, ULLONG_MAX, size, type, pc)));							\
 		} else {																		\
@@ -83,7 +84,6 @@
 					    item->second.prev_address = access;								\
 					} else {															\
 						/* Check with Tsan */											\
-						/* DEBUG(std::cout, "Check tsan" << pc); */						\
 						tsan_checks.insert(hash);										\
 					}																	\
 				} else {																\
@@ -93,7 +93,7 @@
 			}																			\
 		}
 
-//INFO(std::cout, "PATTERN:" << tid << "," << hash << ","<< access << "," << item->second.prev_address <<	"," << (1 << size) << "," << pc);
+// INFO(std::cout, "PATTERN:" << tid << "," << hash << ","<< access << "," << item->second.prev_address <<	"," << (1 << size) << "," << pc);
 
 extern "C" {
 
