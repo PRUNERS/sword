@@ -104,8 +104,6 @@ extern "C" {
 static void on_swordrt_ompt_event_thread_begin(ompt_thread_type_t thread_type,
 		ompt_thread_id_t thread_id) {
 
-	// Set thread id
-	tid = thread_id;
 	// Get stack pointer and stack size
 	GET_STACK
 }
@@ -170,13 +168,13 @@ static void on_swordrt_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 	for(std::unordered_set<uint64_t>::iterator it = tsan_checks.begin(); it != tsan_checks.end(); ++it)
 		accesses.erase(*it);
 
-	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << tid << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
+	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << omp_get_thread_num() << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
 	for (std::unordered_map<uint64_t, AccessInfo>::iterator it = accesses.begin(); it != accesses.end(); ++it) {
 		if(it->second.count == ULLONG_MAX)
 			it->second.count = 0;
 		oss << "DATA[" << std::dec << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "," << std::dec << it->second.diff << "]\n";
 	}
-	oss << "DATA_END[" << std::dec << parallel_id << "," << tid << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
+	oss << "DATA_END[" << std::dec << parallel_id << "," << omp_get_thread_num() << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
 	DATA(datafile, oss.str());
 	accesses.clear();
 

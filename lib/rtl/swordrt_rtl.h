@@ -130,7 +130,6 @@ bool access_tsan_enabled;
 bool entry_tsan_enabled;
 
 // Thread Local Variable
-thread_local uint64_t tid = 0;
 thread_local size_t *stack;
 thread_local size_t stacksize;
 thread_local int __swordomp_status__ = 0;
