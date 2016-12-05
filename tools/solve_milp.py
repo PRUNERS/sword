@@ -101,7 +101,7 @@ def create_milp_gurobi(problem_name, info, filename):
 
         if((m.status == GRB.Status.OPTIMAL) or (m.status == GRB.Status.SUBOPTIMAL)):
             m.write(directory + "/" + filename + "_" + problem_name + ".sol")
-            print directory + "/" + filename + "_" + problem_name + ".sol"
+            # print directory + "/" + filename + "_" + problem_name + ".sol"
 
             # Print Race
             racing_threads = list()
@@ -229,8 +229,10 @@ def printraces(race):
     race1 = proc.stdout.readline()
     print "--------------------------------------------------"
     print "WARNING: Archer: scalar data race (program=" + executable + ")"
-    print AccessTypeName[race[0][3]] + " of size " + str(1 << race[0][2]) + " at " + hex(race[0][1]) + " by thread T" + str(race[0][0]) + " in " + race0.rstrip()
-    print AccessTypeName[race[1][3]] + " of size " + str(1 << race[1][2]) + " at " + hex(race[1][1]) + " by thread T" + str(race[1][0]) + " in " + race1.rstrip()
+#     print AccessTypeName[race[0][3]] + " of size " + str(1 << race[0][2]) + " at " + hex(race[0][1]) + " by thread T" + str(race[0][0]) + " in " + race0.rstrip()
+#     print AccessTypeName[race[1][3]] + " of size " + str(1 << race[1][2]) + " at " + hex(race[1][1]) + " by thread T" + str(race[1][0]) + " in " + race1.rstrip()
+    print AccessTypeName[race[0][3]] + " of size " + str(1 << race[0][2]) + " in " + race0.rstrip()
+    print AccessTypeName[race[1][3]] + " of size " + str(1 << race[1][2]) + " in " + race1.rstrip()
     print "--------------------------------------------------"
     print
 
@@ -252,6 +254,8 @@ def printarrayraces(race):
     print "WARNING: Archer: array data race (program=" + executable + ")"
     print AccessTypeName[race[0][3]] + " of size " + str(1 << race[0][2]) + " at " + hex(race[0][1]) + " by thread T" + str(race[0][0]) + " in " + race0.rstrip()
     print AccessTypeName[race[1][3]] + " of size " + str(1 << race[1][2]) + " at " + hex(race[1][1]) + " by thread T" + str(race[1][0]) + " in " + race1.rstrip()
+#     print AccessTypeName[race[0][3]] + " of size " + str(1 << race[0][2]) + " in " + race0.rstrip()
+#     print AccessTypeName[race[1][3]] + " of size " + str(1 << race[1][2]) + " in " + race1.rstrip()
     print "--------------------------------------------------"
     print
 

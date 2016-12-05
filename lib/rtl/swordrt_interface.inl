@@ -120,6 +120,19 @@ void __swordomp_read8(void *addr, uint64_t hash) {
 		SAVE_ACCESS(size8, mutex_read)
 	}
 }
+
+void __swordomp_read16(void *addr, uint64_t hash) {
+	TSAN_CHECK(read16);
+
+	DEF_ACCESS
+	CHECK_STACK
+
+	if(!__swordomp_is_critical__) {
+		SAVE_ACCESS(size16, unsafe_read)
+	} else {
+		SAVE_ACCESS(size16, mutex_read)
+	}
+}
 // READS
 
 // WRITES
@@ -172,6 +185,19 @@ void __swordomp_write8(void *addr, uint64_t hash) {
 		SAVE_ACCESS(size8, unsafe_write)
 	} else {
 		SAVE_ACCESS(size8, mutex_write)
+	}
+}
+
+void __swordomp_write16(void *addr, uint64_t hash) {
+	TSAN_CHECK(write16);
+
+	DEF_ACCESS
+	CHECK_STACK
+
+	if(!__swordomp_is_critical__) {
+		SAVE_ACCESS(size16, unsafe_write)
+	} else {
+		SAVE_ACCESS(size16, mutex_write)
 	}
 }
 // WRITES

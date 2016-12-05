@@ -17,6 +17,8 @@
 #include <sstream>
 #include <cmath>
 
+extern thread_local uint64_t myhash;
+
 #define GET_STACK	 												\
 		pthread_t self = pthread_self(); 							\
 		pthread_attr_t attr;										\
@@ -39,6 +41,7 @@
 			return;  											\
   	    }
 #define SAVE_ACCESS(size, type)															\
+		myhash = hash;																	\
 		if(tsan_checks.find(hash) != tsan_checks.end())									\
 			return;																		\
 		uint64_t diff;																	\
@@ -72,27 +75,42 @@
 				if(access < item->second.prev_address) {								\
 					diff = item->second.prev_address - access;							\
 					if(diff == item->second.diff) {										\
-						item->second.address = access;									\
 						item->second.count++;											\
-					    item->second.prev_address = access;								\
-					} else {															\
-						/* Check with Tsan */											\
-						tsan_checks.insert(hash);										\
+						item->second.prev_address = access;								\
+					} else if(access < item->second.address) {							\
+						diff = item->second.address - access;							\
+						if(diff == item->second.diff) {									\
+							item->second.count++;										\
+							item->second.prev_address = access;							\
+						}																\
+					} else if((access >= item->second.address) &&						\
+							  (access <= item->second.address + 						\
+							  (item->second.count * (1 << size)))) {					\
+						item->second.prev_address = access;								\
 					}																	\
-				} else if(access > item->second.prev_address) {							\
+				} else if(access > item->second.prev_address) { 						\
 					diff = access - item->second.prev_address;							\
 					if(diff == item->second.diff) {										\
 						item->second.count++;											\
-					    item->second.prev_address = access;								\
-					} else {															\
-						/* Check with Tsan */											\
-						tsan_checks.insert(hash);										\
+						item->second.prev_address = access;								\
+					} else if(access < item->second.address) {							\
+						diff = item->second.address - access;							\
+						if(diff == item->second.diff) {									\
+							item->second.count++;										\
+							item->second.prev_address = access;							\
+						}																\
+					} else if((access >= item->second.address) &&						\
+							  (access <= item->second.address + 						\
+							  (item->second.count * (1 << size)))) {					\
+						item->second.prev_address = access;								\
 					}																	\
 				} else {																\
 					item->second.count = 0;												\
 				}																		\
 				break;																	\
 			}																			\
+			if(omp_get_thread_num() == 2)												\
+				INFO(std::cout, "DIFF: " << hash << ":" << std::hex << access << ":" << std::dec << diff);										\
 		}
 
 // INFO(std::cout, "PATTERN:" << tid << "," << hash << ","<< access << "," << item->second.prev_address <<	"," << (1 << size) << "," << pc);
