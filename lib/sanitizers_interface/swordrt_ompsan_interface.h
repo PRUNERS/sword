@@ -27,17 +27,17 @@ typedef unsigned long long a64;  // NOLINT
 extern "C" {
 void __ompsan_init();
 
-void __ompsan_read1(void *addr, uint64_t hash1, bool *conflict, uint64_t *hash2);
-void __ompsan_read2(void *addr, uint64_t hash1, bool *conflict, uint64_t *hash2);
-void __ompsan_read4(void *addr, uint64_t hash1, bool *conflict, uint64_t *hash2);
-void __ompsan_read8(void *addr, uint64_t hash1, bool *conflict, uint64_t *hash2);
-void __ompsan_read16(void *addr, uint64_t hash1, bool *conflict, uint64_t *hash2);
+void __ompsan_read1(void *addr, uint64_t pc1, bool *conflict, uint64_t *pc2);
+void __ompsan_read2(void *addr, uint64_t pc1, bool *conflict, uint64_t *pc2);
+void __ompsan_read4(void *addr, uint64_t pc1, bool *conflict, uint64_t *pc2);
+void __ompsan_read8(void *addr, uint64_t pc1, bool *conflict, uint64_t *pc2);
+void __ompsan_read16(void *addr, uint64_t pc1, bool *conflict, uint64_t *pc2);
 
-void __ompsan_write1(void *addr, uint64_t hash1, bool *conflict, uint64_t *hash2);
-void __ompsan_write2(void *addr, uint64_t hash1, bool *conflict, uint64_t *hash2);
-void __ompsan_write4(void *addr, uint64_t hash1, bool *conflict, uint64_t *hash2);
-void __ompsan_write8(void *addr, uint64_t hash1, bool *conflict, uint64_t *hash2);
-void __ompsan_write16(void *addr, uint64_t hash1, bool *conflict, uint64_t *hash2);
+void __ompsan_write1(void *addr, uint64_t pc1, bool *conflict, uint64_t *pc2);
+void __ompsan_write2(void *addr, uint64_t pc1, bool *conflict, uint64_t *pc2);
+void __ompsan_write4(void *addr, uint64_t pc1, bool *conflict, uint64_t *pc2);
+void __ompsan_write8(void *addr, uint64_t pc1, bool *conflict, uint64_t *pc2);
+void __ompsan_write16(void *addr, uint64_t pc1, bool *conflict, uint64_t *pc2);
 
 a8 __ompsan_atomic8_load(const volatile a8 *a, morder mo);
 a16 __ompsan_atomic16_load(const volatile a16 *a, morder mo);

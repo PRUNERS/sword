@@ -37,17 +37,14 @@ namespace __ompsan {
   	    }
   	    */
 #define SAVE_ACCESS(name, size, type)							\
-		if(conflicts.find(hash) != conflicts.end())				\
-			return;												\
+		bool exists = (accesses.end() != std::find_if(accesses.begin(), accesses.end(), ByHash(hash))); \
+		if(exists) return;										\
 		bool conflict = false;									\
-		uint64_t h = 0;											\
-		__ompsan_ ## name(addr, hash, &conflict, &h);	/*		\
-		if(conflict) {											\
-			conflicts.insert(hash);								\
-			if(h)												\
-				conflicts.insert(h);							\
-			entries.insert(__swordrt_hash__);					\
-		}*/
+		uint64_t p = 0;											\
+		__ompsan_ ## name(addr, pc, &conflict, &p);				\
+		if(conflict)											\
+			accesses.push_back(AccessInfo(hash, size, 			\
+							   type, pc, p));
 
 extern "C" {
 
@@ -56,6 +53,8 @@ extern "C" {
 static void on_swordrt_ompt_event_thread_begin(ompt_thread_type_t thread_type,
 		ompt_thread_id_t thread_id) {
 	tid = omp_get_thread_num();
+
+	accesses.reserve(NUM_OF_CONFLICTS);
 }
 
 static void on_swordrt_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
@@ -127,6 +126,8 @@ static void on_swordrt_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 	std::ostringstream oss;
 
 	__swordrt_barrier__++;
+
+	// INFO(std::cout, tid << ": Size: " << accesses.size());
 
 	/* SAVE TO FILE
 	for(std::unordered_set<uint64_t>::iterator it = conflicts.begin(); it != conflicts.end(); ++it)
