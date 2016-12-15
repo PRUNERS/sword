@@ -36,11 +36,17 @@
 #define SWORDRT_DEBUG 	1
 #ifdef SWORDRT_DEBUG
 #define ASSERT(x) assert(x);
+/*
 #define DATA(stream, x) 										\
 		do {													\
 			std::unique_lock<std::mutex> lock(pmtx);			\
 			stream << x;										\
 			stream.flush();										\
+		} while(0)
+*/
+#define DATA(stream, x) 										\
+		do {													\
+			stream << x;										\
 		} while(0)
 #define DEBUG(stream, x) 										\
 		do {													\
@@ -123,7 +129,7 @@ private:
 
 // Global Variable
 std::mutex pmtx;
-std::ofstream datafile;
+// std::ofstream datafile;
 std::ofstream entrydatafile;
 std::ofstream accessdatafile;
 void *handle;
@@ -143,6 +149,8 @@ bool entry_tsan_enabled;
 
 // Thread Local Variable
 // extern thread_local int tid;
+thread_local bool first = false;
+thread_local std::ofstream datafile;
 thread_local int __swordomp_status__ = 0;
 thread_local uint8_t __swordomp_is_critical__ = false;
 thread_local std::vector<AccessInfo> accesses;
