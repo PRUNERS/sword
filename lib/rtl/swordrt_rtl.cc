@@ -11,27 +11,22 @@
 //===----------------------------------------------------------------------===//
 
 #include "swordrt_rtl.h"
-#include "swordrt_tsan_interface.h"
 #include <dlfcn.h>
 
 #include <sstream>
 #include <cmath>
+#include "swordrt_tsan_interface.h"
+#include "swordrt_ompsan_interface.h"
 
-extern thread_local uint64_t myhash;
+namespace __ompsan {
+	extern void FlushShadowMemory();
+}
 
-#define GET_STACK	 												\
-		pthread_t self = pthread_self(); 							\
-		pthread_attr_t attr;										\
-		pthread_getattr_np(self, &attr);							\
-		pthread_attr_getstack(&attr, (void **) &stack, &stacksize);	\
-		pthread_attr_destroy(&attr);
 #define DEF_ACCESS												\
 		size_t access = (size_t) addr;							\
 		size_t pc = CALLERPC;
-#define CHECK_STACK												\
-		if((access >= (size_t) stack) &&						\
-				(access < (size_t) stack + stacksize))			\
-				return;
+#define TSAN_CHECK(name)
+/*
 #define TSAN_CHECK(name)										\
 		if(access_tsan_enabled) {								\
 			std::unordered_set<uint64_t>::iterator it =	\
@@ -40,80 +35,19 @@ extern thread_local uint64_t myhash;
 				__tsan_ ## name(addr);							\
 			return;  											\
   	    }
-#define SAVE_ACCESS(size, type)															\
-		myhash = hash;																	\
-		if(tsan_checks.find(hash) != tsan_checks.end())									\
-			return;																		\
-		uint64_t diff;																	\
-		std::unordered_map<uint64_t, AccessInfo>::iterator item = accesses.find(hash); 	\
-		if(item == accesses.end()) {													\
-			/* First access */															\
-			accesses.insert(std::make_pair(hash, AccessInfo(access, access,				\
-							0, ULLONG_MAX, size, type, pc)));							\
-		} else {																		\
-			switch(item->second.count) {												\
-			case 0:																		\
-				break;																	\
-			/* Second access */															\
-			case ULLONG_MAX:															\
-				if(access < item->second.address) {										\
-					diff = item->second.prev_address - access;							\
-					item->second.address = access;										\
-					item->second.count = 1;												\
-					item->second.diff = diff;											\
-				    item->second.prev_address = access;									\
-				} else if(access > item->second.address) {								\
-					diff = access - item->second.prev_address;							\
-					item->second.count = 1;												\
-					item->second.diff = diff;											\
-				    item->second.prev_address = access;									\
-				} else {																\
-					item->second.count = 0;												\
-				}																		\
-				break;																	\
-			default:																	\
-				if(access < item->second.prev_address) {								\
-					diff = item->second.prev_address - access;							\
-					if(diff == item->second.diff) {										\
-						item->second.count++;											\
-						item->second.prev_address = access;								\
-					} else if(access < item->second.address) {							\
-						diff = item->second.address - access;							\
-						if(diff == item->second.diff) {									\
-							item->second.count++;										\
-							item->second.prev_address = access;							\
-						}																\
-					} else if((access >= item->second.address) &&						\
-							  (access <= item->second.address + 						\
-							  (item->second.count * (1 << size)))) {					\
-						item->second.prev_address = access;								\
-					}																	\
-				} else if(access > item->second.prev_address) { 						\
-					diff = access - item->second.prev_address;							\
-					if(diff == item->second.diff) {										\
-						item->second.count++;											\
-						item->second.prev_address = access;								\
-					} else if(access < item->second.address) {							\
-						diff = item->second.address - access;							\
-						if(diff == item->second.diff) {									\
-							item->second.count++;										\
-							item->second.prev_address = access;							\
-						}																\
-					} else if((access >= item->second.address) &&						\
-							  (access <= item->second.address + 						\
-							  (item->second.count * (1 << size)))) {					\
-						item->second.prev_address = access;								\
-					}																	\
-				} else {																\
-					item->second.count = 0;												\
-				}																		\
-				break;																	\
-			}																			\
-			if(omp_get_thread_num() == 2)												\
-				INFO(std::cout, "DIFF: " << hash << ":" << std::hex << access << ":" << std::dec << diff);										\
-		}
-
-// INFO(std::cout, "PATTERN:" << tid << "," << hash << ","<< access << "," << item->second.prev_address <<	"," << (1 << size) << "," << pc);
+  	    */
+#define SAVE_ACCESS(name, size, type)							\
+		if(conflicts.find(hash) != conflicts.end())				\
+			return;												\
+		bool conflict = false;									\
+		uint64_t h = 0;											\
+		__ompsan_ ## name(addr, hash, &conflict, &h);	/*		\
+		if(conflict) {											\
+			conflicts.insert(hash);								\
+			if(h)												\
+				conflicts.insert(h);							\
+			entries.insert(__swordrt_hash__);					\
+		}*/
 
 extern "C" {
 
@@ -121,9 +55,7 @@ extern "C" {
 
 static void on_swordrt_ompt_event_thread_begin(ompt_thread_type_t thread_type,
 		ompt_thread_id_t thread_id) {
-
-	// Get stack pointer and stack size
-	GET_STACK
+	tid = omp_get_thread_num();
 }
 
 static void on_swordrt_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
@@ -132,16 +64,28 @@ static void on_swordrt_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 		uint32_t requested_team_size,
 		void *parallel_function) {
 
+	__ompsan::FlushShadowMemory();
+
 	if(__swordomp_status__ == 0) {
 		// Open file
+		/* SAVE TO FILE
 		datafile.open(std::string(ARCHER_DATA) + "/parallelregion_" + std::to_string(parallel_id));
 		DATA(datafile, "PARALLEL_START[" << std::dec << parallel_id << "," << ompt_get_parallel_id(0) << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "]\n");
 		accesses.clear();
+		*/
 	} else {
+		/* SAVE TO FILE
 		DATA(datafile, "PARALLEL_START[" << std::dec << parallel_id << "," << ompt_get_parallel_id(0) << "," << __swordrt_prev_offset__ + omp_get_thread_num() << ":" << omp_get_num_threads() << "]\n");
+		*/
 		// __swordrt_prev_offset__ = omp_get_thread_num() + omp_get_num_threads();
 	}
+}
 
+static void on_swordrt_ompt_event_parallel_end(ompt_parallel_id_t parallel_id,
+		ompt_task_id_t task_id,
+		ompt_invoker_t invoker) {
+
+	/* SIMONE
 	if(access_tsan_checks.size() > 0) {
 		std::ostringstream oss;
 		for(std::unordered_set<uint64_t>::iterator it = access_tsan_checks.begin(); it != access_tsan_checks.end(); ++it)
@@ -154,14 +98,15 @@ static void on_swordrt_ompt_event_parallel_begin(ompt_task_id_t parent_task_id,
 			oss << *it << "\n";
 		DATA(entrydatafile, oss.str());
 	}
-}
+	access_tsan_checks.clear();
+	entry_tsan_checks.clear();
+	*/
 
-static void on_swordrt_ompt_event_parallel_end(ompt_parallel_id_t parallel_id,
-		ompt_task_id_t task_id,
-		ompt_invoker_t invoker) {
 	if(__swordomp_status__ == 0) {
 		// DATA(datafile, "PARALLEL_END[" << std::dec << parallel_id << "," << ompt_get_parallel_id(0) << "," << omp_get_thread_num() + omp_get_num_threads() << ":" << omp_get_num_threads() << "]\n");
+		/* SAVE TO FILE
 		DATA(datafile, "PARALLEL_BREAK\n");
+		*/
 		datafile.close();
 	} else {
 		// DATA(datafile, "PARALLEL_END[" << std::dec << parallel_id << "," << ompt_get_parallel_id(0) << "," << __swordrt_prev_offset__ + omp_get_thread_num() + omp_get_num_threads() << ":" << omp_get_num_threads() << "]\n");
@@ -183,41 +128,33 @@ static void on_swordrt_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 
 	__swordrt_barrier__++;
 
-	for(std::unordered_set<uint64_t>::iterator it = tsan_checks.begin(); it != tsan_checks.end(); ++it)
+	/* SAVE TO FILE
+	for(std::unordered_set<uint64_t>::iterator it = conflicts.begin(); it != conflicts.end(); ++it)
 		accesses.erase(*it);
 
 	oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << omp_get_thread_num() << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
 	for (std::unordered_map<uint64_t, AccessInfo>::iterator it = accesses.begin(); it != accesses.end(); ++it) {
-		if(it->second.count == ULLONG_MAX)
-			it->second.count = 0;
-		oss << "DATA[" << std::dec << it->first << "," << std::hex << "0x" << it->second.address << "," << std::dec << it->second.count << "," << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "," << std::dec << it->second.diff << "]\n";
+		oss << "DATA[" << std::dec << it->first << "," << std::hex << "0x" << it->second.address << it->second.size << "," << it->second.type << "," << "0x" << std::hex << it->second.pc << "]\n";
 	}
 	oss << "DATA_END[" << std::dec << parallel_id << "," << omp_get_thread_num() << "," << omp_get_thread_num() << ":" << omp_get_num_threads() << "," << __swordrt_barrier__ << "]\n";
 	DATA(datafile, oss.str());
 	accesses.clear();
+	*/
 
+	/* SIMONE
 	smtx.lock();
-	if(tsan_checks.size() > 0) {
-		for(std::unordered_set<uint64_t>::iterator it = tsan_checks.begin(); it != tsan_checks.end(); ++it)
+	if(conflicts.size() > 0) {
+		for(std::unordered_set<uint64_t>::iterator it = conflicts.begin(); it != conflicts.end(); ++it)
 			access_tsan_checks.insert(*it);
-		entry_tsan_checks.insert(__swordrt_hash__);
+	}
+	if(entries.size() > 0) {
+		for(std::unordered_set<uint64_t>::iterator it = entries.begin(); it != entries.end(); ++it)
+			entry_tsan_checks.insert(*it);
 	}
 	smtx.unlock();
-	tsan_checks.clear();
-//	if(tsan_checks.size() > 0) {
-//		std::ostringstream access_str;
-//		for(std::unordered_set<uint64_t>::iterator it = tsan_checks.begin(); it != tsan_checks.end(); ++it)
-//			access_str << *it << "\n";
-//		tsan_checks.clear();
-//		std::ostringstream entry_str;
-//		entry_str << __swordrt_hash__ << "\n";
-//		smtx.lock();
-//		// accessdatafile.open(std::string(ARCHER_DATA) + "/access_tsan_checks", std::ofstream::app);
-//		DATA(accessdatafile, access_str.str());
-//		DATA(entrydatafile, entry_str.str());
-//		// accessdatafile.close();
-//		smtx.unlock();
-//	}
+	conflicts.clear();
+	entries.clear();
+	*/
 }
 
 static void on_swordrt_ompt_event_runtime_shutdown() {
@@ -257,7 +194,7 @@ void swordrt_load_entry_tsan_file() {
 		while (true) {
 			int ret = fscanf(fp, "%lu", &hash);
 			if(ret == 1) {
-				entry_tsan_checks.insert(hash);
+				entries.insert(hash);
 			} else if(errno != 0) {
 				perror("scanf");
 				exit(-1);

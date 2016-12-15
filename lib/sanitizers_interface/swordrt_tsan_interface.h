@@ -1,5 +1,7 @@
-
 extern "C" {
+
+thread_local int tid = 0;
+
 void __tsan_init();
 void __tsan_func_entry(void *pc);
 void __tsan_func_exit();

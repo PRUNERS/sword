@@ -12,7 +12,7 @@ set(SWORDRT_VERSION_MINOR 1)
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/rtl
-  ${CMAKE_CURRENT_SOURCE_DIR}/tsan
+  ${CMAKE_CURRENT_SOURCE_DIR}/sanitizers_interface
   )
 
 set(CMAKE_BUILD_TYPE Release)
@@ -21,7 +21,8 @@ set(SWORD_SOURCES
   rtl/swordrt_rtl.cc)
 
 set(SWORD_TSAN_SOURCES
-  tsan/swordrt_tsan_interface.cc)
+  sanitizers_interface/swordrt_tsan_interface.cc
+  sanitizers_interface/swordrt_ompsan_interface.cc)
 set_source_files_properties(swordrt_tsan_interface.cc PROPERTIES CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIE")
 
 set(CMAKE_SHARED_LINKER_FLAGS "-fopenmp")
