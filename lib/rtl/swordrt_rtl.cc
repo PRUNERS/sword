@@ -86,7 +86,7 @@ static void on_swordrt_ompt_event_barrier_begin(ompt_parallel_id_t parallel_id,
 	if(accesses.size() > 0) {
 		oss << "DATA_BEGIN[" << std::dec << parallel_id << "," << omp_get_thread_num() << "," << omp_get_thread_num() << ":" << __swordrt_prev_offset__ + omp_get_thread_num() << "," << __swordrt_barrier__ << "]\n";
 		for (std::vector<AccessInfo>::iterator it = accesses.begin(); it != accesses.end(); ++it) {
-			oss << "DATA[" << std::hex << "0x" << it->hash << it->size << "," << it->type << "," << "0x" << std::hex << it->pc1 << "," << "0x" << std::hex << it->pc2 << "]\n";
+			oss << "DATA[" << std::hex << "0x" << it->hash << "," << it->size << "," << it->type << "," << "0x" << std::hex << it->pc1 << "," << "0x" << std::hex << it->pc2 << "]\n";
 		}
 		oss << "DATA_END[" << std::dec << parallel_id << "," << omp_get_thread_num() << "," << omp_get_thread_num() << ":" << __swordrt_prev_offset__ + omp_get_thread_num() << "," << __swordrt_barrier__ << "]\n";
 	}
