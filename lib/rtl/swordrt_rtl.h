@@ -32,6 +32,7 @@
 #define CALLERPC 				((size_t) __builtin_return_address(0))
 #define ARCHER_DATA 			"archer_data"
 #define NUM_OF_CONFLICTS		100
+#define THREAD_NUM				24
 
 #define SWORDRT_DEBUG 	1
 #ifdef SWORDRT_DEBUG
@@ -91,22 +92,25 @@ struct AccessInfo
 	AccessSize size;
 	AccessType type;
 	size_t pc1;
-	size_t pc2;
+	uint64_t cell1;
+	uint64_t cell2;
 
 	AccessInfo() {
 		hash = 0;
 		size = size4;
 		type = none;
 		pc1 = 0;
-		pc2 = 0;
+		cell1 = 0;
+		cell2 = 0;
 	}
 
-	AccessInfo(uint64_t h, AccessSize as, AccessType t, size_t p1, size_t p2) {
+	AccessInfo(uint64_t h, AccessSize as, AccessType t, size_t p1, uint64_t c1, uint64_t c2) {
 		hash = h;
 		size = as;
 		type = t;
 		pc1 = p1;
-		pc2 = p2;
+		cell1 = c1;
+		cell1 = c2;
 	}
 };
 
@@ -129,18 +133,6 @@ private:
 
 // Global Variable
 std::mutex pmtx;
-// std::ofstream datafile;
-std::ofstream entrydatafile;
-std::ofstream accessdatafile;
-void *handle;
-uint64_t swordrt_accesses_min = UINTMAX_MAX;
-uint64_t swordrt_accesses_max = 0;
-uint64_t swordrt_accesses_count;
-uint64_t swordrt_function_min = UINTMAX_MAX;
-uint64_t swordrt_function_max = 0;
-uint64_t swordrt_function_count;
-static ompt_get_thread_id_t ompt_get_thread_id;
-static ompt_get_parallel_id_t ompt_get_parallel_id;
 std::mutex smtx;
 std::unordered_set<uint64_t> access_tsan_checks;
 std::unordered_set<uint64_t> entry_tsan_checks;
@@ -148,16 +140,12 @@ bool access_tsan_enabled;
 bool entry_tsan_enabled;
 
 // Thread Local Variable
-// extern thread_local int tid;
-thread_local bool first = false;
-thread_local std::ofstream datafile;
 thread_local int __swordomp_status__ = 0;
-thread_local uint8_t __swordomp_is_critical__ = false;
-thread_local std::vector<AccessInfo> accesses;
-thread_local std::unordered_set<uint64_t> conflicts;
-thread_local std::unordered_set<uint64_t> entries;
-thread_local unsigned __swordrt_prev_offset__ = 0;
-thread_local unsigned __swordrt_barrier__ = 0;
-thread_local uint64_t __swordrt_hash__ = 0;
+
+std::vector<AccessInfo> accesses[THREAD_NUM];
+std::ofstream datafile[THREAD_NUM];
+uint8_t __swordomp_is_critical__[THREAD_NUM] = { false };
+unsigned __swordrt_prev_offset__[THREAD_NUM] = { 0 };
+unsigned __swordrt_barrier__[THREAD_NUM] = { 0 };
 
 #endif  // SWORDRT_RTL_H
