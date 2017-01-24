@@ -13,58 +13,34 @@
 #ifndef SWORDRT_RTL_H
 #define SWORDRT_RTL_H
 
+#include <aio.h>
 #include <omp.h>
 #include <ompt.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include <cstdint>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
+#include "minilzo.h"
 
-#define ALWAYS_INLINE			__attribute__((always_inline))
-#define CALLERPC 				((size_t) __builtin_return_address(0))
-#define ARCHER_DATA 			"archer_data"
-#define NUM_OF_CONFLICTS		100
-#define THREAD_NUM				24
-
-#define SWORDRT_DEBUG 	1
-#ifdef SWORDRT_DEBUG
-#define ASSERT(x) assert(x);
-/*
-#define DATA(stream, x) 										\
-		do {													\
-			std::unique_lock<std::mutex> lock(pmtx);			\
-			stream << x;										\
-			stream.flush();										\
-		} while(0)
-*/
-#define DATA(stream, x) 										\
-		do {													\
-			stream << x;										\
-		} while(0)
-#define DEBUG(stream, x) 										\
-		do {													\
-			std::unique_lock<std::mutex> lock(pmtx);			\
-			stream << "DEBUG INFO[" << x << "][" << 			\
-			__FUNCTION__ << ":" << __FILE__ << ":" << 			\
-			std::dec << __LINE__ << "]" << std::endl;			\
-		} while(0)
-#define INFO(stream, x) 										\
-		do {													\
-			std::unique_lock<std::mutex> lock(pmtx);			\
-			stream << x << std::endl;	\
-		} while(0)
-#else
-#define ASSERT(x)
-#define DEBUG(stream, x)
-#endif
+enum ValueType {
+	data = 0,
+	parallel_region,
+	barrier,
+	mutex,
+	task
+};
 
 enum AccessSize {
 	size1 = 0,
@@ -75,77 +51,114 @@ enum AccessSize {
 };
 
 enum AccessType {
-	none = 0,
 	unsafe_read,
 	unsafe_write,
 	atomic_read,
 	atomic_write,
-	mutex_read,
-	mutex_write,
-	nutex_read,
-	nutex_write
 };
 
-struct AccessInfo
-{
-	uint64_t hash;
-	AccessSize size;
-	AccessType type;
-	size_t pc1;
-	uint64_t cell1;
-	uint64_t cell2;
-
-	AccessInfo() {
-		hash = 0;
-		size = size4;
-		type = none;
-		pc1 = 0;
-		cell1 = 0;
-		cell2 = 0;
-	}
-
-	AccessInfo(uint64_t h, AccessSize as, AccessType t, size_t p1, uint64_t c1, uint64_t c2) {
-		hash = h;
-		size = as;
-		type = t;
-		pc1 = p1;
-		cell1 = c1;
-		cell1 = c2;
-	}
-};
-
-class ByHash
-{
-public:
-	ByHash(uint64_t hash) : hash(hash) {}
-    bool operator() (const AccessInfo &access) const { return access.hash == hash; }
+struct __attribute__ ((__packed__)) AccessInfo {
 private:
-    const uint64_t hash;
+	uint8_t type;
+	uint8_t size_type; // size in first 4 bits, type in last 4 bits
+	size_t address;
+	size_t pc;
+
+public:
+	AccessInfo() {
+		type = 0;
+		address = 0;
+		size_type = 0;
+		pc = 0;
+	}
+
+	AccessInfo(ValueType t, size_t a, AccessSize as, AccessType at, size_t p) {
+		type = t;
+		address = a;
+		size_type = (as << 4);
+		size_type |= at;
+		pc = p;
+	}
+
+	void setData(ValueType t, size_t a, AccessSize as, AccessType at, size_t p) {
+		type = t;
+		address = a;
+		size_type = (as << 4);
+		size_type |= at;
+		pc = p;
+	}
+
+	ValueType getType() const {
+		return (ValueType) type;
+	}
+
+	size_t getAddress() const {
+		return address;
+	}
+
+	AccessSize getAccessSize() const {
+		return (AccessSize) (size_type >> 4);
+	}
+
+	AccessType getAccessType() const {
+		return (AccessType) (size_type & 0x0F);
+	}
+
+	size_t getPC() const {
+		return pc;
+	}
 };
 
-//	bool by_access(const size_t a, const AccessSize s) {
-//	    return ((address == a) && (size == s));
-//	};
-//
-//	bool by_pcs(size_t p1, size_t p2) {
-//		return ((pc1 == p1) && (pc2 == p2));
-//	};
+#define ALWAYS_INLINE			__attribute__((always_inline))
+#define CALLERPC 				((size_t) __builtin_return_address(0))
+#define ARCHER_DATA 			"archer_data"
+#define NUM_OF_ACCESSES			1000000
+#define BLOCK_SIZE 				NUM_OF_ACCESSES * sizeof(AccessInfo)
+#define MB_LIMIT 				BLOCK_SIZE
+#define OUT_LEN     			(BLOCK_SIZE + BLOCK_SIZE / 16 + 64 + 3)
+#define THREAD_NUM				24
+
+#define HEAP_ALLOC(var,size) thread_local lzo_align_t __LZO_MMODEL \
+	var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t) ]
+
+HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
+
+// thread_local unsigned char __LZO_MMODEL in  [ BLOCK_SIZE ];
+thread_local unsigned char __LZO_MMODEL *out;
+
+#define SWORDRT_DEBUG 	1
+#ifdef SWORDRT_DEBUG
+#define ASSERT(x) assert(x);
+#define DEBUG(stream, x) 										\
+		do {													\
+			std::unique_lock<std::mutex> lock(pmtx);			\
+			stream << "DEBUG INFO[" << x << "][" << 			\
+			__FUNCTION__ << ":" << __FILE__ << ":" << 			\
+			std::dec << __LINE__ << "]" << std::endl;			\
+		} while(0)
+#define INFO(stream, x) 										\
+		do {													\
+			std::unique_lock<std::mutex> lock(pmtx);			\
+			stream << x << std::endl;							\
+		} while(0)
+#else
+#define ASSERT(x)
+#define DEBUG(stream, x)
+#endif
 
 // Global Variable
 std::mutex pmtx;
 std::mutex smtx;
-std::unordered_set<uint64_t> access_tsan_checks;
-std::unordered_set<uint64_t> entry_tsan_checks;
-bool access_tsan_enabled;
-bool entry_tsan_enabled;
 
 // Thread Local Variable
 thread_local int __swordomp_status__ = 0;
-
-std::vector<AccessInfo> accesses[THREAD_NUM];
-std::ofstream datafile[THREAD_NUM];
-uint8_t __swordomp_is_critical__[THREAD_NUM] = { false };
-unsigned __swordrt_prev_offset__[THREAD_NUM] = { 0 };
-unsigned __swordrt_barrier__[THREAD_NUM] = { 0 };
+thread_local AccessInfo __LZO_MMODEL *accesses_heap;
+thread_local AccessInfo __LZO_MMODEL *accesses_heap1;
+thread_local AccessInfo __LZO_MMODEL *accesses_heap2;
+thread_local uint64_t idxs_heap = 0;
+thread_local FILE *datafile = NULL;
+thread_local std::future<bool> fut;
+thread_local char *buffer = NULL;
+thread_local size_t offset = 0;
 
 #endif  // SWORDRT_RTL_H

@@ -1,0 +1,7 @@
+/home/simone/pruner/sword-rt/lib/rtl/build/CMakeFiles/install.dir
+/home/simone/pruner/sword-rt/lib/rtl/build/CMakeFiles/list_install_components.dir
+/home/simone/pruner/sword-rt/lib/rtl/build/CMakeFiles/rebuild_cache.dir
+/home/simone/pruner/sword-rt/lib/rtl/build/CMakeFiles/sword-rt-cuda-static.dir
+/home/simone/pruner/sword-rt/lib/rtl/build/CMakeFiles/install/strip.dir
+/home/simone/pruner/sword-rt/lib/rtl/build/CMakeFiles/install/local.dir
+/home/simone/pruner/sword-rt/lib/rtl/build/CMakeFiles/edit_cache.dir

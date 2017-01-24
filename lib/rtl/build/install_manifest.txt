@@ -1,0 +1,1 @@
+/home/simone/usr/lib/libsword-rt-cuda-static.a
