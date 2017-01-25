@@ -45,4 +45,4 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-clang -Xclang -load -Xclang LLVMSword.so -fopenmp -fsanitize=thread -g $@
+clang -Xclang -load -Xclang LLVMSword.so -fopenmp -g $@

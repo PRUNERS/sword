@@ -100,6 +100,7 @@ void compress_memory(void *in_data, size_t in_data_size, std::vector<uint8_t> &o
 bool dump_to_file(AccessInfo *accesses, size_t size, size_t nmemb,
 		FILE *file, unsigned char *buffer, size_t *offset) {
 
+#ifdef ZLIB
 	// ZLIB
 	std::vector<uint8_t> out_data;
 	compress_memory((void *) accesses, size * nmemb, out_data);
@@ -114,8 +115,7 @@ bool dump_to_file(AccessInfo *accesses, size_t size, size_t nmemb,
 
 	size_t ret = fwrite(out_data.data(), out_data.size(), 1, file);
 	// ZLIB
-
-	/*
+#elif LZO
 	// LZO
 	lzo_uint out_len;
 	int r = lzo1x_1_compress((unsigned char *) accesses, BLOCK_SIZE, buffer, &out_len, wrkmem);
@@ -131,9 +131,9 @@ bool dump_to_file(AccessInfo *accesses, size_t size, size_t nmemb,
 
 	size_t ret = fwrite((char *) buffer, out_len, 1, file);
 	// LZO
-	*/
-
-	//	size_t ret = fwrite((char *) accesses, size * nmemb, 1, file); // Write plain
+#else
+	size_t ret = fwrite((char *) accesses, size * nmemb, 1, file); // Write plain
+#endif
 
 	return true;
 }

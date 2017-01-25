@@ -97,7 +97,7 @@ public:
 
 #define ALWAYS_INLINE			__attribute__((always_inline))
 #define CALLERPC 				((size_t) __builtin_return_address(0))
-#define SWORD_DATA 			"SWORD_data"
+#define SWORD_DATA 				"sword_data"
 #define NUM_OF_ACCESSES			1000000
 #define BLOCK_SIZE 				NUM_OF_ACCESSES * sizeof(AccessInfo)
 #define MB_LIMIT 				BLOCK_SIZE
