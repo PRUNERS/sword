@@ -1,44 +1,23 @@
-set(Boost_NO_BOOST_CMAKE ON)
-find_package(Boost 1.58 COMPONENTS REQUIRED)
-message(STATUS "Boost Include: ${Boost_INCLUDE_DIR}")
-message(STATUS "Boost Libraries: ${Boost_LIBRARY_DIRS}")
-include_directories(${Boost_INCLUDE_DIR})
-link_directories(${Boost_LIBRARY_DIRS})
+if(${SWORD_STANDALONE_BUILD})
+  set(SWORD_HEADER_FILES ${PROJECT_SOURCE_DIR}/include)
+else()
+  set(SWORD_HEADER_FILES ${PROJECT_SOURCE_DIR}/tools/sword/include)
+endif()
 
-# Set SWORD-RT version
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 --std=c++11 -fcxx-exceptions -g") # -fsanitize=thread
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g") # -fsanitize=thread
-set(SWORDRT_VERSION_MAJOR 0)
-set(SWORDRT_VERSION_MINOR 1)
+if(${LIBOMP_TSAN_SUPPORT})
+  add_definitions(-D TSAN_SUPPORT=1)
+endif()
 
-include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/rtl
-  ${CMAKE_CURRENT_SOURCE_DIR}/sanitizers_interface
+include_directories(${SWORD_HEADER_FILES})
+
+set(SWORD_SOURCE_FILES
+  Sword.cpp
+  Support/RegisterPasses.cpp
+  Support/Util.cpp
+  Transforms/Instrumentation/InstrumentParallel.cpp
   )
 
-set(CMAKE_BUILD_TYPE Release)
-
-set(SWORD_SOURCES
-  rtl/swordrt_rtl.cc
-  rtl/minilzo.c)
-#  rtl/compression.c)
-  
-#set(SWORD_TSAN_SOURCES
-#  sanitizers_interface/swordrt_tsan_interface.cc
-#  sanitizers_interface/swordrt_ompsan_interface.cc)
-#set_source_files_properties(swordrt_tsan_interface.cc PROPERTIES CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIE")
-
-#set(CMAKE_SHARED_LINKER_FLAGS "-lz")
-
-MESSAGE(${SWORD_SOURCES})
-add_library(sword-rt SHARED ${SWORD_SOURCES})
-add_library(sword-rt-static STATIC ${SWORD_SOURCES})
-#add_library(sword-rt_tsan_weak SHARED ${SWORD_TSAN_SOURCES})
-#add_library(sword-rt_tsan_strong SHARED ${SWORD_TSAN_SOURCES})
-
-# target_link_libraries(sword-rt_tsan_strong -Wl,--whole-archive -fPIC ${CMAKE_BINARY_DIR}/lib/clang/4.0.0/lib/linux/libclang_rt.tsan-x86_64.a /home/simone/usr/lib/clang/4.0.0/lib/linux/libclang_rt.tsan-x86_64.a  -Wl,--no-whole-archive)
-
-install (TARGETS sword-rt sword-rt-static #sword-rt_tsan_weak sword-rt_tsan_strong
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin)
+add_llvm_loadable_module(LLVMSword
+  ${SWORD_SOURCE_FILES}
+  ${SWORD_HEADER_FILES}
+  )

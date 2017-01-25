@@ -1,5 +1,3 @@
-if(NOT ${SWORDRT_STANDALONE_BUILD})
-  file(COPY solve.py solve_milp.py
-    DESTINATION ${LLVM_TOOLS_BINARY_DIR})
-endif()
-install(PROGRAMS solve.py solve_milp.py DESTINATION bin)
+file(COPY clang-sword clang-sword++
+  DESTINATION ${LLVM_TOOLS_BINARY_DIR})
+install(PROGRAMS clang-sword clang-sword++ DESTINATION bin)

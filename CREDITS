@@ -1,0 +1,14 @@
+This file is a partial list of people who have contributed to Sword.
+If you have contributed a patch or made some other contribution to
+Sword, please submit a patch to this file to add yourself, and it will be
+done!
+
+The list is sorted by surname and formatted to allow easy grepping and
+beautification by scripts. The fields are: name (N), email (E), web-address
+(W), PGP key ID and fingerprint (P), description (D), and snail-mail address
+(S).
+
+N: Simone Atzeni
+E: simone@cs.utah.edu
+D: Founder and Developer
+D: Ph.D. Student at University of Utah
