@@ -1,4 +1,4 @@
-//===-- swordrt_rtl.h ------------------------------------------*- C++ -*-===//
+//===-- sword_rtl.h ------------------------------------------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,20 +7,18 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file is a part of Sword/SwordRT, an OpenMP race detector.
+// This file is a part of Sword/Sword, an OpenMP race detector.
 //===----------------------------------------------------------------------===//
 
-#ifndef SWORDRT_RTL_H
-#define SWORDRT_RTL_H
+#ifndef SWORD_RTL_H
+#define SWORD_RTL_H
 
-#include <aio.h>
+#include <fcntl.h>
 #include <omp.h>
 #include <ompt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-#include <fcntl.h>
-
 #include <cstdint>
 #include <fstream>
 #include <functional>
@@ -30,31 +28,18 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include <unordered_set>
-#include <unordered_map>
 #include "minilzo.h"
 
 enum ValueType {
-	data = 0,
-	parallel_region,
-	barrier,
-	mutex,
-	task
+	data = 0, parallel_region, barrier, mutex, task
 };
 
 enum AccessSize {
-	size1 = 0,
-	size2,
-	size4,
-	size8,
-	size16
+	size1 = 0, size2, size4, size8, size16
 };
 
 enum AccessType {
-	unsafe_read,
-	unsafe_write,
-	atomic_read,
-	atomic_write,
+	unsafe_read, unsafe_write, atomic_read, atomic_write,
 };
 
 struct __attribute__ ((__packed__)) AccessInfo {
@@ -80,7 +65,8 @@ public:
 		pc = p;
 	}
 
-	void setData(ValueType t, size_t a, AccessSize as, AccessType at, size_t p) {
+	void setData(ValueType t, size_t a, AccessSize as, AccessType at,
+			size_t p) {
 		type = t;
 		address = a;
 		size_type = (as << 4);
@@ -126,8 +112,8 @@ HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
 // thread_local unsigned char __LZO_MMODEL in  [ BLOCK_SIZE ];
 thread_local unsigned char __LZO_MMODEL *out;
 
-#define SWORDRT_DEBUG 	1
-#ifdef SWORDRT_DEBUG
+#define SWORD_DEBUG 	1
+#ifdef SWORD_DEBUG
 #define ASSERT(x) assert(x);
 #define DEBUG(stream, x) 										\
 		do {													\
@@ -151,7 +137,8 @@ std::mutex pmtx;
 std::mutex smtx;
 
 // Thread Local Variable
-thread_local int __swordomp_status__ = 0;
+thread_local int tid = 0;
+thread_local int __sword_status__ = 0;
 thread_local AccessInfo __LZO_MMODEL *accesses_heap;
 thread_local AccessInfo __LZO_MMODEL *accesses_heap1;
 thread_local AccessInfo __LZO_MMODEL *accesses_heap2;
@@ -161,4 +148,4 @@ thread_local std::future<bool> fut;
 thread_local char *buffer = NULL;
 thread_local size_t offset = 0;
 
-#endif  // SWORDRT_RTL_H
+#endif  // SWORD_RTL_H

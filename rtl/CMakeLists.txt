@@ -1,18 +1,15 @@
-cmake_minimum_required(VERSION 3.5)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 --std=c++11 -fcxx-exceptions -g")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g")
 
-#find_package(CUDA QUIET REQUIRED)
+set(SWORD_SOURCES
+    sword_rtl.cc
+    minilzo.c)
+  
+add_library(sword SHARED ${SWORD_SOURCES})
+add_library(sword_static STATIC ${SWORD_SOURCES})
 
-# Specify CUDA options
-#set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -std=c++11 -O3 -gencode arch=compute_20,code=sm_20)
-#include_directories(/usr/local/cuda-8.0/include) 
+set(CMAKE_SHARED_LINKER_FLAGS "-lz -fopenmp")
 
-#CUDA_ADD_LIBRARY(sword-rt-cuda-static STATIC
-#    swordrt_cuda.cu
-#)
-
-# target_link_libraries(sword-rt_tsan_strong -Wl,--whole-archive -fPIC ${CMAKE_BINARY_DIR}/lib/clang/4.0.0/lib/linux/libclang_rt.tsan-x86_64.a /home/simone/usr/lib/clang/4.0.0/lib/linux/libclang_rt.tsan-x86_64.a  -Wl,--no-whole-archive)
-
-#install (TARGETS sword-rt-cuda-static
-#  ARCHIVE DESTINATION lib
-#  LIBRARY DESTINATION lib
-#  RUNTIME DESTINATION bin)
+install(TARGETS sword sword_static
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib)

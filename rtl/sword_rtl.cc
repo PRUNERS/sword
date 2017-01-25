@@ -1,4 +1,4 @@
-//===-- swordrt_rtl.cc -------------------------------------------------------===//
+//===-- sword_rtl.cc -------------------------------------------------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,13 +7,15 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file is a part of Sword/SwordRT, an OpenMP race detector.
+// This file is a part of Sword/Sword, an OpenMP race detector.
 //===----------------------------------------------------------------------===//
 
-#include "swordrt_rtl.h"
+#include "sword_rtl.h"
 #include <zlib.h>
 #include <assert.h>
 #include <fstream>
+#include <sstream>
+#include <cmath>
 
 static const char* ompt_thread_type_t_values[] = {
   NULL,
@@ -35,10 +37,6 @@ static ompt_get_task_frame_t ompt_get_task_frame;
 static ompt_get_thread_data_t ompt_get_thread_data;
 static ompt_get_parallel_data_t ompt_get_parallel_data;
 static ompt_get_unique_id_t ompt_get_unique_id;
-
-#include <sstream>
-#include <cmath>
-#include "swordrt_tsan_interface.h"
 
 void compress_memory(void *in_data, size_t in_data_size, std::vector<uint8_t> &out_data)
 {
@@ -156,7 +154,7 @@ bool dump_to_file(AccessInfo *accesses, size_t size, size_t nmemb,
 
 extern "C" {
 
-#include "swordrt_interface.inl"
+#include "sword_interface.inl"
 
 static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 		ompt_thread_data_t *thread_data) {
@@ -188,7 +186,7 @@ static void on_ompt_callback_parallel_begin(ompt_task_data_t parent_task_data,
 		void *parallel_function,
 		ompt_invoker_t invoker) {
 	parallel_data->value = ompt_get_unique_id();
-	//if(__swordomp_status__ == 0) {
+	//if(__sword_status__ == 0) {
 	//INFO(std::cout, "INFO: " << parallel_data->value);
 	//}
 }
