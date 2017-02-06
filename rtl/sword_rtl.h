@@ -13,6 +13,7 @@
 #ifndef SWORD_RTL_H
 #define SWORD_RTL_H
 
+#include "minilzo.h"
 #include <fcntl.h>
 #include <omp.h>
 #include <ompt.h>
@@ -28,7 +29,6 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include "minilzo.h"
 
 enum ValueType {
 	data = 0, parallel_region, barrier, mutex, task
