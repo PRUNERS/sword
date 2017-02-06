@@ -131,6 +131,9 @@ bool dump_to_file(AccessInfo *accesses, size_t size, size_t nmemb,
 
 	size_t ret = fwrite((char *) buffer, out_len, 1, file);
 	// LZO
+#elif HUFFMAN
+#elif ARITHMETIC
+#elif TCGEN
 #else
 	size_t ret = fwrite((char *) accesses, size * nmemb, 1, file); // Write plain
 #endif
@@ -138,9 +141,11 @@ bool dump_to_file(AccessInfo *accesses, size_t size, size_t nmemb,
 	return true;
 }
 
+//			accesses_heap[idxs_heap].setData(data, (size_t) addr,			\
+//				dsize, type, CALLERPC); 									\
 //#define SAVE_ACCESS(dsize, type)
 #define SAVE_ACCESS(dsize, type)											\
-			accesses_heap[idxs_heap].setData(data, (size_t) addr,			\
+			accesses_heap[idxs_heap] = AccessInfo(data, (size_t) addr,		\
 				dsize, type, CALLERPC); 									\
 			idxs_heap++;													\
 			if(idxs_heap == NUM_OF_ACCESSES)	{							\
