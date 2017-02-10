@@ -33,10 +33,9 @@ static const char* ompt_task_type_t_values[] = {
 		"ompt_task_target"
 };
 
-static ompt_get_task_data_t ompt_get_task_data;
-static ompt_get_task_frame_t ompt_get_task_frame;
+static ompt_get_task_info_t ompt_get_task_info;
 static ompt_get_thread_data_t ompt_get_thread_data;
-static ompt_get_parallel_data_t ompt_get_parallel_data;
+static ompt_get_parallel_info_t ompt_get_parallel_info;
 static ompt_get_unique_id_t ompt_get_unique_id;
 
 SwordFlags *sword_flags;
@@ -296,10 +295,9 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	sword_flags = new SwordFlags(options);
 
 	ompt_set_callback_t ompt_set_callback = (ompt_set_callback_t) lookup("ompt_set_callback");
-	ompt_get_task_data = (ompt_get_task_data_t) lookup("ompt_get_task_data");
-	ompt_get_task_frame = (ompt_get_task_frame_t) lookup("ompt_get_task_frame");
+	ompt_get_task_info = (ompt_get_task_info_t) lookup("ompt_get_task_info");
 	ompt_get_thread_data = (ompt_get_thread_data_t) lookup("ompt_get_thread_data");
-	ompt_get_parallel_data = (ompt_get_parallel_data_t) lookup("ompt_get_parallel_data");
+	ompt_get_parallel_info = (ompt_get_parallel_info_t) lookup("ompt_get_parallel_info");
 	ompt_get_unique_id = (ompt_get_unique_id_t) lookup("ompt_get_unique_id");
 
 	register_callback(ompt_callback_thread_begin);
