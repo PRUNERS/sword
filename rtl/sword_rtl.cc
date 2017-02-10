@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "sword_rtl.h"
+#include "sword_flags.h"
 #include <zlib.h>
 #include <assert.h>
 #include <fstream>
@@ -18,18 +19,18 @@
 #include <cmath>
 
 static const char* ompt_thread_type_t_values[] = {
-  NULL,
-  "ompt_thread_initial",
-  "ompt_thread_worker",
-  "ompt_thread_other"
+		NULL,
+		"ompt_thread_initial",
+		"ompt_thread_worker",
+		"ompt_thread_other"
 };
 
 static const char* ompt_task_type_t_values[] = {
-  NULL,
-  "ompt_task_initial",
-  "ompt_task_implicit",
-  "ompt_task_explicit",
-  "ompt_task_target"
+		NULL,
+		"ompt_task_initial",
+		"ompt_task_implicit",
+		"ompt_task_explicit",
+		"ompt_task_target"
 };
 
 static ompt_get_task_data_t ompt_get_task_data;
@@ -37,6 +38,8 @@ static ompt_get_task_frame_t ompt_get_task_frame;
 static ompt_get_thread_data_t ompt_get_thread_data;
 static ompt_get_parallel_data_t ompt_get_parallel_data;
 static ompt_get_unique_id_t ompt_get_unique_id;
+
+SwordFlags *sword_flags;
 
 void compress_memory(void *in_data, size_t in_data_size, std::vector<uint8_t> &out_data)
 {
@@ -90,14 +93,18 @@ void compress_memory(void *in_data, size_t in_data_size, std::vector<uint8_t> &o
 	out_data.swap(buffer);
 }
 
-#define SWAP_BUFFER															\
-		if(accesses_heap == accesses_heap1) {								\
-			accesses_heap == accesses_heap2;								\
-		} else {															\
-			accesses_heap == accesses_heap1;								\
+#define SWAP_BUFFER												\
+		if(accesses == accesses1) {								\
+			accesses == accesses2;								\
+		} else {												\
+			accesses == accesses1;								\
 		}
 
-bool dump_to_file(AccessInfo *accesses, size_t size, size_t nmemb,
+bool dummy() {
+	return true;
+}
+
+bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 		FILE *file, unsigned char *buffer, size_t *offset) {
 
 #ifdef ZLIB
@@ -141,21 +148,20 @@ bool dump_to_file(AccessInfo *accesses, size_t size, size_t nmemb,
 	return true;
 }
 
-//			accesses_heap[idxs_heap].setData(data, (size_t) addr,			\
-//				dsize, type, CALLERPC); 									\
-//#define SAVE_ACCESS(dsize, type)
-#define SAVE_ACCESS(dsize, type)											\
-			accesses_heap[idxs_heap] = AccessInfo(data, (size_t) addr,		\
-				dsize, type, CALLERPC); 									\
-			idxs_heap++;													\
-			if(idxs_heap == NUM_OF_ACCESSES)	{							\
-				bool ret = fut.get();										\
-				fut = std::async(dump_to_file, accesses_heap,				\
-						sizeof(AccessInfo), NUM_OF_ACCESSES, datafile, 		\
-						out, &offset);	  									\
-				idxs_heap = 0;												\
-				SWAP_BUFFER													\
-			}
+// #define SAVE_ACCESS(asize, atype)
+#define SAVE_ACCESS(asize, atype)											\
+		accesses[idx].setType(data_access);									\
+		accesses[idx].data.access = Access(asize, atype,					\
+				(size_t) addr, CALLERPC); 									\
+				idx++;														\
+				if(idx == NUM_OF_ACCESSES)	{								\
+					fut.wait();												\
+					fut = std::async(dump_to_file, accesses,				\
+							sizeof(TraceItem), NUM_OF_ACCESSES, datafile, 	\
+							out, &offset);	  								\
+							idx = 0;										\
+							SWAP_BUFFER										\
+				}
 
 extern "C" {
 
@@ -165,18 +171,12 @@ static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 		ompt_thread_data_t *thread_data) {
 	tid = omp_get_thread_num();
 
-	datafile = fopen(std::string(std::string(SWORD_DATA) + "/threadtrace_" + std::to_string(tid)).c_str(), "ab");
-	if (!datafile) {
-		INFO(std::cerr, "SWORD: Error opening file.");
-		exit(-1);
-	}
-	accesses_heap1 = (AccessInfo *) malloc(BLOCK_SIZE);
-	accesses_heap2 = (AccessInfo *) malloc(BLOCK_SIZE);
-	accesses_heap = accesses_heap1;
+	accesses1 = (TraceItem *) malloc(BLOCK_SIZE);
+	accesses2 = (TraceItem *) malloc(BLOCK_SIZE);
+	accesses = accesses1;
 	out = (unsigned char *) malloc(OUT_LEN);
 
-	//buffer = (char *) malloc(MB_LIMIT);
-	fut = std::async(dump_to_file, accesses_heap, 0, 0, datafile, out, &offset);
+	fut = std::async(dummy);
 }
 
 static void on_ompt_callback_thread_end(ompt_data_t *thread_data)
@@ -191,31 +191,110 @@ static void on_ompt_callback_parallel_begin(ompt_task_data_t parent_task_data,
 		void *parallel_function,
 		ompt_invoker_t invoker) {
 	parallel_data->value = ompt_get_unique_id();
-	//if(__sword_status__ == 0) {
-	//INFO(std::cout, "INFO: " << parallel_data->value);
-	//}
+
+	current_parallel_idx.store(parallel_data->value, std::memory_order_relaxed);
+	if(__sword_status__ == 0) {
+		std::string str = "mkdir " + sword_flags->trace_path + std::string(SWORD_DATA) + "/" + std::to_string(parallel_data->value);
+		system(str.c_str());
+	}
 }
 
-static void on_ompt_callback_parallel_end(ompt_data_t *parallel_data,
-		ompt_task_data_t *task_data,
-		ompt_invoker_t invoker,
-		const void *codeptr_ra) {
+//static void on_ompt_callback_parallel_end(ompt_data_t *parallel_data,
+//		ompt_task_data_t *task_data,
+//		ompt_invoker_t invoker,
+//		const void *codeptr_ra) {
+//	if(parallel_idx == parallel_data->value) {
+//
+//	}
+//}
 
+static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
+		ompt_data_t *parallel_data,
+		ompt_data_t *task_data,
+		unsigned int thread_num) {
+	if(endpoint == ompt_scope_begin) {
+		if(__sword_status__ == 0) {
+			parallel_idx = parallel_data->value;
+		} else {
+			parallel_idx = current_parallel_idx.load(std::memory_order_relaxed);
+		}
+		accesses[idx].setType(parallel_begin);
+		accesses[idx].data.parallel = Parallel(parallel_idx);
+		idx++;
+		// Task starting from outer Parallel Region
+		std::string filename = std::string(sword_flags->trace_path + std::string(SWORD_DATA) + "/" + std::to_string(parallel_idx) + "/threadtrace_" + std::to_string(tid));
+		datafile = fopen(filename.c_str(), "ab");
+		if (!datafile) {
+			INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
+			exit(-1);
+		}
+	} else if(endpoint == ompt_scope_end) {
+		if(parallel_idx == parallel_data->value) {
+			accesses[idx].setType(parallel_end);
+			accesses[idx].data.parallel = Parallel(parallel_idx);
+			idx++;
+			fut.wait();
+			fut = std::async(dump_to_file, accesses, sizeof(TraceItem), idx, datafile, out, &offset);
+			idx = 0;
+			SWAP_BUFFER
+			fut.wait();
+			if(datafile)
+				fclose(datafile);
+			datafile = NULL;
+		}
+	}
+}
+
+static void on_ompt_callback_sync_region_wait(ompt_sync_region_kind_t kind,
+		ompt_scope_endpoint_t endpoint,
+		ompt_data_t *parallel_data,
+		ompt_data_t *task_data,
+		const void *codeptr_ra) {
+	switch(endpoint)
+	{
+	case ompt_scope_begin:
+		switch(kind)
+		{
+		case ompt_sync_region_barrier:
+			// Write last buffer
+			break;
+		case ompt_sync_region_taskwait:
+			break;
+		case ompt_sync_region_taskgroup:
+			break;
+		}
+		break;
+		case ompt_scope_end:
+			switch(kind)
+			{
+			case ompt_sync_region_barrier:
+
+				break;
+			case ompt_sync_region_taskwait:
+				break;
+			case ompt_sync_region_taskgroup:
+				break;
+			}
+			break;
+	}
 }
 
 static void on_ompt_event_runtime_shutdown(void)
 {
-  printf("%d: ompt_event_runtime_shutdown\n", omp_get_thread_num());
+	printf("%d: ompt_event_runtime_shutdown\n", omp_get_thread_num());
 }
 
 #define register_callback(name) {                                           \
-	if (ompt_set_callback(name, (ompt_callback_t)&on_##name) == 			\
-			ompt_has_event_no_callback)                             		\
-			printf("0: Could not register callback '" #name "'\n");   		\
+		if (ompt_set_callback(name, (ompt_callback_t)&on_##name) == 		\
+				ompt_has_event_no_callback)                             	\
+				printf("0: Could not register callback '" #name "'\n");   	\
 }
 
 int ompt_initialize(ompt_function_lookup_t lookup,
 		ompt_fns_t* fns) {
+	const char *options = getenv("SWORD_OPTIONS");
+	sword_flags = new SwordFlags(options);
+
 	ompt_set_callback_t ompt_set_callback = (ompt_set_callback_t) lookup("ompt_set_callback");
 	ompt_get_task_data = (ompt_get_task_data_t) lookup("ompt_get_task_data");
 	ompt_get_task_frame = (ompt_get_task_frame_t) lookup("ompt_get_task_frame");
@@ -223,19 +302,22 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	ompt_get_parallel_data = (ompt_get_parallel_data_t) lookup("ompt_get_parallel_data");
 	ompt_get_unique_id = (ompt_get_unique_id_t) lookup("ompt_get_unique_id");
 
-    register_callback(ompt_callback_thread_begin);
-    register_callback(ompt_callback_parallel_begin);
+	register_callback(ompt_callback_thread_begin);
+	register_callback(ompt_callback_parallel_begin);
+	// register_callback(ompt_callback_parallel_end);
+	register_callback(ompt_callback_implicit_task);
+	// register_callback(ompt_callback_sync_region_wait);
 
-	std::string str = "rm -rf " + std::string(SWORD_DATA);
+	std::string str = "rm -rf " + sword_flags->trace_path + std::string(SWORD_DATA);
 	system(str.c_str());
-	str = "mkdir " + std::string(SWORD_DATA);
+	str = "mkdir " + sword_flags->trace_path + std::string(SWORD_DATA);
 	system(str.c_str());
 
-    if(lzo_init() != LZO_E_OK) {
-        printf("internal error - lzo_init() failed !!!\n");
-        printf("(this usually indicates a compiler bug - try recompiling\nwithout optimizations, and enable '-DLZO_DEBUG' for diagnostics)\n");
-        exit(-1);
-    }
+	if(lzo_init() != LZO_E_OK) {
+		printf("internal error - lzo_init() failed !!!\n");
+		printf("(this usually indicates a compiler bug - try recompiling\nwithout optimizations, and enable '-DLZO_DEBUG' for diagnostics)\n");
+		exit(-1);
+	}
 
 	return 0;
 }

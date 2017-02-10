@@ -1,11 +1,15 @@
+# find_package(Boost 1.41 COMPONENTS REQUIRED)
+# INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIR})
+# LINK_DIRECTORIES(${Boost_LIBRARY_DIRS})
+
 # add_definitions(-D ZLIB)
 add_definitions(-D LZO)
 # add_definitions(-D HUFFMAN)
 # add_definitions(-D ARITHMETIC)
 # add_definitions(-D TCGEN)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 --std=c++11 -fcxx-exceptions -g")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 --std=c++11 -fcxx-exceptions")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0")
 
 set(SWORD_SOURCES
     sword_rtl.cc
