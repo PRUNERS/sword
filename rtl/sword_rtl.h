@@ -29,7 +29,7 @@
 #define ALWAYS_INLINE			__attribute__((always_inline))
 #define CALLERPC 				((size_t) __builtin_return_address(0))
 #define SWORD_DATA 				"sword_data"
-#define NUM_OF_ACCESSES			1000000
+#define NUM_OF_ACCESSES			30000
 #define BLOCK_SIZE 				NUM_OF_ACCESSES * sizeof(TraceItem)
 #define MB_LIMIT 				BLOCK_SIZE
 #define OUT_LEN     			(BLOCK_SIZE + BLOCK_SIZE / 16 + 64 + 3)
