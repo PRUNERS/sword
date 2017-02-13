@@ -39,7 +39,6 @@
 
 HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
 
-// thread_local unsigned char __LZO_MMODEL in  [ BLOCK_SIZE ];
 thread_local unsigned char __LZO_MMODEL *out;
 
 #define SWORD_DEBUG 	1

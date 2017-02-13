@@ -99,6 +99,20 @@ public:
 	}
 };
 
+struct __attribute__ ((__packed__)) Master {
+private:
+	ompt_scope_endpoint_t endpoint;
+
+public:
+	Master() {
+		endpoint = ompt_scope_begin;
+	}
+
+	Master(ompt_scope_endpoint_t ep) {
+		endpoint = ep;
+	}
+};
+
 struct __attribute__ ((__packed__)) SyncRegion {
 private:
 	ompt_sync_region_kind_t kind;
@@ -119,18 +133,18 @@ public:
 	}
 };
 
-struct __attribute__ ((__packed__)) Mutex {
+struct __attribute__ ((__packed__)) MutexRegion {
 private:
 	ompt_mutex_kind_t kind;
 	ompt_wait_id_t wait_id;
 
 public:
-	Mutex() {
+	MutexRegion() {
 		kind = ompt_mutex;
 		wait_id = 0;
 	}
 
-	Mutex(ompt_mutex_kind_t k, ompt_wait_id_t wid) {
+	MutexRegion(ompt_mutex_kind_t k, ompt_wait_id_t wid) {
 		kind = k;
 		wait_id = wid;
 	}
@@ -141,7 +155,7 @@ enum CallbackType {
 	parallel_begin, // Parallel: parallel id
 	parallel_end, // Parallel: parallel id
 	work, // Work: work type and endpoint
-	master, // Work: only endpoint needed
+	master, // Master: only endpoint needed
 	sync_region, // SyncRegion: kind, endpoint and barrier id (for offset-span label)
 	mutex_acquired, // MutexRegion: kind and wait id
 	mutex_released // MutexRegion: kind and wait id
@@ -164,8 +178,9 @@ public:
 		struct Access access;
 		struct Parallel parallel;
 		struct Work work;
+		struct Master master;
 		struct SyncRegion sync_region;
-		struct Mutex mutex;
+		struct MutexRegion mutex_region;
 	} data;
 };
 

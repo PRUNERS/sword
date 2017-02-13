@@ -55,11 +55,8 @@ void compress_memory(void *in_data, size_t in_data_size, std::vector<uint8_t> &o
 	strm.next_out = temp_buffer;
 	strm.avail_out = BUFSIZE;
 
-	// deflateInit(&strm, Z_BEST_COMPRESSION);
-	// deflateInit(&strm, Z_DEFAULT_COMPRESSION);
+	// Options: Z_BEST_SPEED, Z_BEST_COMPRESSION, Z_DEFAULT_COMPRESSION, Z_DEFAULT_COMPRESSION
 	deflateInit(&strm, Z_BEST_SPEED);
-	// deflateInit(&strm, Z_NO_COMPRESSION);
-	// deflateInit2(&strm, Z_BEST_SPEED, Z_DEFLATED, 10, 8, Z_HUFFMAN_ONLY);
 
 	while (strm.avail_in != 0)
 	{
@@ -91,13 +88,6 @@ void compress_memory(void *in_data, size_t in_data_size, std::vector<uint8_t> &o
 
 	out_data.swap(buffer);
 }
-
-#define SWAP_BUFFER												\
-		if(accesses == accesses1) {								\
-			accesses == accesses2;								\
-		} else {												\
-			accesses == accesses1;								\
-		}
 
 bool dummy() {
 	return true;
@@ -146,6 +136,24 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 
 	return true;
 }
+
+#define SWAP_BUFFER															\
+		if(accesses == accesses1) {											\
+			accesses == accesses2;											\
+		} else {															\
+			accesses == accesses1;											\
+		}
+
+#define DUMP_TO_FILE														\
+		idx++;																\
+		if(idx == NUM_OF_ACCESSES)	{										\
+			fut.wait();														\
+			fut = std::async(dump_to_file, accesses,						\
+					sizeof(TraceItem), NUM_OF_ACCESSES, datafile,			\
+					out, &offset);											\
+			idx = 0;														\
+			SWAP_BUFFER														\
+		}
 
 // #define SAVE_ACCESS(asize, atype)
 #define SAVE_ACCESS(asize, atype)											\
@@ -198,15 +206,6 @@ static void on_ompt_callback_parallel_begin(ompt_task_data_t parent_task_data,
 	}
 }
 
-//static void on_ompt_callback_parallel_end(ompt_data_t *parallel_data,
-//		ompt_task_data_t *task_data,
-//		ompt_invoker_t invoker,
-//		const void *codeptr_ra) {
-//	if(parallel_idx == parallel_data->value) {
-//
-//	}
-//}
-
 static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 		ompt_data_t *parallel_data,
 		ompt_data_t *task_data,
@@ -244,39 +243,55 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 	}
 }
 
-static void on_ompt_callback_sync_region_wait(ompt_sync_region_kind_t kind,
+static void on_ompt_callback_work(ompt_work_type_t wstype,
+		ompt_scope_endpoint_t endpoint,
+		ompt_data_t *parallel_data,
+		ompt_data_t *task_data,
+		uint64_t count,
+		const void *codeptr_ra) {
+	accesses[idx].setType(work);
+	accesses[idx].data.work = Work(wstype, endpoint);
+	DUMP_TO_FILE
+}
+
+static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 		ompt_scope_endpoint_t endpoint,
 		ompt_data_t *parallel_data,
 		ompt_data_t *task_data,
 		const void *codeptr_ra) {
-	switch(endpoint)
-	{
-	case ompt_scope_begin:
-		switch(kind)
-		{
-		case ompt_sync_region_barrier:
-			// Write last buffer
-			break;
-		case ompt_sync_region_taskwait:
-			break;
-		case ompt_sync_region_taskgroup:
-			break;
-		}
-		break;
-		case ompt_scope_end:
-			switch(kind)
-			{
-			case ompt_sync_region_barrier:
 
-				break;
-			case ompt_sync_region_taskwait:
-				break;
-			case ompt_sync_region_taskgroup:
-				break;
-			}
-			break;
-	}
+	accesses[idx].setType(sync_region);
+	// Find a way to set the barrier id, also figure out if we really need it
+	ompt_id_t bid = 0;
+	accesses[idx].data.sync_region = SyncRegion(bid, kind, endpoint);
+	DUMP_TO_FILE
 }
+
+static void on_ompt_callback_master(ompt_scope_endpoint_t endpoint,
+		ompt_data_t *parallel_data,
+		ompt_data_t *task_data,
+		const void *codeptr_ra) {
+	accesses[idx].setType(master);
+	accesses[idx].data.master = Master(endpoint);
+	DUMP_TO_FILE
+}
+
+static void on_ompt_callback_mutex_acquired(ompt_mutex_kind_t kind,
+		ompt_wait_id_t wait_id,
+		const void *codeptr_ra) {
+	accesses[idx].setType(mutex_acquired);
+	accesses[idx].data.mutex_region = MutexRegion(kind, wait_id);
+	DUMP_TO_FILE
+}
+
+static void on_ompt_callback_mutex_released(ompt_mutex_kind_t kind,
+		ompt_wait_id_t wait_id,
+		const void *codeptr_ra) {
+	accesses[idx].setType(mutex_released);
+	accesses[idx].data.mutex_region = MutexRegion(kind, wait_id);
+	DUMP_TO_FILE
+}
+
 
 static void on_ompt_event_runtime_shutdown(void)
 {
@@ -302,9 +317,12 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 
 	register_callback(ompt_callback_thread_begin);
 	register_callback(ompt_callback_parallel_begin);
-	// register_callback(ompt_callback_parallel_end);
 	register_callback(ompt_callback_implicit_task);
-	// register_callback(ompt_callback_sync_region_wait);
+	register_callback(ompt_callback_work);
+	register_callback(ompt_callback_sync_region);
+	register_callback(ompt_callback_master);
+	register_callback(ompt_callback_mutex_acquired);
+	register_callback(ompt_callback_mutex_released);
 
 	std::string str = "rm -rf " + sword_flags->trace_path + std::string(SWORD_DATA);
 	system(str.c_str());
