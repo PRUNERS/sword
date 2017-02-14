@@ -15,7 +15,7 @@ set(SWORD_SOURCES
     sword_rtl.cc
     minilzo.c)
 
-add_library(sword SHARED ${SWORD_SOURCES})
+add_library(sword MODULE ${SWORD_SOURCES})
 add_library(sword_static STATIC ${SWORD_SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-lz -fopenmp")

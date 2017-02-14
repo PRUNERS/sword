@@ -59,6 +59,16 @@ if(${SWORD_STANDALONE_BUILD})
   include_directories(${LLVM_INCLUDE_DIRS})
 endif()
 
+# Look for OpenMP runtime
+if(${SWORD_STANDALONE_BUILD})
+  set(OMP_PREFIX /usr/local CACHE PATH "Root of OpenMP runtime install")
+  if(NOT EXISTS ${OMP_PREFIX}/include/omp.h)
+    message(FATAL_ERROR "OMP_PREFIX (${OMP_PREFIX}) is not a valid OpenMP runtime install")
+  endif()
+else()
+  set(OMP_PREFIX ${LLVM_ROOT} CACHE PATH "Root of OpenMP runtime install")
+endif()
+
 find_package(Omp)
 include_directories(${OMP_INCLUDE_PATH})
 find_package(Ompt)
@@ -66,4 +76,6 @@ include_directories(${OMPT_INCLUDE_PATH})
 
 add_subdirectory(lib)
 add_subdirectory(rtl)
+
+# add_subdirectory(test)
 add_subdirectory(tools)
