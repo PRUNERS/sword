@@ -1,4 +1,4 @@
-add_executable(sword-race-analysis sword-race-analysis.cpp)
+add_executable(sword-race-analysis sword-race-analysis.cc)
 
 configure_file(clang-sword.in clang-sword)
 configure_file(clang-sword++.in clang-sword++)
