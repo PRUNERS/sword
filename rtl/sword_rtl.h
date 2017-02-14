@@ -74,6 +74,7 @@ thread_local TraceItem __LZO_MMODEL *accesses1;
 thread_local TraceItem __LZO_MMODEL *accesses2;
 thread_local uint64_t idx = 0;
 thread_local ompt_id_t parallel_idx = 0;
+thread_local uint64_t parallel_lvl = 0;
 thread_local FILE *datafile = NULL;
 thread_local std::future<bool> fut;
 thread_local char *buffer = NULL;

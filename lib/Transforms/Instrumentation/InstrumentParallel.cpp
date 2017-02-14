@@ -614,35 +614,35 @@ bool InstrumentParallel::runOnFunction(Function &F) {
 
   if(functionName.startswith(".omp")) {
     // Increment of __sword_status__
-    Instruction *entryBBI = &F.getEntryBlock().front();
-    LoadInst *loadInc = new LoadInst(ompStatusGlobal, "loadIncOmpStatus", false, entryBBI);
-    loadInc->setAlignment(4);
-    setMetadata(loadInc, "sword.ompstatus", "SWORD Instrumentation");
-    Instruction *inc = BinaryOperator::Create (BinaryOperator::Add,
-                                               loadInc, One,
-                                               "incOmpStatus",
-                                               entryBBI);
-    setMetadata(loadInc, "sword.ompstatus", "sword Instrumentation");
-    StoreInst *storeInc = new StoreInst(inc, ompStatusGlobal, entryBBI);
-    storeInc->setAlignment(4);
-    setMetadata(storeInc, "sword.ompstatus", "sword Instrumentation");
-
-    // Decrement of __sword_status__
-    Instruction *exitBBI = F.back().getTerminator();
-    if(exitBBI) {
-      LoadInst *loadDec = new LoadInst(ompStatusGlobal, "loadDecOmpStatus", false, exitBBI);
-      loadDec->setAlignment(4);
-      setMetadata(loadDec, "sword.ompstatus", "sword Instrumentation");
-      Instruction *dec = BinaryOperator::Create (BinaryOperator::Sub,
-                                                 loadDec, One,
-                                                 "decOmpStatus",
-                                                 exitBBI);
-      StoreInst *storeDec = new StoreInst(dec, ompStatusGlobal, exitBBI);
-      storeDec->setAlignment(4);
-      setMetadata(storeDec, "sword.ompstatus", "sword Instrumentation");
-    } else {
-      report_fatal_error("Broken function found, compilation aborted!");
-    }
+//    Instruction *entryBBI = &F.getEntryBlock().front();
+//    LoadInst *loadInc = new LoadInst(ompStatusGlobal, "loadIncOmpStatus", false, entryBBI);
+//    loadInc->setAlignment(4);
+//    setMetadata(loadInc, "sword.ompstatus", "SWORD Instrumentation");
+//    Instruction *inc = BinaryOperator::Create (BinaryOperator::Add,
+//                                               loadInc, One,
+//                                               "incOmpStatus",
+//                                               entryBBI);
+//    setMetadata(loadInc, "sword.ompstatus", "sword Instrumentation");
+//    StoreInst *storeInc = new StoreInst(inc, ompStatusGlobal, entryBBI);
+//    storeInc->setAlignment(4);
+//    setMetadata(storeInc, "sword.ompstatus", "sword Instrumentation");
+//
+//    // Decrement of __sword_status__
+//    Instruction *exitBBI = F.back().getTerminator();
+//    if(exitBBI) {
+//      LoadInst *loadDec = new LoadInst(ompStatusGlobal, "loadDecOmpStatus", false, exitBBI);
+//      loadDec->setAlignment(4);
+//      setMetadata(loadDec, "sword.ompstatus", "sword Instrumentation");
+//      Instruction *dec = BinaryOperator::Create (BinaryOperator::Sub,
+//                                                 loadDec, One,
+//                                                 "decOmpStatus",
+//                                                 exitBBI);
+//      StoreInst *storeDec = new StoreInst(dec, ompStatusGlobal, exitBBI);
+//      storeDec->setAlignment(4);
+//      setMetadata(storeDec, "sword.ompstatus", "sword Instrumentation");
+//    } else {
+//      report_fatal_error("Broken function found, compilation aborted!");
+//    }
     IF = &F;
   } else {
     ValueToValueMapTy VMap;

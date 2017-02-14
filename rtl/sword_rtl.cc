@@ -207,15 +207,19 @@ static void on_ompt_callback_parallel_begin(ompt_task_data_t parent_task_data,
 }
 
 static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
-		ompt_data_t *parallel_data,
-		ompt_data_t *task_data,
-		unsigned int thread_num) {
+	    ompt_data_t *parallel_data,
+	    ompt_data_t *task_data,
+	    unsigned int team_size,
+	    unsigned int thread_num) {
 	if(endpoint == ompt_scope_begin) {
 		if(__sword_status__ == 0) {
 			parallel_idx = parallel_data->value;
+			task_data->value = parallel_data->value;
 		} else {
 			parallel_idx = current_parallel_idx.load(std::memory_order_relaxed);
+			task_data->value = parallel_data->value;
 		}
+		__sword_status__++;
 		accesses[idx].setType(parallel_begin);
 		accesses[idx].data.parallel = Parallel(parallel_idx);
 		idx++;
@@ -227,7 +231,8 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 			exit(-1);
 		}
 	} else if(endpoint == ompt_scope_end) {
-		if(parallel_idx == parallel_data->value) {
+		__sword_status__--;
+		if(parallel_idx == task_data->value) {
 			accesses[idx].setType(parallel_end);
 			accesses[idx].data.parallel = Parallel(parallel_idx);
 			idx++;
@@ -259,7 +264,6 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 		ompt_data_t *parallel_data,
 		ompt_data_t *task_data,
 		const void *codeptr_ra) {
-
 	accesses[idx].setType(sync_region);
 	// Find a way to set the barrier id, also figure out if we really need it
 	ompt_id_t bid = 0;
