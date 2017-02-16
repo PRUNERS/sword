@@ -191,6 +191,31 @@ public:
 	}
 };
 
+struct __attribute__ ((__packed__)) OffsetSpan {
+private:
+	unsigned offset;
+	unsigned span;
+
+public:
+	OffsetSpan() {
+		offset = 0;
+		span = 0;
+	}
+
+	OffsetSpan(unsigned o, unsigned l) {
+		offset = o;
+		span = l;
+	}
+
+	unsigned getOffset() {
+		return offset;
+	}
+
+	unsigned getSpan() {
+			return span;
+	}
+};
+
 enum CallbackType {
 	data_access = 0, // Access
 	parallel_begin, // Parallel: parallel id
@@ -199,7 +224,8 @@ enum CallbackType {
 	master, // Master: only endpoint needed
 	sync_region, // SyncRegion: kind, endpoint and barrier id (for offset-span label)
 	mutex_acquired, // MutexRegion: kind and wait id
-	mutex_released // MutexRegion: kind and wait id
+	mutex_released, // MutexRegion: kind and wait id
+	os_label
 };
 
 struct TraceItem {
@@ -222,6 +248,7 @@ public:
 		struct Master master;
 		struct SyncRegion sync_region;
 		struct MutexRegion mutex_region;
+		struct OffsetSpan offset_span;
 	} data;
 };
 

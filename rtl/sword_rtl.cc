@@ -187,24 +187,26 @@ static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 	fut = std::async(dummy);
 }
 
-static void on_ompt_callback_thread_end(ompt_data_t *thread_data)
-{
-
-}
-
 static void on_ompt_callback_parallel_begin(ompt_task_data_t parent_task_data,
 		ompt_frame_t *parent_task_frame,
 		ompt_parallel_data_t *parallel_data,
 		uint32_t requested_team_size,
 		void *parallel_function,
 		ompt_invoker_t invoker) {
-	parallel_data->value = ompt_get_unique_id();
 
-	current_parallel_idx.store(parallel_data->value, std::memory_order_relaxed);
+	ParallelData *par_data = new ParallelData(ompt_get_unique_id(), 0, 1);
+	parallel_data->ptr = par_data;
+
 	if(__sword_status__ == 0) {
-		std::string str = "mkdir " + sword_flags->trace_path + std::string(SWORD_DATA) + "/" + std::to_string(parallel_data->value);
+		std::string str = "mkdir " + sword_flags->trace_path + std::string(SWORD_DATA) + "/" + std::to_string(par_data->getParallelID());
 		system(str.c_str());
+		current_parallel_idx.store(par_data->getParallelID(), std::memory_order_relaxed);
+	} else {
+		if(parallel_data->ptr) {
+			INFO(std::cout, "exists");
+		}
 	}
+	__sword_status__++;
 }
 
 static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
@@ -213,27 +215,40 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 	    unsigned int team_size,
 	    unsigned int thread_num) {
 	if(endpoint == ompt_scope_begin) {
+		ParallelData *par_data = (ParallelData *) parallel_data->ptr;
+
 		if(__sword_status__ == 0) {
-			parallel_idx = parallel_data->value;
-			task_data->value = parallel_data->value;
+			parallel_idx = par_data->getParallelID();
+			task_data->ptr = parallel_data->ptr;
 		} else {
 			parallel_idx = current_parallel_idx.load(std::memory_order_relaxed);
-			task_data->value = parallel_data->value;
+			task_data->ptr = parallel_data->ptr;
 		}
-		__sword_status__++;
-		accesses[idx].setType(parallel_begin);
-		accesses[idx].data.parallel = Parallel(parallel_idx);
-		idx++;
-		// Task starting from outer Parallel Region
+
 		std::string filename = std::string(sword_flags->trace_path + std::string(SWORD_DATA) + "/" + std::to_string(parallel_idx) + "/threadtrace_" + std::to_string(tid));
 		datafile = fopen(filename.c_str(), "ab");
 		if (!datafile) {
 			INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
 			exit(-1);
 		}
+
+		accesses[idx].setType(os_label);
+		accesses[idx].data.offset_span = OffsetSpan(par_data->getOffset(), par_data->getSpan());
+		DUMP_TO_FILE
+
+		accesses[idx].setType(os_label);
+		accesses[idx].data.offset_span = OffsetSpan(tid, team_size);
+		DUMP_TO_FILE
+
+		accesses[idx].setType(parallel_begin);
+		accesses[idx].data.parallel = Parallel(parallel_idx);
+		DUMP_TO_FILE
+
 	} else if(endpoint == ompt_scope_end) {
 		__sword_status__--;
-		if(parallel_idx == task_data->value) {
+		ParallelData *par_data = (ParallelData *) task_data->ptr;
+
+		if(parallel_idx == par_data->getParallelID()) {
 			accesses[idx].setType(parallel_end);
 			accesses[idx].data.parallel = Parallel(parallel_idx);
 			idx++;

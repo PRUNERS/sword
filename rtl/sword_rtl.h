@@ -24,6 +24,50 @@
 #define ALWAYS_INLINE			__attribute__((always_inline))
 #define CALLERPC 				((size_t) __builtin_return_address(0))
 
+struct ParallelData {
+private:
+	ompt_id_t parallel_id;
+	unsigned offset;
+	unsigned span;
+
+public:
+	ParallelData() {
+		parallel_id = 0;
+		offset = 0;
+		span = 0;
+	}
+
+	ParallelData(ompt_id_t pid, unsigned o, unsigned l) {
+		parallel_id = pid;
+		offset = o;
+		span = l;
+	}
+
+	void setParallelID(ompt_id_t pid) {
+		parallel_id = pid;
+	}
+
+	void setOffset(unsigned o) {
+		offset = o;
+	}
+
+	void setSpan(unsigned s) {
+		span = s;
+	}
+
+	unsigned getParallelID() {
+		return parallel_id;
+	}
+
+	unsigned getOffset() {
+		return offset;
+	}
+
+	unsigned getSpan() {
+		return span;
+	}
+};
+
 // Global Variables
 std::atomic<ompt_id_t> current_parallel_idx(0);
 
