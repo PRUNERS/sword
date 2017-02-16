@@ -1,12 +1,53 @@
 #ifndef SWORD_COMMON_H
 #define SWORD_COMMON_H
 
+#include "minilzo.h"
 #include <omp.h>
 #include <ompt.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <fstream>
+#include <iostream>
+#include <mutex>
+#include <sstream>
+#include <string>
+#include <thread>
+
+std::mutex pmtx;
+std::mutex smtx;
+
+#define SWORD_DEBUG 	1
+#ifdef SWORD_DEBUG
+#define ASSERT(x) assert(x);
+#define DEBUG(stream, x) 												\
+		do {															\
+			std::unique_lock<std::mutex> lock(pmtx);					\
+			stream << "DEBUG INFO[" << x << "][" << 					\
+			__FUNCTION__ << ":" << __FILE__ << ":" << 					\
+			std::dec << __LINE__ << "]" << std::endl;					\
+		} while(0)
+#define INFO(stream, x) 												\
+		do {															\
+			std::unique_lock<std::mutex> lock(pmtx);					\
+			stream << x << std::endl;									\
+		} while(0)
+#else
+#define ASSERT(x)
+#define DEBUG(stream, x)
+#endif
+
+#define HEAP_ALLOC(var,size) thread_local lzo_align_t __LZO_MMODEL 		\
+	var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t) ]
+
+HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
+
+#define SWORD_DATA 				"sword_data"
+#define NUM_OF_ACCESSES			30000
+#define BLOCK_SIZE 				NUM_OF_ACCESSES * sizeof(TraceItem)
+#define MB_LIMIT 				BLOCK_SIZE
+#define OUT_LEN     			(BLOCK_SIZE + BLOCK_SIZE / 16 + 64 + 3 + sizeof(lzo_uint)) // 8 byte to store the size of the block
 
 enum AccessSize {
 	size1 = 0,

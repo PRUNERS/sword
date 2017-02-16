@@ -1,7 +1,3 @@
-# find_package(Boost 1.41 COMPONENTS REQUIRED)
-# INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIR})
-# LINK_DIRECTORIES(${Boost_LIBRARY_DIRS})
-
 # add_definitions(-D ZLIB)
 add_definitions(-D LZO)
 # add_definitions(-D HUFFMAN)

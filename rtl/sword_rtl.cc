@@ -114,7 +114,7 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 #elif LZO
 	// LZO
 	lzo_uint out_len;
-	int r = lzo1x_1_compress((unsigned char *) accesses, BLOCK_SIZE, buffer, &out_len, wrkmem);
+	int r = lzo1x_1_compress((unsigned char *) accesses, BLOCK_SIZE, buffer + 8, &out_len, wrkmem);
 	if (r != LZO_E_OK) {
 		printf("internal error - compression failed: %d\n", r);
 		return 2;
@@ -125,7 +125,8 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 		return 0;
 	}
 
-	size_t ret = fwrite((char *) buffer, out_len, 1, file);
+	memcpy(buffer, &out_len, sizeof(out_len));
+	size_t ret = fwrite((char *) buffer, out_len + sizeof(out_len), 1, file);
 	// LZO
 #elif HUFFMAN
 #elif ARITHMETIC
