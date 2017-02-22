@@ -275,7 +275,7 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 		__sword_status__ = par_data->getParallelLevel();
 
 		if(__sword_status__ == 1) {
-			std::string filename = par_data->getPath() + "/threadtrace_" + std::to_string(tid);
+			std::string filename = par_data->getPath() + "/threadtrace_" + std::to_string(tid) + "_" + std::to_string(bid);
 			datafile = fopen(filename.c_str(), "ab");
 			if (!datafile) {
 				INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
@@ -288,7 +288,7 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 			if(datafile) {
 				fclose(datafile);
 			}
-			std::string filename = par_data->getPath() + "/threadtrace_" + std::to_string(tid);
+			std::string filename = par_data->getPath() + "/threadtrace_" + std::to_string(tid) + "_" + std::to_string(bid);
 			datafile = fopen(filename.c_str(), "ab");
 			if (!datafile) {
 				INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
@@ -347,11 +347,26 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 		ompt_data_t *parallel_data,
 		ompt_data_t *task_data,
 		const void *codeptr_ra) {
-	accesses[idx].setType(sync_region);
-	// Find a way to set the barrier id, also figure out if we really need it
-	ompt_id_t bid = 0;
-	accesses[idx].data.sync_region = SyncRegion(bid, kind, endpoint);
-	DUMP_TO_FILE
+//	accesses[idx].setType(sync_region);
+//	// Find a way to set the barrier id, also figure out if we really need it
+//	bid = 0;
+//	accesses[idx].data.sync_region = SyncRegion(bid, kind, endpoint);
+//	fut.wait();
+//	fut = std::async(dump_to_file, accesses, sizeof(TraceItem), idx, datafile, out, &offset);
+//	idx = 0;
+//	SWAP_BUFFER
+//	fut.wait();
+	bid++;
+//	if(datafile) {
+//		fclose(datafile);
+//		datafile = NULL;
+//	}
+//	std::string filename = pdata.getPath() + "/threadtrace_" + std::to_string(tid) + "_" + std::to_string(bid);
+//	datafile = fopen(filename.c_str(), "ab");
+//	if (!datafile) {
+//		INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
+//		exit(-1);
+//	}
 }
 
 static void on_ompt_callback_master(ompt_scope_endpoint_t endpoint,

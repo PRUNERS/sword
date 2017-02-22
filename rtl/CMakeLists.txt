@@ -4,8 +4,8 @@ add_definitions(-D LZO)
 # add_definitions(-D ARITHMETIC)
 # add_definitions(-D TCGEN)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 --std=c++11 -fcxx-exceptions -stdlib=libstdc++")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 --std=c++11 -fcxx-exceptions -stdlib=libstdc++")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O3")
 
 set(SWORD_SOURCES
     sword_rtl.cc
