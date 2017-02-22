@@ -44,6 +44,7 @@ std::mutex smtx;
 HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
 
 #define SWORD_DATA 				"sword_data"
+#define OFFSET_SPAN_FORMAT		"%01d%01d"
 #define NUM_OF_ACCESSES			30000
 #define BLOCK_SIZE 				NUM_OF_ACCESSES * sizeof(TraceItem)
 #define MB_LIMIT 				BLOCK_SIZE

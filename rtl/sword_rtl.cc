@@ -12,11 +12,15 @@
 
 #include "sword_rtl.h"
 #include "sword_flags.h"
-#include <zlib.h>
+
+#include <boost/filesystem.hpp>
+
 #include <assert.h>
+#include <zlib.h>
+
+#include <cmath>
 #include <fstream>
 #include <sstream>
-#include <cmath>
 
 static const char* ompt_thread_type_t_values[] = {
 		NULL,
@@ -37,6 +41,14 @@ static ompt_get_task_info_t ompt_get_task_info;
 static ompt_get_thread_data_t ompt_get_thread_data;
 static ompt_get_parallel_info_t ompt_get_parallel_info;
 static ompt_get_unique_id_t ompt_get_unique_id;
+
+static uint64_t my_next_id()
+{
+	static uint64_t ID = 0;
+	uint64_t ret = __sync_fetch_and_add(&ID,1);
+	// assert(ret < omp_get_max_threads() && "Maximum number of allowed threads is limited by MAX_THREADS");
+	return ret;
+}
 
 SwordFlags *sword_flags;
 
@@ -177,7 +189,7 @@ extern "C" {
 
 static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 		ompt_thread_data_t *thread_data) {
-	tid = omp_get_thread_num();
+	tid = my_next_id();
 
 	accesses1 = (TraceItem *) malloc(BLOCK_SIZE);
 	accesses2 = (TraceItem *) malloc(BLOCK_SIZE);
@@ -194,19 +206,59 @@ static void on_ompt_callback_parallel_begin(ompt_task_data_t parent_task_data,
 		void *parallel_function,
 		ompt_invoker_t invoker) {
 
-	ParallelData *par_data = new ParallelData(ompt_get_unique_id(), 0, 1);
-	parallel_data->ptr = par_data;
-
-	if(__sword_status__ == 0) {
-		std::string str = "mkdir " + sword_flags->trace_path + std::string(SWORD_DATA) + "/" + std::to_string(par_data->getParallelID());
-		system(str.c_str());
-		current_parallel_idx.store(par_data->getParallelID(), std::memory_order_relaxed);
-	} else {
-		if(parallel_data->ptr) {
-			INFO(std::cout, "exists");
-		}
-	}
 	__sword_status__++;
+
+	if(__sword_status__ == 1) {
+		ompt_id_t pid = ompt_get_unique_id();
+		std::string str = sword_flags->trace_path + std::string(SWORD_DATA) + "/" + std::to_string(pid);
+		try {
+			boost::filesystem::create_directory(str);
+		} catch( boost::filesystem::filesystem_error const & e) {
+			INFO(std::cerr, e.what());
+			exit(-1);
+		}
+		parallel_data->ptr = new ParallelData(pid, __sword_status__, str, 0, 1);
+		// current_parallel_idx.store(par_data->getParallelID(), std::memory_order_relaxed);
+	} else {
+		ompt_id_t pid = ompt_get_unique_id();
+		char buff[9];
+		if(pdata.getState()) {
+			snprintf(buff, sizeof(buff), OFFSET_SPAN_FORMAT, pdata.getOffset(), pdata.getSpan());
+		} else {
+			snprintf(buff, sizeof(buff), OFFSET_SPAN_FORMAT, omp_get_thread_num(), omp_get_num_threads());
+		}
+		std::string str = pdata.getPath() + "/" + (const char *) buff;
+		try {
+			boost::filesystem::create_directory(str);
+		} catch( boost::filesystem::filesystem_error const & e) {
+			INFO(std::cerr, e.what());
+			exit(-1);
+		}
+		ParallelData *par_data;
+		if(pdata.getState()) {
+			par_data = new ParallelData(pid, __sword_status__, str, pdata.getOffset(), pdata.getSpan());
+		} else {
+			par_data = new ParallelData(pid, __sword_status__, str, omp_get_thread_num(), omp_get_num_threads());
+		}
+		parallel_data->ptr = par_data;
+		pdata.setData(par_data);
+	}
+}
+
+static void on_ompt_callback_parallel_end(ompt_data_t *parallel_data,
+		ompt_data_t *task_data,
+		ompt_invoker_t invoker,
+		const void *codeptr_ra) {
+	if(__sword_status__ >= 1) {
+		std::string filename = pdata.getPath(-1) + "/threadtrace_" + std::to_string(tid);
+		datafile = fopen(filename.c_str(), "ab");
+		if (!datafile) {
+			INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
+			exit(-1);
+		}
+		pdata.setData(pdata.getParallelID(), __sword_status__, pdata.getPath(-1), pdata.getOffset() + pdata.getSpan(), pdata.getSpan());
+		pdata.setState(1);
+	}
 }
 
 static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
@@ -214,22 +266,34 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 	    ompt_data_t *task_data,
 	    unsigned int team_size,
 	    unsigned int thread_num) {
+
 	if(endpoint == ompt_scope_begin) {
 		ParallelData *par_data = (ParallelData *) parallel_data->ptr;
+		pdata.setData((ParallelData *) parallel_data->ptr);
+		task_data->ptr = par_data;
 
-		if(__sword_status__ == 0) {
-			parallel_idx = par_data->getParallelID();
-			task_data->ptr = parallel_data->ptr;
+		__sword_status__ = par_data->getParallelLevel();
+
+		if(__sword_status__ == 1) {
+			std::string filename = par_data->getPath() + "/threadtrace_" + std::to_string(tid);
+			datafile = fopen(filename.c_str(), "ab");
+			if (!datafile) {
+				INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
+				exit(-1);
+			}
+//			ParallelData *par_data = (ParallelData *) parallel_data->ptr;
+//			pdata.setData(par_data->getParallelID(), __sword_status__, filename, omp_get_thread_num(), team_size);
 		} else {
-			parallel_idx = current_parallel_idx.load(std::memory_order_relaxed);
-			task_data->ptr = parallel_data->ptr;
-		}
-
-		std::string filename = std::string(sword_flags->trace_path + std::string(SWORD_DATA) + "/" + std::to_string(parallel_idx) + "/threadtrace_" + std::to_string(tid));
-		datafile = fopen(filename.c_str(), "ab");
-		if (!datafile) {
-			INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
-			exit(-1);
+//			parallel_idx = current_parallel_idx.load(std::memory_order_relaxed);
+			if(datafile) {
+				fclose(datafile);
+			}
+			std::string filename = par_data->getPath() + "/threadtrace_" + std::to_string(tid);
+			datafile = fopen(filename.c_str(), "ab");
+			if (!datafile) {
+				INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
+				exit(-1);
+			}
 		}
 
 		accesses[idx].setType(os_label);
@@ -241,25 +305,28 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 		DUMP_TO_FILE
 
 		accesses[idx].setType(parallel_begin);
-		accesses[idx].data.parallel = Parallel(parallel_idx);
+		accesses[idx].data.parallel = Parallel(par_data->getParallelID());
 		DUMP_TO_FILE
 
 	} else if(endpoint == ompt_scope_end) {
 		__sword_status__--;
 		ParallelData *par_data = (ParallelData *) task_data->ptr;
 
-		if(parallel_idx == par_data->getParallelID()) {
-			accesses[idx].setType(parallel_end);
-			accesses[idx].data.parallel = Parallel(parallel_idx);
-			idx++;
-			fut.wait();
-			fut = std::async(dump_to_file, accesses, sizeof(TraceItem), idx, datafile, out, &offset);
-			idx = 0;
-			SWAP_BUFFER
-			fut.wait();
-			if(datafile)
-				fclose(datafile);
-			datafile = NULL;
+		if(par_data) {
+			if(pdata.getParallelID() == par_data->getParallelID()) {
+				accesses[idx].setType(parallel_end);
+				accesses[idx].data.parallel = Parallel(parallel_idx);
+				idx++;
+				fut.wait();
+				fut = std::async(dump_to_file, accesses, sizeof(TraceItem), idx, datafile, out, &offset);
+				idx = 0;
+				SWAP_BUFFER
+				fut.wait();
+				if(datafile) {
+					fclose(datafile);
+					datafile = NULL;
+				}
+			}
 		}
 	}
 }
@@ -337,6 +404,7 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 
 	register_callback(ompt_callback_thread_begin);
 	register_callback(ompt_callback_parallel_begin);
+	register_callback(ompt_callback_parallel_end);
 	register_callback(ompt_callback_implicit_task);
 	register_callback(ompt_callback_work);
 	register_callback(ompt_callback_sync_region);
@@ -344,10 +412,19 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	register_callback(ompt_callback_mutex_acquired);
 	register_callback(ompt_callback_mutex_released);
 
-	std::string str = "rm -rf " + sword_flags->trace_path + std::string(SWORD_DATA);
-	system(str.c_str());
-	str = "mkdir " + sword_flags->trace_path + std::string(SWORD_DATA);
-	system(str.c_str());
+	std::string str = sword_flags->trace_path + std::string(SWORD_DATA);
+	if(boost::filesystem::is_directory(str)) {
+		try {
+			boost::filesystem::rename(str, str + ".old");
+		} catch( boost::filesystem::filesystem_error const & e) {
+			boost::filesystem::remove_all(str + ".old");
+			boost::filesystem::rename(str.c_str(), str + ".old");
+			// INFO(std::cerr, e.what());
+		}
+		// INFO(std::cout, "WARNING: Please remove or rename '" << str "' directory before running the program.");
+	}
+	str = sword_flags->trace_path + std::string(SWORD_DATA);
+	boost::filesystem::create_directory(str);
 
 	if(lzo_init() != LZO_E_OK) {
 		printf("internal error - lzo_init() failed !!!\n");

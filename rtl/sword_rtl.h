@@ -26,25 +26,64 @@
 
 struct ParallelData {
 private:
+	unsigned state;
 	ompt_id_t parallel_id;
+	unsigned level;
+	std::string path;
 	unsigned offset;
 	unsigned span;
 
 public:
 	ParallelData() {
+		state = 0;
 		parallel_id = 0;
+		level = 0;
+		path = "";
 		offset = 0;
 		span = 0;
 	}
 
-	ParallelData(ompt_id_t pid, unsigned o, unsigned l) {
+	ParallelData(ompt_id_t pid, unsigned l, std::string p, unsigned o, unsigned s) {
+		state = 0;
 		parallel_id = pid;
+		level = l;
+		path = p;
 		offset = o;
-		span = l;
+		span = s;
+	}
+
+	void setData(ParallelData *pd) {
+		state = pd->getState();
+		parallel_id = pd->getParallelID();
+		level = pd->getParallelLevel();
+		path = pd->getPath();
+		offset = pd->getOffset();
+		span = pd->getSpan();
+	}
+
+	void setData(ompt_id_t pid, unsigned l, std::string p, unsigned o, unsigned s) {
+		state = 0;
+		parallel_id = pid;
+		level = l;
+		path = p;
+		offset = o;
+		span = s;
+	}
+
+	void setState(unsigned v) {
+		state = v;
+	}
+
+	void setPath(std::string p) {
+		path = p;
 	}
 
 	void setParallelID(ompt_id_t pid) {
 		parallel_id = pid;
+	}
+
+	void setParallelLevel(unsigned l) {
+		level = l;
 	}
 
 	void setOffset(unsigned o) {
@@ -55,8 +94,31 @@ public:
 		span = s;
 	}
 
-	unsigned getParallelID() {
+	unsigned getState() {
+		return state;
+	}
+
+	ompt_id_t getParallelID() {
 		return parallel_id;
+	}
+
+	unsigned getParallelLevel() {
+		return level;
+	}
+
+	std::string getPath() {
+		return path;
+	}
+
+	std::string getPath(int level) {
+		switch(level) {
+		case 0:
+			return path;
+		case -1:
+			return path.substr(0, path.find_last_of("/"));
+		default:
+			return path;
+		}
 	}
 
 	unsigned getOffset() {
@@ -84,5 +146,6 @@ thread_local FILE *datafile = NULL;
 thread_local char *buffer = NULL;
 thread_local std::future<bool> fut;
 thread_local size_t offset = 0;
+thread_local ParallelData pdata;
 
 #endif  // SWORD_RTL_H
