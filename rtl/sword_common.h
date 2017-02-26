@@ -231,15 +231,17 @@ enum CallbackType {
 
 struct TraceItem {
 private:
-	uint8_t type;
+	uint8_t item_type;
 
 public:
+	TraceItem() = default;
+
 	void setType(CallbackType t) {
-		type = (uint8_t) t;
+		item_type = (uint8_t) t;
 	}
 
 	CallbackType getType() const {
-		return (CallbackType) type;
+		return (CallbackType) item_type;
 	}
 
 	union {

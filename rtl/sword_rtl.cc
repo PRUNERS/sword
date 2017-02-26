@@ -22,6 +22,8 @@
 #include <fstream>
 #include <sstream>
 
+#define LZO 1
+
 static const char* ompt_thread_type_t_values[] = {
 		NULL,
 		"ompt_thread_initial",
@@ -126,15 +128,15 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 #elif LZO
 	// LZO
 	lzo_uint out_len;
-	int r = lzo1x_1_compress((unsigned char *) accesses, BLOCK_SIZE, buffer + 8, &out_len, wrkmem);
+	int r = lzo1x_1_compress((unsigned char *) accesses, size * nmemb, buffer + sizeof(out_len), &out_len, wrkmem);
 	if (r != LZO_E_OK) {
 		printf("internal error - compression failed: %d\n", r);
-		return 2;
+		return -1;
 	}
 	// check for an incompressible block
 	if (out_len >= BLOCK_SIZE) {
 		printf("This block contains incompressible data.\n");
-		return 0;
+		return -1;
 	}
 
 	memcpy(buffer, &out_len, sizeof(out_len));
@@ -168,6 +170,7 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 			SWAP_BUFFER														\
 		}
 
+//		INFO(std::cout, tid << ": " << std::hex << addr << ":" << CALLERPC);	\
 // #define SAVE_ACCESS(asize, atype)
 #define SAVE_ACCESS(asize, atype)											\
 		accesses[idx].setType(data_access);									\
@@ -356,7 +359,9 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 //	idx = 0;
 //	SWAP_BUFFER
 //	fut.wait();
-	bid++;
+	if(endpoint == ompt_scope_end) {
+		bid++;
+	}
 //	if(datafile) {
 //		fclose(datafile);
 //		datafile = NULL;
