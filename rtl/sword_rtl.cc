@@ -299,14 +299,6 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 			}
 		}
 
-		accesses[idx].setType(os_label);
-		accesses[idx].data.offset_span = OffsetSpan(par_data->getOffset(), par_data->getSpan());
-		DUMP_TO_FILE
-
-		accesses[idx].setType(os_label);
-		accesses[idx].data.offset_span = OffsetSpan(tid, team_size);
-		DUMP_TO_FILE
-
 		accesses[idx].setType(parallel_begin);
 		accesses[idx].data.parallel = Parallel(par_data->getParallelID());
 		DUMP_TO_FILE
@@ -350,28 +342,9 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 		ompt_data_t *parallel_data,
 		ompt_data_t *task_data,
 		const void *codeptr_ra) {
-//	accesses[idx].setType(sync_region);
-//	// Find a way to set the barrier id, also figure out if we really need it
-//	bid = 0;
-//	accesses[idx].data.sync_region = SyncRegion(bid, kind, endpoint);
-//	fut.wait();
-//	fut = std::async(dump_to_file, accesses, sizeof(TraceItem), idx, datafile, out, &offset);
-//	idx = 0;
-//	SWAP_BUFFER
-//	fut.wait();
 	if(endpoint == ompt_scope_end) {
 		bid++;
 	}
-//	if(datafile) {
-//		fclose(datafile);
-//		datafile = NULL;
-//	}
-//	std::string filename = pdata.getPath() + "/threadtrace_" + std::to_string(tid) + "_" + std::to_string(bid);
-//	datafile = fopen(filename.c_str(), "ab");
-//	if (!datafile) {
-//		INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
-//		exit(-1);
-//	}
 }
 
 static void on_ompt_callback_master(ompt_scope_endpoint_t endpoint,

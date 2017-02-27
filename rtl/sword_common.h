@@ -65,6 +65,8 @@ enum AccessType {
 	atomic_write,
 };
 
+static const char * AccessTypeStrings[] = { "Read", "Write", "Atomic Read", "Atomic Write" };
+
 struct __attribute__ ((__packed__)) Access {
 private:
 	uint8_t size_type; // size in first 4 bits, type in last 4 bits
@@ -218,15 +220,15 @@ public:
 };
 
 enum CallbackType {
-	data_access = 0, // Access
-	parallel_begin, // Parallel: parallel id
-	parallel_end, // Parallel: parallel id
-	work, // Work: work type and endpoint
-	master, // Master: only endpoint needed
-	sync_region, // SyncRegion: kind, endpoint and barrier id (for offset-span label)
-	mutex_acquired, // MutexRegion: kind and wait id
-	mutex_released, // MutexRegion: kind and wait id
-	os_label
+	data_access = 0, // 0: Access
+	parallel_begin, // 1: Parallel: parallel id
+	parallel_end, // 2: Parallel: parallel id
+	work, // 3: Work: work type and endpoint
+	master, // 4 :Master: only endpoint needed
+	sync_region, // 5: SyncRegion: kind, endpoint and barrier id (for offset-span label)
+	mutex_acquired, // 6: MutexRegion: kind and wait id
+	mutex_released, // 7: MutexRegion: kind and wait id
+	os_label // 8: OffsetSpan: offset and span
 };
 
 struct TraceItem {

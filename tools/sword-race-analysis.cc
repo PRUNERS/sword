@@ -2,6 +2,52 @@
 
 #define PRINT 0
 
+void execute_command(const char *cmd, std::string *buf, unsigned carrier = 1) {
+    std::array<char, 128> buffer;
+    std::shared_ptr<FILE> pipe(popen(cmd, "r"), pclose);
+    if (!pipe) throw std::runtime_error("popen() failed!");
+    while (!feof(pipe.get())) {
+        if (fgets(buffer.data(), 128, pipe.get()) != NULL)
+        	*buf += buffer.data();
+    }
+    buf->erase(buf->size() - carrier);
+}
+
+void ReportRace(unsigned t1, unsigned t2, uint64_t address, uint8_t rw1, uint8_t rw2, uint8_t size1, uint8_t size2, uint64_t pc1, uint64_t pc2) {
+		std::string race1 = "";
+		std::string race2 = "";
+
+		{
+			std::string command = "bash -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(pc1) + "\")'";
+			execute_command(command.c_str(), &race1, 2);
+		}
+
+		{
+			std::string command = "bash -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(pc2) + "\")'";
+			execute_command(command.c_str(), &race2, 2);
+		}
+
+#if PRINT
+	    INFO(std::cerr, "--------------------------------------------------");
+	    INFO(std::cerr, "WARNING: Archer: array data race (program=" << executable << ")");
+	    INFO(std::cerr, AccessTypeStrings[rw1] << " of size " << std::dec << (1 << size1) << " at 0x" << std::hex << address << " by thread T" << std::dec << t1 << " in " << race1);
+	    INFO(std::cerr, AccessTypeStrings[rw2] << " of size " << std::dec << (1 << size2) << " at 0x" << std::hex << address << " by thread T" << std::dec << t2 << " in " << race2);
+	    INFO(std::cerr, "--------------------------------------------------");
+	    INFO(std::cerr, "");
+#endif
+
+	    size_t hash = std::hash<std::string>{}(race1 + race2);
+	    if(std::find(hash_races.begin(), hash_races.end(), hash) == hash_races.end()) {
+		    hash_races.push_back(hash);
+		    INFO(std::cerr, "--------------------------------------------------");
+		    INFO(std::cerr, "WARNING: Archer: array data race (program=" << executable << ")");
+		    INFO(std::cerr, AccessTypeStrings[rw1] << " of size " << std::dec << (1 << size1) << " at 0x" << std::hex << address << " by thread T" << std::dec << t1 << " in " << race1);
+		    INFO(std::cerr, AccessTypeStrings[rw2] << " of size " << std::dec << (1 << size2) << " at 0x" << std::hex << address << " by thread T" << std::dec << t2 << " in " << race2);
+		    INFO(std::cerr, "--------------------------------------------------");
+		    INFO(std::cerr, "");
+	    }
+}
+
 unsigned long long getTotalSystemMemory()
 {
     long pages = sysconf(_SC_PHYS_PAGES);
@@ -9,13 +55,45 @@ unsigned long long getTotalSystemMemory()
     return pages * page_size;
 }
 
-void analyze_traces(unsigned id, unsigned bid, unsigned t1, unsigned t2) {
-	unsigned idx = 0;
-	while(idx) {
-		usleep(500000);
-		idx--;
+#define RACE_CHECK(t1, t2) \
+	(t1->data.access.getAddress() == t2->data.access.getAddress()) &&		\
+	((t1->data.access.getAccessType() == unsafe_write) ||					\
+	 (t2->data.access.getAccessType() == unsafe_write) ||					\
+	 ((t1->data.access.getAccessType() == atomic_write) &&					\
+	  (t2->data.access.getAccessType() == unsafe_read)) ||					\
+	 ((t2->data.access.getAccessType() == atomic_write) &&					\
+	  (t1->data.access.getAccessType() == unsafe_read)))
+
+void analyze_traces(unsigned bid, unsigned t1, unsigned t2) {
+//	INFO(std::cout, "Analyzing pair (" << t1 << "," << t2 << ").");
+
+	if(file_buffers[bid].size() > 0) {
+		for(std::vector<TraceItem>::iterator i = file_buffers[bid][t1].begin() ; i != file_buffers[bid][t1].end(); ++i) {
+			switch(i->getType()) {
+			case data_access:
+				for(std::vector<TraceItem>::iterator j = file_buffers[bid][t2].begin(); j != file_buffers[bid][t2].end(); ++j) {
+					switch(j->getType()) {
+					case data_access:
+						if(RACE_CHECK(i,j)) {
+							ReportRace(t1, t2, i->data.access.getAddress(),
+									i->data.access.getAccessType(), j->data.access.getAccessType(),
+									i->data.access.getAccessSize(),
+									j->data.access.getAccessSize(),
+									i->data.access.getPC(), j->data.access.getPC());
+						}
+						break;
+					default:
+						break;
+					}
+				}
+				break;
+			default:
+				break;
+			}
+		}
 	}
-	thread_queue.push(id);
+
+	available_threads++;
 }
 
 void load_file(boost::filesystem::path path, unsigned bid, unsigned t) {
@@ -59,7 +137,7 @@ void load_file(boost::filesystem::path path, unsigned bid, unsigned t) {
 	        exit(-1);
 	    }
 
-		file_buffers[t].insert(file_buffers[t].end(), uncompressed_buffer, uncompressed_buffer + (new_len / sizeof(TraceItem)));
+		file_buffers[bid][t].insert(file_buffers[bid][t].end(), uncompressed_buffer, uncompressed_buffer + (new_len / sizeof(TraceItem)));
 
 		memcpy(&block_size, compressed_buffer + block_size - sizeof(lzo_uint), sizeof(lzo_uint));
 		if(total_size + block_size + sizeof(lzo_uint) < filesize) {
@@ -70,9 +148,9 @@ void load_file(boost::filesystem::path path, unsigned bid, unsigned t) {
 		}
 	}
 
-//	for(int i = 0; i < file_buffers[t].size(); i++) {
-//		if(file_buffers[t][i].getType() == data_access)
-//			INFO(std::cout, t << ": 0x" << std::hex << file_buffers[t][i].data.access.getAddress() << ":" << file_buffers[t][i].data.access.getPC());
+//	for(int i = 0; i < file_buffers[bid][t].size(); i++) {
+//		if(file_buffers[bid][t][i].getType() == data_access)
+//			INFO(std::cout, t << ": 0x" << std::hex << file_buffers[bid][t][i].data.access.getAddress() << ":" << file_buffers[bid][t][i].data.access.getPC());
 //	}
 
 	// INFO(std::cout, "End of file: " << t);
@@ -82,6 +160,9 @@ void load_file(boost::filesystem::path path, unsigned bid, unsigned t) {
 
 int main(int argc, char **argv) {
 	std::string unknown_option = "";
+
+	if(argc < 2)
+		INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --report-path <path-to-report-folder> --traces-path <path-to-traces-folder>\n\n");
 
 	for(int i = 1; i < argc; ++i) {
 		if (std::string(argv[i]) == "--help") {
@@ -99,6 +180,13 @@ int main(int argc, char **argv) {
 				traces_data += argv[++i];
 			} else {
 				INFO(std::cerr, "--traces-path option requires one argument.");
+				return -1;
+			}
+		} else if (std::string(argv[i]) == "--executable") {
+			if (i + 1 < argc) {
+				executable += argv[++i];
+			} else {
+				INFO(std::cerr, "--executable option requires one argument.");
 				return -1;
 			}
 		} else {
@@ -136,19 +224,29 @@ int main(int argc, char **argv) {
 			INFO(std::cerr, "The traces folder '" << traces_data.string() << "' does not exists.\nPlease specify the correct path with the option '--traces-path <path-to-traces-folder>'.");
 			return -1;
 		}
+
+		// Executable check
+		if (!boost::filesystem::exists(executable)) {
+			INFO(std::cerr, "The executable '" << executable << "' does not exists.\nPlease specify the correct path and name for the executable.");
+			return -1;
+		}
 	} catch( boost::filesystem::filesystem_error const & e) {
         INFO(std::cerr, e.what());
         return false;
     }
 
+	// Look for shell
+	execute_command(GET_SHELL, &shell_path);
+    // Look for shell
+
+	// Look for llvm-symbolizer
+	execute_command(GET_SYMBOLIZER, &symbolizer_path);
+    // Look for llvm-symbolizer
+
 	// Get cores info
 	unsigned num_threads = sysconf(_SC_NPROCESSORS_ONLN);
-	printf("Number of threads: %d\n", num_threads);
-	std::vector<std::thread*> threads(num_threads);
 
-	 for (int i = 0; i < num_threads; ++i) {
-		 thread_queue.push(i);
-	 }
+	available_threads = num_threads;
 
 	 if(lzo_init() != LZO_E_OK) {
 		 printf("internal error - lzo_init() failed !!!\n");
@@ -160,9 +258,10 @@ int main(int argc, char **argv) {
 	boost::filesystem::directory_iterator end_iter;
 	std::vector<boost::filesystem::path> dir_list;
 	copy(boost::filesystem::directory_iterator(traces_data), boost::filesystem::directory_iterator(), std::back_inserter(dir_list));
-    sort(dir_list.begin(), dir_list.end());
-	//for (boost::filesystem::directory_iterator dir_itr(traces_data); dir_itr != end_iter; ++dir_itr) {
-    for (auto& dir_itr : dir_list) {
+    std::sort(dir_list.rbegin(), dir_list.rend());
+    // for(boost::filesystem::directory_iterator dir_itr(traces_data); dir_itr != end_iter; ++dir_itr) {
+    // for(boost::filesystem::directory_iterator dir_itr(traces_data); dir_itr != end_iter; ++dir_itr) {
+    for(auto& dir_itr : dir_list) {
     	std::map<unsigned, TraceInfo> traces;
     	for(auto& entry : boost::make_iterator_range(boost::filesystem::directory_iterator(dir_itr), {})) {
     		unsigned bid;
@@ -172,6 +271,7 @@ int main(int argc, char **argv) {
     		traces[bid].thread_id.push_back(tid);
     	}
     	std::map<unsigned, std::vector<std::pair<unsigned,unsigned>>> thread_pairs;
+    	INFO(std::cout, "Parallel region: " << dir_itr);
     	for(std::map<unsigned, TraceInfo>::const_iterator it = traces.begin(); it != traces.end(); ++it) {
     		std::sort(traces[it->first].thread_id.begin(), traces[it->first].thread_id.end());
 
@@ -209,7 +309,7 @@ int main(int argc, char **argv) {
     		}
 
     		lm_thread.reserve(it->second.thread_id.size());
-    		file_buffers.resize(it->second.thread_id.size());
+    		file_buffers[it->first].resize(it->second.thread_id.size());
     		for(std::vector<unsigned>::const_iterator tid = it->second.thread_id.begin(); tid != it->second.thread_id.end(); ++tid) {
     			lm_thread.push_back(new std::thread(load_file, dir_itr, it->first, *tid));
     		}
@@ -221,22 +321,23 @@ int main(int argc, char **argv) {
     		}
     		lm_thread.clear();
 
-    		unsigned thread_idx;
+    		std::vector<std::thread> thread_list;
+    		available_threads = num_threads;
     		for(std::map<unsigned, std::vector<std::pair<unsigned,unsigned>>>::const_iterator it = thread_pairs.begin(); it != thread_pairs.end(); ++it) {
     			for(std::vector<std::pair<unsigned,unsigned>>::const_iterator it2 = it->second.begin(); it2 != it->second.end(); ++it2) {
     				// std::cout << it->first << " (" << it2->first << "," << it2->second << ")\n";
-    				if(!thread_queue.pop(thread_idx)) {
-						std::cout << "Waiting for some threads to finish.\n";
-    					while(!thread_queue.pop(thread_idx)) {
-    						usleep(500000);
-    					}
-    				}
+   					while(!available_threads) { /* usleep(1000); */ }
+   					available_threads--;
+
     				// Create thread
-    				threads[thread_idx] = new std::thread(analyze_traces, thread_idx, it2->first, it2->first, it2->second);
-    				threads[thread_idx]->detach();
-    				// std::cout << "Created new thread at index " << thread_idx << "(" << it2->first << "," << it2->first << "," << it2->second << ")\n";
+   					thread_list.push_back(std::thread(analyze_traces, it2->first, it2->first, it2->second));
     			}
     		}
+    		for(std::vector<std::thread>::iterator th = thread_list.begin(); th != thread_list.end(); th++) {
+    			th->join();
+    		}
+    		thread_list.clear();
+    		file_buffers.clear();
     	}
     }
 

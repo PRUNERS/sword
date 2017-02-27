@@ -9,18 +9,28 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <atomic>
 #include <map>
 #include <vector>
 
 #define SWORD_REPORT		"sword_report"
+#define SHELL				"bash"
+#define GET_SHELL			"which bash"
+#define SYMBOLIZER			"llvm-symbolizer"
+#define GET_SYMBOLIZER		"which llvm-symbolizer"
 #define MB					1048576.00
 
 boost::filesystem::path traces_data;
 boost::filesystem::path report_data;
 
-boost::lockfree::queue<unsigned> thread_queue(1024);
+std::atomic<int> available_threads;
 std::vector<std::thread *> lm_thread;
-std::vector<std::vector<TraceItem>> file_buffers;
+std::map<unsigned, std::vector<std::vector<TraceItem>>> file_buffers;
+
+std::string executable;
+std::string shell_path;
+std::string symbolizer_path;
+std::vector<size_t> hash_races;
 
 struct TraceInfo {
 	uint64_t trace_size;
