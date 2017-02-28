@@ -52,6 +52,15 @@ public:
 		span = s;
 	}
 
+	ParallelData(ParallelData *pd) {
+		state = pd->getState();
+		parallel_id = pd->getParallelID();
+		level = pd->getParallelLevel();
+		path = pd->getPath();
+		offset = pd->getOffset();
+		span = pd->getSpan();
+	}
+
 	void setData(ParallelData *pd) {
 		state = pd->getState();
 		parallel_id = pd->getParallelID();
@@ -145,6 +154,7 @@ thread_local uint64_t bid = 0;
 thread_local ompt_id_t parallel_idx = 0;
 thread_local FILE *datafile = NULL;
 thread_local char *buffer = NULL;
+thread_local bool ignore_access = false;
 thread_local std::future<bool> fut;
 thread_local size_t offset = 0;
 thread_local ParallelData pdata;

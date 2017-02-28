@@ -37,7 +37,10 @@ void ReportRace(unsigned t1, unsigned t2, uint64_t address, uint8_t rw1, uint8_t
 #endif
 
 	    size_t hash = std::hash<std::string>{}(race1 + race2);
-	    if(std::find(hash_races.begin(), hash_races.end(), hash) == hash_races.end()) {
+	    rmtx.lock();
+	    std::vector<size_t>::iterator it = std::find(hash_races.begin(), hash_races.end(), hash);
+	    rmtx.unlock();
+	    if(it == hash_races.end()) {
 		    hash_races.push_back(hash);
 		    INFO(std::cerr, "--------------------------------------------------");
 		    INFO(std::cerr, "WARNING: Archer: array data race (program=" << executable << ")");
@@ -64,14 +67,14 @@ unsigned long long getTotalSystemMemory()
 	 ((t2->data.access.getAccessType() == atomic_write) &&					\
 	  (t1->data.access.getAccessType() == unsafe_read)))
 
-void analyze_traces(unsigned bid, unsigned t1, unsigned t2) {
+void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vector<TraceItem>> &file_buffers, std::atomic<int> &available_threads) {
 //	INFO(std::cout, "Analyzing pair (" << t1 << "," << t2 << ").");
 
-	if(file_buffers[bid].size() > 0) {
-		for(std::vector<TraceItem>::iterator i = file_buffers[bid][t1].begin() ; i != file_buffers[bid][t1].end(); ++i) {
+	if(file_buffers.size() > 0) {
+		for(std::vector<TraceItem>::iterator i = file_buffers[t1].begin() ; i != file_buffers[t1].end(); ++i) {
 			switch(i->getType()) {
 			case data_access:
-				for(std::vector<TraceItem>::iterator j = file_buffers[bid][t2].begin(); j != file_buffers[bid][t2].end(); ++j) {
+				for(std::vector<TraceItem>::iterator j = file_buffers[t2].begin(); j != file_buffers[t2].end(); ++j) {
 					switch(j->getType()) {
 					case data_access:
 						if(RACE_CHECK(i,j)) {
@@ -96,7 +99,7 @@ void analyze_traces(unsigned bid, unsigned t1, unsigned t2) {
 	available_threads++;
 }
 
-void load_file(boost::filesystem::path path, unsigned bid, unsigned t) {
+void load_file(boost::filesystem::path path, unsigned bid, unsigned t, std::vector<TraceItem> &file_buffers) {
 	std::string filename(path.string() + "/threadtrace_" + std::to_string(t) + "_" + std::to_string(bid));
 	uint64_t filesize = boost::filesystem::file_size(filename);
     lzo_uint out_len;
@@ -109,7 +112,7 @@ void load_file(boost::filesystem::path path, unsigned bid, unsigned t) {
 	}
 
 	unsigned char compressed_buffer[OUT_LEN];
-	TraceItem *uncompressed_buffer = (TraceItem *) malloc(BLOCK_SIZE); //[BLOCK_SIZE];
+	TraceItem *uncompressed_buffer = (TraceItem *) malloc(BLOCK_SIZE);
 
 	lzo_uint block_size;
 	size_t size = fread(&block_size, sizeof(lzo_uint), 1, datafile);
@@ -137,7 +140,7 @@ void load_file(boost::filesystem::path path, unsigned bid, unsigned t) {
 	        exit(-1);
 	    }
 
-		file_buffers[bid][t].insert(file_buffers[bid][t].end(), uncompressed_buffer, uncompressed_buffer + (new_len / sizeof(TraceItem)));
+		file_buffers.insert(file_buffers.end(), uncompressed_buffer, uncompressed_buffer + (new_len / sizeof(TraceItem)));
 
 		memcpy(&block_size, compressed_buffer + block_size - sizeof(lzo_uint), sizeof(lzo_uint));
 		if(total_size + block_size + sizeof(lzo_uint) < filesize) {
@@ -148,9 +151,9 @@ void load_file(boost::filesystem::path path, unsigned bid, unsigned t) {
 		}
 	}
 
-//	for(int i = 0; i < file_buffers[bid][t].size(); i++) {
-//		if(file_buffers[bid][t][i].getType() == data_access)
-//			INFO(std::cout, t << ": 0x" << std::hex << file_buffers[bid][t][i].data.access.getAddress() << ":" << file_buffers[bid][t][i].data.access.getPC());
+//	for(int i = 0; i < file_buffers[t].size(); i++) {
+//		if(file_buffers[t][i].getType() == data_access)
+//			INFO(std::cout, t << ": 0x" << std::hex << file_buffers[t][i].data.access.getAddress() << ":" << file_buffers[t][i].data.access.getPC());
 //	}
 
 	// INFO(std::cout, "End of file: " << t);
@@ -245,43 +248,60 @@ int main(int argc, char **argv) {
 
 	// Get cores info
 	unsigned num_threads = sysconf(_SC_NPROCESSORS_ONLN);
+	// Get cores info
 
-	available_threads = num_threads;
+	// Initialize decompressor
+	if(lzo_init() != LZO_E_OK) {
+		INFO(std::cerr, "Internal error - lzo_init() failed!");
+		INFO(std::cerr, "This usually indicates a compiler bug - try recompiling\nwithout optimizations, and enable '-DLZO_DEBUG' for diagnostics.");
+		exit(-1);
+	}
+	// Initialize decompressor
 
-	 if(lzo_init() != LZO_E_OK) {
-		 printf("internal error - lzo_init() failed !!!\n");
-		 printf("(this usually indicates a compiler bug - try recompiling\nwithout optimizations, and enable '-DLZO_DEBUG' for diagnostics)\n");
-		 exit(-1);
-	 }
-
-	// Ready to iterate folders (parallel regions) in traces folder
-	boost::filesystem::directory_iterator end_iter;
+	// Get list of folders (parallel region) inside traces folder
 	std::vector<boost::filesystem::path> dir_list;
 	copy(boost::filesystem::directory_iterator(traces_data), boost::filesystem::directory_iterator(), std::back_inserter(dir_list));
-    std::sort(dir_list.rbegin(), dir_list.rend());
-    // for(boost::filesystem::directory_iterator dir_itr(traces_data); dir_itr != end_iter; ++dir_itr) {
-    // for(boost::filesystem::directory_iterator dir_itr(traces_data); dir_itr != end_iter; ++dir_itr) {
+	// Sort folder
+	std::sort(dir_list.begin(), dir_list.end());
+	// Reverse order
+	// std::sort(dir_list.rbegin(), dir_list.rend());
+	// Sort folder
+	// Get list of folders (parallel region) inside traces folder
+
+	// Ready to iterate folders (outer parallel regions) in traces folder
     for(auto& dir_itr : dir_list) {
     	std::map<unsigned, TraceInfo> traces;
+
+    	// Iterate files within folder and create map of barriers intervals and list of threads within the barrier interval
     	for(auto& entry : boost::make_iterator_range(boost::filesystem::directory_iterator(dir_itr), {})) {
-    		unsigned bid;
-    		unsigned tid;
-    		sscanf(entry.path().filename().string().c_str(), "threadtrace_%d_%d", &tid, &bid);
-    		traces[bid].trace_size += boost::filesystem::file_size(entry.path());
-    		traces[bid].thread_id.push_back(tid);
+    		if (entry.path().filename().string().find("threadtrace_") != std::string::npos) {
+    			unsigned bid;
+    			unsigned tid;
+    			sscanf(entry.path().filename().string().c_str(), "threadtrace_%d_%d", &tid, &bid);
+    			traces[bid].trace_size += boost::filesystem::file_size(entry.path());
+    			traces[bid].thread_id.push_back(tid);
+    		}
     	}
-    	std::map<unsigned, std::vector<std::pair<unsigned,unsigned>>> thread_pairs;
-    	INFO(std::cout, "Parallel region: " << dir_itr);
+    	// Iterate files within folder and create maps of barriers intervals and list of threads within th barrier interval
+
+    	// Iterate barrier intervals
+    	// it->first: bid
+    	// it->second.trace_size: total size of thread traces
+    	// it->second.thread_id: array of thread ids
     	for(std::map<unsigned, TraceInfo>::const_iterator it = traces.begin(); it != traces.end(); ++it) {
+    		INFO(std::cout, "Parallel region: " << dir_itr << " - Barrier: " << it->first);
+
+    		// Sort list of thread id
     		std::sort(traces[it->first].thread_id.begin(), traces[it->first].thread_id.end());
 
-    		//std::cout << dir_itr << " Size: " << it->second.trace_size / MB << "\n";
+    		// Create thread pairs for comparisons
+        	std::vector<std::pair<unsigned,unsigned>> thread_pairs;
     		unsigned length = it->second.thread_id.size();
     		unsigned len = length / 2;
     		if(length % 2 == 1) {
     			for(int i = 0; i < length; i++) {
     				for(int k = i + 1; k < i + len + 1; k++) {
-    					thread_pairs[it->first].push_back(std::make_pair(it->second.thread_id[i], it->second.thread_id[i]));
+    					thread_pairs.push_back(std::make_pair(it->second.thread_id[i], it->second.thread_id[i]));
     				}
     			}
     		} else {
@@ -293,13 +313,14 @@ int main(int argc, char **argv) {
     					ub = i + len;
     				for(int k = i + 1; k < ub; k++) {
     					if(it->second.thread_id[i] < it->second.thread_id[k % length])
-    						thread_pairs[it->first].push_back(std::make_pair(it->second.thread_id[i], it->second.thread_id[k % length]));
+    						thread_pairs.push_back(std::make_pair(it->second.thread_id[i], it->second.thread_id[k % length]));
     					else
-    						thread_pairs[it->first].push_back(std::make_pair(it->second.thread_id[k % length], it->second.thread_id[i]));
-    					std::sort(thread_pairs[it->first].begin(), thread_pairs[it->first].end());
+    						thread_pairs.push_back(std::make_pair(it->second.thread_id[k % length], it->second.thread_id[i]));
+    					std::sort(thread_pairs.begin(), thread_pairs.end());
     				}
     			}
     		}
+    		// Create thread pairs for comparisons
 
     		// Load data into memory of all the threads in given barrier interval, if it fits in memory,
     		// data are compressed so not sure how to check if everything will fit in memory
@@ -308,36 +329,36 @@ int main(int argc, char **argv) {
     			exit(-1);
     		}
 
+    		// Struct to load uncompressed data from file
+    		std::vector<std::thread> lm_thread;
     		lm_thread.reserve(it->second.thread_id.size());
-    		file_buffers[it->first].resize(it->second.thread_id.size());
-    		for(std::vector<unsigned>::const_iterator tid = it->second.thread_id.begin(); tid != it->second.thread_id.end(); ++tid) {
-    			lm_thread.push_back(new std::thread(load_file, dir_itr, it->first, *tid));
+    		std::vector<std::vector<TraceItem>> file_buffers;
+    		file_buffers.resize(it->second.thread_id.size());
+    		for(std::vector<unsigned>::const_iterator th_id = it->second.thread_id.begin(); th_id != it->second.thread_id.end(); ++th_id) {
+    			lm_thread.push_back(std::thread(load_file, dir_itr, it->first, *th_id, std::ref(file_buffers[*th_id])));
     		}
-    		for(int i = 0; i < lm_thread.size(); i++) {
-    			lm_thread[i]->join();
-    		}
-    		for(int i = 0; i < lm_thread.size(); i++) {
-    		    delete lm_thread[i];
+    		for(int k = 0; k < lm_thread.size(); k++) {
+    			lm_thread[k].join();
     		}
     		lm_thread.clear();
+    		// Load data into memory of all the threads in given barrier interval, if it fits in memory,
+    		// data are compressed so not sure how to check if everything will fit in memory
 
+    		// Now we can start analyzing the pairs
+    		std::atomic<int> available_threads;
     		std::vector<std::thread> thread_list;
     		available_threads = num_threads;
-    		for(std::map<unsigned, std::vector<std::pair<unsigned,unsigned>>>::const_iterator it = thread_pairs.begin(); it != thread_pairs.end(); ++it) {
-    			for(std::vector<std::pair<unsigned,unsigned>>::const_iterator it2 = it->second.begin(); it2 != it->second.end(); ++it2) {
-    				// std::cout << it->first << " (" << it2->first << "," << it2->second << ")\n";
-   					while(!available_threads) { /* usleep(1000); */ }
-   					available_threads--;
+    		for(std::vector<std::pair<unsigned,unsigned>>::const_iterator p = thread_pairs.begin(); p != thread_pairs.end(); ++p) {
+    			while(!available_threads) { usleep(1000); }
+    			available_threads--;
 
-    				// Create thread
-   					thread_list.push_back(std::thread(analyze_traces, it2->first, it2->first, it2->second));
-    			}
+    			// Create thread
+    			thread_list.push_back(std::thread(analyze_traces, it->first, p->first, p->second, std::ref(file_buffers), std::ref(available_threads)));
     		}
     		for(std::vector<std::thread>::iterator th = thread_list.begin(); th != thread_list.end(); th++) {
     			th->join();
     		}
     		thread_list.clear();
-    		file_buffers.clear();
     	}
     }
 

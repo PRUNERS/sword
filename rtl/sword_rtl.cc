@@ -39,6 +39,7 @@ static const char* ompt_task_type_t_values[] = {
 		"ompt_task_target"
 };
 
+static ompt_get_state_t ompt_get_state;
 static ompt_get_task_info_t ompt_get_task_info;
 static ompt_get_thread_data_t ompt_get_thread_data;
 static ompt_get_parallel_info_t ompt_get_parallel_info;
@@ -173,6 +174,7 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 //		INFO(std::cout, tid << ": " << std::hex << addr << ":" << CALLERPC);	\
 // #define SAVE_ACCESS(asize, atype)
 #define SAVE_ACCESS(asize, atype)											\
+		if(ignore_access) return;											\
 		accesses[idx].setType(data_access);									\
 		accesses[idx].data.access = Access(asize, atype,					\
 				(size_t) addr, CALLERPC); 									\
@@ -278,6 +280,7 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 		__sword_status__ = par_data->getParallelLevel();
 
 		if(__sword_status__ == 1) {
+			bid = 0;
 			std::string filename = par_data->getPath() + "/threadtrace_" + std::to_string(tid) + "_" + std::to_string(bid);
 			datafile = fopen(filename.c_str(), "ab");
 			if (!datafile) {
@@ -309,17 +312,27 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 
 		if(par_data) {
 			if(pdata.getParallelID() == par_data->getParallelID()) {
-				accesses[idx].setType(parallel_end);
-				accesses[idx].data.parallel = Parallel(parallel_idx);
-				idx++;
-				fut.wait();
-				fut = std::async(dump_to_file, accesses, sizeof(TraceItem), idx, datafile, out, &offset);
-				idx = 0;
-				SWAP_BUFFER
-				fut.wait();
-				if(datafile) {
-					fclose(datafile);
-					datafile = NULL;
+				if(ftell(datafile) > 0) {
+					accesses[idx].setType(parallel_end);
+					accesses[idx].data.parallel = Parallel(parallel_idx);
+					idx++;
+					fut.wait();
+					fut = std::async(dump_to_file, accesses, sizeof(TraceItem), idx, datafile, out, &offset);
+					idx = 0;
+					SWAP_BUFFER
+					fut.wait();
+					if(datafile) {
+						fclose(datafile);
+						datafile = NULL;
+					}
+				} else {
+					if(datafile) {
+						fclose(datafile);
+						datafile = NULL;
+					}
+					std::string filename = par_data->getPath() + "/threadtrace_" + std::to_string(tid) + "_" + std::to_string(bid);
+					if(boost::filesystem::exists(filename))
+						boost::filesystem::remove(filename);
 				}
 			}
 		}
@@ -342,8 +355,28 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 		ompt_data_t *parallel_data,
 		ompt_data_t *task_data,
 		const void *codeptr_ra) {
-	if(endpoint == ompt_scope_end) {
+	ParallelData *par_data = (ParallelData *) task_data->ptr;
+
+	if(endpoint == ompt_scope_begin) {
+		ignore_access = true;
 		bid++;
+		fut.wait();
+		fut = std::async(dump_to_file, accesses, sizeof(TraceItem), idx, datafile, out, &offset);
+		idx = 0;
+		SWAP_BUFFER
+		fut.wait();
+		if(datafile) {
+			fclose(datafile);
+			datafile = NULL;
+		}
+		std::string filename = pdata.getPath() + "/threadtrace_" + std::to_string(tid) + "_" + std::to_string(bid);
+		datafile = fopen(filename.c_str(), "ab");
+		if (!datafile) {
+			INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
+			exit(-1);
+		}
+	} else {
+		ignore_access = false;
 	}
 }
 
@@ -390,6 +423,7 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	sword_flags = new SwordFlags(options);
 
 	ompt_set_callback_t ompt_set_callback = (ompt_set_callback_t) lookup("ompt_set_callback");
+	ompt_get_state = (ompt_get_state_t) lookup("ompt_get_state");
 	ompt_get_task_info = (ompt_get_task_info_t) lookup("ompt_get_task_info");
 	ompt_get_thread_data = (ompt_get_thread_data_t) lookup("ompt_get_thread_data");
 	ompt_get_parallel_info = (ompt_get_parallel_info_t) lookup("ompt_get_parallel_info");

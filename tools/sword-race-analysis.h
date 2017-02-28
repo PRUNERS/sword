@@ -23,14 +23,11 @@
 boost::filesystem::path traces_data;
 boost::filesystem::path report_data;
 
-std::atomic<int> available_threads;
-std::vector<std::thread *> lm_thread;
-std::map<unsigned, std::vector<std::vector<TraceItem>>> file_buffers;
-
 std::string executable;
 std::string shell_path;
 std::string symbolizer_path;
 std::vector<size_t> hash_races;
+std::mutex rmtx;
 
 struct TraceInfo {
 	uint64_t trace_size;
