@@ -349,7 +349,7 @@ int main(int argc, char **argv) {
     		std::vector<std::thread> thread_list;
     		available_threads = num_threads;
     		for(std::vector<std::pair<unsigned,unsigned>>::const_iterator p = thread_pairs.begin(); p != thread_pairs.end(); ++p) {
-    			while(!available_threads) { usleep(1000); }
+    			while(!available_threads) { /* usleep(1000); */ }
     			available_threads--;
 
     			// Create thread
