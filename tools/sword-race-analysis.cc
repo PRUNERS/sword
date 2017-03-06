@@ -269,11 +269,11 @@ int main(int argc, char **argv) {
 	// Get list of folders (parallel region) inside traces folder
 
 	// Ready to iterate folders (outer parallel regions) in traces folder
-    for(auto& dir_itr : dir_list) {
+    for(auto& dir : dir_list) {
     	std::map<unsigned, TraceInfo> traces;
 
     	// Iterate files within folder and create map of barriers intervals and list of threads within the barrier interval
-    	for(auto& entry : boost::make_iterator_range(boost::filesystem::directory_iterator(dir_itr), {})) {
+    	for(auto& entry : boost::make_iterator_range(boost::filesystem::directory_iterator(dir), {})) {
     		if (entry.path().filename().string().find("threadtrace_") != std::string::npos) {
     			unsigned bid;
     			unsigned tid;
@@ -289,7 +289,7 @@ int main(int argc, char **argv) {
     	// it->second.trace_size: total size of thread traces
     	// it->second.thread_id: array of thread ids
     	for(std::map<unsigned, TraceInfo>::const_iterator it = traces.begin(); it != traces.end(); ++it) {
-    		INFO(std::cout, "Parallel region: " << dir_itr << " - Barrier: " << it->first);
+    		INFO(std::cout, "Parallel region: " << dir << " - Barrier: " << it->first);
 
     		// Sort list of thread id
     		std::sort(traces[it->first].thread_id.begin(), traces[it->first].thread_id.end());
@@ -335,7 +335,7 @@ int main(int argc, char **argv) {
     		std::vector<std::vector<TraceItem>> file_buffers;
     		file_buffers.resize(it->second.thread_id.size());
     		for(std::vector<unsigned>::const_iterator th_id = it->second.thread_id.begin(); th_id != it->second.thread_id.end(); ++th_id) {
-    			lm_thread.push_back(std::thread(load_file, dir_itr, it->first, *th_id, std::ref(file_buffers[*th_id])));
+    			lm_thread.push_back(std::thread(load_file, dir, it->first, *th_id, std::ref(file_buffers[*th_id])));
     		}
     		for(int k = 0; k < lm_thread.size(); k++) {
     			lm_thread[k].join();
