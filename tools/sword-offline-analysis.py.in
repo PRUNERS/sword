@@ -9,6 +9,7 @@ import shutil
 import signal
 import subprocess
 import sys
+from distutils.spawn import find_executable
 from os.path import expanduser
 
 VERSION = '0.1'
@@ -21,6 +22,7 @@ SWORD_TRACE = 'sword_data'
 SWORD_REPORT = 'sword_report'
 args = ""
 executable = ""
+analysis_tool = ""
 
 def sanitizeFileName(filename):
     return filename.rsplit("/", 1)[-1]
@@ -37,6 +39,13 @@ def signal_handler(signal, frame):
 #             f.write('1')
 #             f.close()
     sys.exit(0)
+    
+def executeCommand(traces_folder):
+    command = "%s --executable %s --traces-path %s --report-path %s" % (analysis_tool, executable, traces_folder, args.report_path)
+    print command
+    process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    process.wait()
+    return process.returncode
 
 class dotdict(dict):
     def __getattr__(self, attr):
@@ -63,6 +72,7 @@ def argumentsParser():
     parser.add_argument('--executable', nargs=1, required=True, help='Specify the name of the executable to analyze.')
     parser.add_argument('--report-path', nargs=1, default="./", help='Specify the path to the ' + TOOL_NAME + ' report folder.')
     parser.add_argument('--traces-path', nargs=1, default="./" + SWORD_TRACE, help='Specify the path to the ' + TOOL_NAME + ' traces folder.')
+    parser.add_argument('--analysis-tool', nargs=1, default="sword-race-analysis", help='Specify the path to ' + TOOL_NAME + ' custom analysis tool.')
       
     return parser
 
@@ -77,7 +87,10 @@ if __name__ == '__main__':
 
     # Unknown arguments
     if(unknown):
-        print "Ignoring the following unknown args:", unknown 
+        print "Ignoring the following unknown args:", unknown
+        
+    # Set default analysis tool
+    analysis_tool = find_executable(args.analysis_tool)
     
     # Report folder           
     if os.path.exists(args.report_path + "/" + SWORD_REPORT):
@@ -102,4 +115,5 @@ if __name__ == '__main__':
     for subdir, dirs, files in os.walk(args.traces_path, False):
         if subdir == args.traces_path:
             continue
-        print subdir
+        ret = executeCommand(subdir)
+        print "Return Code:", ret

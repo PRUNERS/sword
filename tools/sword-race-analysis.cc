@@ -164,12 +164,13 @@ void load_file(boost::filesystem::path path, unsigned bid, unsigned t, std::vect
 int main(int argc, char **argv) {
 	std::string unknown_option = "";
 
-	if(argc < 2)
-		INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --report-path <path-to-report-folder> --traces-path <path-to-traces-folder>\n\n");
+//	if(argc < 7)
+//		INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --traces-path <path-to-traces-folder> --report-path <path-to-report-folder>\n\n");
+//		INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --report-path <path-to-report-folder> --traces-path <path-to-traces-folder>\n\n");
 
 	for(int i = 1; i < argc; ++i) {
 		if (std::string(argv[i]) == "--help") {
-			INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--report-path <path-to-report-folder> --traces-path <path-to-traces-folder>\n\n");
+			INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --traces-path <path-to-traces-folder> --report-path <path-to-report-folder>\n\n");
 			return 0;
 		} else if (std::string(argv[i]) == "--report-path") {
 			if (i + 1 < argc) {
@@ -202,6 +203,7 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
+	/* Checks already done in Python script
 	try {
 		// Output folder
 		if(report_data.string().empty()) {
@@ -237,6 +239,7 @@ int main(int argc, char **argv) {
         INFO(std::cerr, e.what());
         return false;
     }
+    */
 
 	// Look for shell
 	execute_command(GET_SHELL, &shell_path);
@@ -259,108 +262,110 @@ int main(int argc, char **argv) {
 	// Initialize decompressor
 
 	// Get list of folders (parallel region) inside traces folder
-	std::vector<boost::filesystem::path> dir_list;
-	copy(boost::filesystem::directory_iterator(traces_data), boost::filesystem::directory_iterator(), std::back_inserter(dir_list));
+//	std::vector<boost::filesystem::path> dir_list;
+//	copy(boost::filesystem::directory_iterator(traces_data), boost::filesystem::directory_iterator(), std::back_inserter(dir_list));
 	// Sort folder
-	std::sort(dir_list.begin(), dir_list.end());
+//	std::sort(dir_list.begin(), dir_list.end());
 	// Reverse order
 	// std::sort(dir_list.rbegin(), dir_list.rend());
 	// Sort folder
 	// Get list of folders (parallel region) inside traces folder
 
 	// Ready to iterate folders (outer parallel regions) in traces folder
-    for(auto& dir : dir_list) {
-    	std::map<unsigned, TraceInfo> traces;
+//    for(auto& dir : dir_list) {
+	std::string dir = traces_data.string();
+	std::map<unsigned, TraceInfo> traces;
 
-    	// Iterate files within folder and create map of barriers intervals and list of threads within the barrier interval
-    	for(auto& entry : boost::make_iterator_range(boost::filesystem::directory_iterator(dir), {})) {
-    		if (entry.path().filename().string().find("threadtrace_") != std::string::npos) {
-    			unsigned bid;
-    			unsigned tid;
-    			sscanf(entry.path().filename().string().c_str(), "threadtrace_%d_%d", &tid, &bid);
-    			traces[bid].trace_size += boost::filesystem::file_size(entry.path());
-    			traces[bid].thread_id.push_back(tid);
-    		}
-    	}
-    	// Iterate files within folder and create maps of barriers intervals and list of threads within th barrier interval
+	// Iterate files within folder and create map of barriers intervals and list of threads within the barrier interval
+	for(auto& entry : boost::make_iterator_range(boost::filesystem::directory_iterator(dir), {})) {
+		if (entry.path().filename().string().find("threadtrace_") != std::string::npos) {
+			unsigned bid;
+			unsigned tid;
+			sscanf(entry.path().filename().string().c_str(), "threadtrace_%d_%d", &tid, &bid);
+			traces[bid].trace_size += boost::filesystem::file_size(entry.path());
+			traces[bid].thread_id.push_back(tid);
+			printf("Tid: %d\n", tid);
+		}
+	}
+	// Iterate files within folder and create maps of barriers intervals and list of threads within th barrier interval
 
-    	// Iterate barrier intervals
-    	// it->first: bid
-    	// it->second.trace_size: total size of thread traces
-    	// it->second.thread_id: array of thread ids
-    	for(std::map<unsigned, TraceInfo>::const_iterator it = traces.begin(); it != traces.end(); ++it) {
-    		INFO(std::cout, "Parallel region: " << dir << " - Barrier: " << it->first);
+	// Iterate barrier intervals
+	// it->first: bid
+	// it->second.trace_size: total size of thread traces
+	// it->second.thread_id: array of thread ids
+	for(std::map<unsigned, TraceInfo>::const_iterator it = traces.begin(); it != traces.end(); ++it) {
+		INFO(std::cout, "Parallel region: " << dir << " - Barrier: " << it->first);
 
-    		// Sort list of thread id
-    		std::sort(traces[it->first].thread_id.begin(), traces[it->first].thread_id.end());
+		// Sort list of thread id
+		std::sort(traces[it->first].thread_id.begin(), traces[it->first].thread_id.end());
 
-    		// Create thread pairs for comparisons
-        	std::vector<std::pair<unsigned,unsigned>> thread_pairs;
-    		unsigned length = it->second.thread_id.size();
-    		unsigned len = length / 2;
-    		if(length % 2 == 1) {
-    			for(int i = 0; i < length; i++) {
-    				for(int k = i + 1; k < i + len + 1; k++) {
-    					thread_pairs.push_back(std::make_pair(it->second.thread_id[i], it->second.thread_id[i]));
-    				}
-    			}
-    		} else {
-    			for(int i = 0; i < length; i++) {
-    				unsigned ub = 0;
-    				if(i < len)
-    					ub = i + len + 1;
-    				else
-    					ub = i + len;
-    				for(int k = i + 1; k < ub; k++) {
-    					if(it->second.thread_id[i] < it->second.thread_id[k % length])
-    						thread_pairs.push_back(std::make_pair(it->second.thread_id[i], it->second.thread_id[k % length]));
-    					else
-    						thread_pairs.push_back(std::make_pair(it->second.thread_id[k % length], it->second.thread_id[i]));
-    					std::sort(thread_pairs.begin(), thread_pairs.end());
-    				}
-    			}
-    		}
-    		// Create thread pairs for comparisons
+		// Create thread pairs for comparisons
+		std::vector<std::pair<unsigned,unsigned>> thread_pairs;
+		unsigned length = it->second.thread_id.size();
+		unsigned len = length / 2;
+		if(length % 2 == 1) {
+			for(int i = 0; i < length; i++) {
+				for(int k = i + 1; k < i + len + 1; k++) {
+					thread_pairs.push_back(std::make_pair(it->second.thread_id[i], it->second.thread_id[i]));
+				}
+			}
+		} else {
+			for(int i = 0; i < length; i++) {
+				unsigned ub = 0;
+				if(i < len)
+					ub = i + len + 1;
+				else
+					ub = i + len;
+				for(int k = i + 1; k < ub; k++) {
+					if(it->second.thread_id[i] < it->second.thread_id[k % length])
+						thread_pairs.push_back(std::make_pair(it->second.thread_id[i], it->second.thread_id[k % length]));
+					else
+						thread_pairs.push_back(std::make_pair(it->second.thread_id[k % length], it->second.thread_id[i]));
+					std::sort(thread_pairs.begin(), thread_pairs.end());
+				}
+			}
+		}
+		// Create thread pairs for comparisons
 
-    		// Load data into memory of all the threads in given barrier interval, if it fits in memory,
-    		// data are compressed so not sure how to check if everything will fit in memory
-    		if(it->second.trace_size >= getTotalSystemMemory()) {
-    			std::cerr << "Can't fit all files in memory!\n";
-    			exit(-1);
-    		}
+		// Load data into memory of all the threads in given barrier interval, if it fits in memory,
+		// data are compressed so not sure how to check if everything will fit in memory
+		if(it->second.trace_size >= getTotalSystemMemory()) {
+			std::cerr << "Can't fit all files in memory!\n";
+			exit(-1);
+		}
 
-    		// Struct to load uncompressed data from file
-    		std::vector<std::thread> lm_thread;
-    		lm_thread.reserve(it->second.thread_id.size());
-    		std::vector<std::vector<TraceItem>> file_buffers;
-    		file_buffers.resize(it->second.thread_id.size());
-    		for(std::vector<unsigned>::const_iterator th_id = it->second.thread_id.begin(); th_id != it->second.thread_id.end(); ++th_id) {
-    			lm_thread.push_back(std::thread(load_file, dir, it->first, *th_id, std::ref(file_buffers[*th_id])));
-    		}
-    		for(int k = 0; k < lm_thread.size(); k++) {
-    			lm_thread[k].join();
-    		}
-    		lm_thread.clear();
-    		// Load data into memory of all the threads in given barrier interval, if it fits in memory,
-    		// data are compressed so not sure how to check if everything will fit in memory
+		// Struct to load uncompressed data from file
+		std::vector<std::thread> lm_thread;
+		lm_thread.reserve(it->second.thread_id.size());
+		std::vector<std::vector<TraceItem>> file_buffers;
+		file_buffers.resize(it->second.thread_id.size());
+		for(std::vector<unsigned>::const_iterator th_id = it->second.thread_id.begin(); th_id != it->second.thread_id.end(); ++th_id) {
+			lm_thread.push_back(std::thread(load_file, dir, it->first, *th_id, std::ref(file_buffers[*th_id])));
+		}
+		for(int k = 0; k < lm_thread.size(); k++) {
+			lm_thread[k].join();
+		}
+		lm_thread.clear();
+		// Load data into memory of all the threads in given barrier interval, if it fits in memory,
+		// data are compressed so not sure how to check if everything will fit in memory
 
-    		// Now we can start analyzing the pairs
-    		std::atomic<int> available_threads;
-    		std::vector<std::thread> thread_list;
-    		available_threads = num_threads;
-    		for(std::vector<std::pair<unsigned,unsigned>>::const_iterator p = thread_pairs.begin(); p != thread_pairs.end(); ++p) {
-    			while(!available_threads) { /* usleep(1000); */ }
-    			available_threads--;
+		// Now we can start analyzing the pairs
+		std::atomic<int> available_threads;
+		std::vector<std::thread> thread_list;
+		available_threads = num_threads;
+		for(std::vector<std::pair<unsigned,unsigned>>::const_iterator p = thread_pairs.begin(); p != thread_pairs.end(); ++p) {
+			while(!available_threads) { /* usleep(1000); */ }
+			available_threads--;
 
-    			// Create thread
-    			thread_list.push_back(std::thread(analyze_traces, it->first, p->first, p->second, std::ref(file_buffers), std::ref(available_threads)));
-    		}
-    		for(std::vector<std::thread>::iterator th = thread_list.begin(); th != thread_list.end(); th++) {
-    			th->join();
-    		}
-    		thread_list.clear();
-    	}
-    }
+			// Create thread
+			thread_list.push_back(std::thread(analyze_traces, it->first, p->first, p->second, std::ref(file_buffers), std::ref(available_threads)));
+		}
+		for(std::vector<std::thread>::iterator th = thread_list.begin(); th != thread_list.end(); th++) {
+			th->join();
+		}
+		thread_list.clear();
+	}
+//    }
 
 	return 0;
 }

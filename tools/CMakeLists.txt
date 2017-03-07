@@ -4,6 +4,7 @@ set_target_properties(sword-race-analysis PROPERTIES LINK_FLAGS "-lboost_system 
 
 configure_file(clang-sword.in clang-sword)
 configure_file(clang-sword++.in clang-sword++)
+configure_file(sword-offline-analysis.py.in sword-offline-analysis)
 
 install(TARGETS sword-race-analysis RUNTIME DESTINATION bin)
-install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/clang-sword ${CMAKE_CURRENT_BINARY_DIR}/clang-sword++ DESTINATION bin)
+install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/clang-sword ${CMAKE_CURRENT_BINARY_DIR}/clang-sword++ ${CMAKE_CURRENT_BINARY_DIR}/sword-offline-analysis DESTINATION bin)
