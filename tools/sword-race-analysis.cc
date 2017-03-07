@@ -82,7 +82,7 @@ void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vec
 									i->data.access.getAccessType(), j->data.access.getAccessType(),
 									i->data.access.getAccessSize(),
 									j->data.access.getAccessSize(),
-									i->data.access.getPC(), j->data.access.getPC());
+									i->data.access.getPC() - 1, j->data.access.getPC() - 1);
 						}
 						break;
 					default:
