@@ -18,11 +18,28 @@ TOOL_NAME = 'SWORD'
 # Working Dirs
 USER_HOME = expanduser("~")
 WORKING_DIR = os.getcwd()
+MOAB_DIR = WORKING_DIR + "/sword_moab"
 SWORD_TRACE = 'sword_data'
 SWORD_REPORT = 'sword_report'
 args = ""
 executable = ""
 analysis_tool = ""
+
+def createMOABConfig(config_file , shell, partition, output, cmd):
+    f = open(config_file, 'w')
+    s = """#!%s
+            ##### These lines are for Moab
+            #MSUB -l nodes=1
+            #MSUB -l partition=%s
+            #MSUB -l walltime=86400
+            #MSUB -q pbatch
+            #MSUB -o %s
+            #MSUB -V
+            ##### These are shell commands
+            ##### Launch parallel job using srun
+            %s""" % (shell, partition, output, cmd)
+    f.write(s)
+    f.close()
 
 def sanitizeFileName(filename):
     return filename.rsplit("/", 1)[-1]
@@ -40,11 +57,12 @@ def signal_handler(signal, frame):
 #             f.close()
     sys.exit(0)
     
-def executeCommand(traces_folder):
-    command = "%s --executable %s --traces-path %s --report-path %s" % (analysis_tool, executable, traces_folder, args.report_path)
-    print command
-    process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    process.wait()
+def executeCommand(command, wait = True):
+    if(wait):
+            process = subprocess.Popen(command, shell=True, stdin=None, stdout=None, stderr=None)
+            process.wait()
+    else:
+            process = subprocess.Popen(command, shell=True, stdin=None, stdout=None, stderr=None, close_fds=True)
     return process.returncode
 
 class dotdict(dict):
@@ -73,7 +91,8 @@ def argumentsParser():
     parser.add_argument('--report-path', nargs=1, default="./", help='Specify the path to the ' + TOOL_NAME + ' report folder.')
     parser.add_argument('--traces-path', nargs=1, default="./" + SWORD_TRACE, help='Specify the path to the ' + TOOL_NAME + ' traces folder.')
     parser.add_argument('--analysis-tool', nargs=1, default="sword-race-analysis", help='Specify the path to ' + TOOL_NAME + ' custom analysis tool.')
-      
+    parser.add_argument('--cluster-run', action='store_true', help='Run offline analysis across a cluster using MOAB and SLURM.')
+    
     return parser
 
 if __name__ == '__main__':
@@ -111,9 +130,31 @@ if __name__ == '__main__':
     if not os.path.exists(executable):
         print "The executable '" + args.executable + "' does not exists.\nPlease specify the correct path and name for the executable."
         sys.exit(-1)
+    
+    if(args.cluster_run):    
+        # Create MOAB dir
+        mkdir_p(MOAB_DIR)
+        # Common MOAB Configuration values
+        shell = find_executable("bash")
+        partition = os.environ['LCSCHEDCLUSTER']
         
     for subdir, dirs, files in os.walk(args.traces_path, False):
         if subdir == args.traces_path:
             continue
-        ret = executeCommand(subdir)
-        print "Return Code:", ret
+        if(args.cluster_run):
+            # Use MOAB
+            # MOAB Configuration values
+            config_file = MOAB_DIR + "/moab_config_" + sanitizeFileName(subdir)
+            output = MOAB_DIR + "/moab_output_"
+            cmd = "%s --executable %s --traces-path %s --report-path %s" % (analysis_tool, executable, traces_folder, args.report_path) 
+            createMOABConfig(config_file , shell, partition, output, cmd)
+            # Run on cluster
+            command = "msub " +  config_file
+            ret = executeCommand(command, False)
+            if(ret):
+                print "A problem occurred while analyzing the traces in folder '" + subdir + "'.\n\nPlease run the analysis again with the command: '" + command + "'."
+        else:
+            command = "%s --executable %s --traces-path %s --report-path %s" % (analysis_tool, executable, subdir, args.report_path)
+            ret = executeCommand(command)
+            if(ret):
+                print "A problem occurred while analyzing the traces in folder '" + subdir + "'.\n\nPlease run the analysis again with the command: '" + command + "'." 

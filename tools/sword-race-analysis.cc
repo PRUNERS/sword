@@ -18,12 +18,12 @@ void ReportRace(unsigned t1, unsigned t2, uint64_t address, uint8_t rw1, uint8_t
 		std::string race2 = "";
 
 		{
-			std::string command = "bash -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(pc1) + "\")'";
+			std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(pc1) + "\")'";
 			execute_command(command.c_str(), &race1, 2);
 		}
 
 		{
-			std::string command = "bash -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(pc2) + "\")'";
+			std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(pc2) + "\")'";
 			execute_command(command.c_str(), &race2, 2);
 		}
 
@@ -284,7 +284,6 @@ int main(int argc, char **argv) {
 			sscanf(entry.path().filename().string().c_str(), "threadtrace_%d_%d", &tid, &bid);
 			traces[bid].trace_size += boost::filesystem::file_size(entry.path());
 			traces[bid].thread_id.push_back(tid);
-			printf("Tid: %d\n", tid);
 		}
 	}
 	// Iterate files within folder and create maps of barriers intervals and list of threads within th barrier interval
