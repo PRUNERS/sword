@@ -277,7 +277,9 @@ int main(int argc, char **argv) {
 	std::map<unsigned, TraceInfo> traces;
 
 	// Iterate files within folder and create map of barriers intervals and list of threads within the barrier interval
-	if(boost::filesystem::is_directory(dir)) {
+  	boost::filesystem::directory_iterator end_it;
+	boost::filesystem::directory_iterator begin_it(dir);
+	if(boost::filesystem::is_directory(dir) && (it != end_it)) {
 		for(auto& entry : boost::make_iterator_range(boost::filesystem::directory_iterator(dir), {})) {
 			if (entry.path().filename().string().find("threadtrace_") != std::string::npos) {
 				unsigned bid;
@@ -366,7 +368,7 @@ int main(int argc, char **argv) {
 			thread_list.clear();
 		}
 	} else {
-		INFO(std::cout, "Folder '" << dir << "' does not exists. Exiting...");
+		INFO(std::cout, "Folder '" << dir << "' does not exists or it's empty. Exiting...");
 	}
 //    }
 
