@@ -119,7 +119,6 @@ if __name__ == '__main__':
     args.report_path = "%s/%s" % (args.report_path, SWORD_REPORT)
     args.report_path.replace("//", "/")
     
-    print args.report_path
     mkdir_p(args.report_path)
 
     # Traces folder
