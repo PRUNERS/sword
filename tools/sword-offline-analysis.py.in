@@ -148,7 +148,7 @@ if __name__ == '__main__':
             # Use MOAB
             # MOAB Configuration values
             config_file = MOAB_DIR + "/moab_config_" + sanitizeFileName(subdir)
-            output = MOAB_DIR + "/moab_output_"
+            output = MOAB_DIR + "/moab_output_" + sanitizeFileName(subdir)
             cmd = "%s --executable %s --traces-path %s --report-path %s" % (analysis_tool, executable, subdir, args.report_path) 
             createMOABConfig(config_file , shell, partition, output, cmd)
             # Run on cluster
