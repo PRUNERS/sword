@@ -89,7 +89,7 @@ def argumentsParser():
     parser.add_argument('-v', '--version', action='version', version=TOOL_NAME + ' ' + VERSION + '\nCopyright (C) 2017', help="Print version number and exit.")
     parser.add_argument('--executable', nargs=1, required=True, help='Specify the name of the executable to analyze.')
     parser.add_argument('--report-path', nargs=1, default="./", help='Specify the path to the ' + TOOL_NAME + ' report folder.')
-    parser.add_argument('--traces-path', nargs=1, default="./" + SWORD_TRACE, help='Specify the path to the ' + TOOL_NAME + ' traces folder.')
+    parser.add_argument('--traces-path', nargs=1, default=["./" + SWORD_TRACE], help='Specify the path to the ' + TOOL_NAME + ' traces folder.')
     parser.add_argument('--analysis-tool', nargs=1, default="sword-race-analysis", help='Specify the path to ' + TOOL_NAME + ' custom analysis tool.')
     parser.add_argument('--cluster-run', action='store_true', help='Run offline analysis across a cluster using MOAB and SLURM.')
     
@@ -146,6 +146,7 @@ if __name__ == '__main__':
         if(args.cluster_run):
             # Use MOAB
             # MOAB Configuration values
+            print args.traces_path, subdir
             config_file = MOAB_DIR + "/moab_config_" + sanitizeFileName(subdir)
             output = MOAB_DIR + "/moab_output_" + sanitizeFileName(subdir)
             cmd = "%s --executable %s --traces-path %s --report-path %s" % (analysis_tool, executable, subdir, args.report_path) 
