@@ -120,6 +120,7 @@ if __name__ == '__main__':
     args.report_path.replace("//", "/")
     
     mkdir_p(args.report_path)
+    print args.report_path
 
     # Traces folder
     args.traces_path = args.traces_path[0]
