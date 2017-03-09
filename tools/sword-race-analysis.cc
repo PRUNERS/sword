@@ -1,38 +1,44 @@
 #include "sword-race-analysis.h"
+#include <boost/algorithm/string.hpp>
+
+#include <sched.h>
+#include <stdio.h>
+#include <unistd.h>
+
+#include <atomic>
+#include <algorithm>
+#include <map>
+#include <thread>
 
 #define PRINT 1
 
-void execute_command(const char *cmd, std::string *buf, unsigned carrier = 1) {
-    std::array<char, 128> buffer;
-    std::shared_ptr<FILE> pipe(popen(cmd, "r"), pclose);
-    if (!pipe) throw std::runtime_error("popen() failed!");
-    while (!feof(pipe.get())) {
-        if (fgets(buffer.data(), 128, pipe.get()) != NULL)
-        	*buf += buffer.data();
-    }
-    buf->erase(buf->size() - carrier);
-}
+void SaveReport(std::string filename) {
+	std::ofstream file(filename, std::ios::out | std::ios::binary);
+	size_t size = races.size();
+	file.write((char*) &size, sizeof(size));
+	file.write((char*) &races[0], races.size() * sizeof(RaceInfo));
+	file.close();
 
-void PrintReport(unsigned t1, unsigned t2, uint64_t address, uint8_t rw1, uint8_t rw2, uint8_t size1, uint8_t size2, uint64_t pc1, uint64_t pc2) {
-	std::string race1 = "";
-	std::string race2 = "";
-
-	{
-		std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(pc1) + "\")'";
-		execute_command(command.c_str(), &race1, 2);
-	}
-
-	{
-		std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(pc2) + "\")'";
-		execute_command(command.c_str(), &race2, 2);
-	}
-
-	INFO(std::cerr, "--------------------------------------------------");
-	INFO(std::cerr, "WARNING: Archer: array data race (program=" << executable << ")");
-	INFO(std::cerr, AccessTypeStrings[rw1] << " of size " << std::dec << (1 << size1) << " at 0x" << std::hex << address << " by thread T" << std::dec << t1 << " in " << race1);
-	INFO(std::cerr, AccessTypeStrings[rw2] << " of size " << std::dec << (1 << size2) << " at 0x" << std::hex << address << " by thread T" << std::dec << t2 << " in " << race2);
-	INFO(std::cerr, "--------------------------------------------------");
-	INFO(std::cerr, "");
+//	std::string race1 = "";
+//	std::string race2 = "";
+//
+//	{
+//		std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(race.pc1) + "\")'";
+//		execute_command(command.c_str(), &race1, 2);
+//	}
+//
+//	{
+//		std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(race.pc2) + "\")'";
+//		execute_command(command.c_str(), &race2, 2);
+//	}
+//
+//	INFO(std::cerr, "--------------------------------------------------");
+//	INFO(std::cerr, "WARNING: SWORD: array data race (program=" << executable << ")");
+//	INFO(std::cerr, "Two different threads made the following accesses:");
+//	INFO(std::cerr, AccessTypeStrings[race.rw1] << " of size " << std::dec << (1 << race.size1) << " at 0x" << std::hex << race.address << " in " << race1);
+//	INFO(std::cerr, AccessTypeStrings[race.rw2] << " of size " << std::dec << (1 << race.size2) << " at 0x" << std::hex << race.address << " in " << race2);
+//	INFO(std::cerr, "--------------------------------------------------");
+//	INFO(std::cerr, "");
 }
 
 void ReportRace(unsigned t1, unsigned t2, uint64_t address, uint8_t rw1, uint8_t rw2, uint8_t size1, uint8_t size2, uint64_t pc1, uint64_t pc2) {
@@ -61,7 +67,7 @@ void ReportRace(unsigned t1, unsigned t2, uint64_t address, uint8_t rw1, uint8_t
 		}
 
 		INFO(std::cerr, "--------------------------------------------------");
-		INFO(std::cerr, "WARNING: Archer: array data race (program=" << executable << ")");
+		INFO(std::cerr, "WARNING: SWORD: array data race (program=" << executable << ")");
 		INFO(std::cerr, AccessTypeStrings[rw1] << " of size " << std::dec << (1 << size1) << " at 0x" << std::hex << address << " by thread T" << std::dec << t1 << " in " << race1);
 		INFO(std::cerr, AccessTypeStrings[rw2] << " of size " << std::dec << (1 << size2) << " at 0x" << std::hex << address << " by thread T" << std::dec << t2 << " in " << race2);
 		INFO(std::cerr, "--------------------------------------------------");
@@ -225,14 +231,17 @@ int main(int argc, char **argv) {
 	/* Checks already done in Python script
 	try {
 		// Output folder
-		if(report_data.string().empty()) {
-			INFO(std::cout, "Using default report folder: ./" << SWORD_REPORT);
-		} else if(boost::filesystem::is_directory(report_data)) {
-			INFO(std::cerr, "The path '" << report_data.string() << "' is not valid.");
-			return -1;
+		// Output folder
+		if(boost::algorithm::ends_with(report_data.string(), SWORD_REPORT)) {
+			report_data.append("/");
+		} else if(boost::algorithm::ends_with(report_data.string(), std::string(SWORD_REPORT) + std::string("/"))) {
+
+		} else if(boost::algorithm::ends_with(report_data.string(), "/")) {
+			report_data.append(SWORD_REPORT);
+		} else {
+			report_data.append("/").append(SWORD_REPORT);
 		}
 
-		report_data.append(SWORD_REPORT);
 		if(boost::filesystem::is_directory(report_data)) {
 			INFO(std::cout, "Found existing report folder, please delete or rename it before proceeding with analysis.");
 			return -1;
@@ -260,6 +269,7 @@ int main(int argc, char **argv) {
     }
     */
 
+#if PRINT
 	// Look for shell
 	execute_command(GET_SHELL, &shell_path);
     // Look for shell
@@ -267,6 +277,7 @@ int main(int argc, char **argv) {
 	// Look for llvm-symbolizer
 	execute_command(GET_SYMBOLIZER, &symbolizer_path);
     // Look for llvm-symbolizer
+#endif
 
 	// Get cores info
 	unsigned num_threads = sysconf(_SC_NPROCESSORS_ONLN);
@@ -390,6 +401,12 @@ int main(int argc, char **argv) {
 				th->join();
 			}
 			thread_list.clear();
+		}
+		if(races.size() > 0) {
+			std::vector<std::string> strings;
+			boost::split(strings, dir, boost::is_any_of("/"));
+			std::string filename = report_data.string() + "/" + "race_report_" + strings.back();
+			SaveReport(filename);
 		}
 	} else {
 		INFO(std::cout, "Folder '" << dir << "' does not exists or it's empty. Exiting...");
