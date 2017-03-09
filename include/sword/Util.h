@@ -1,35 +1,35 @@
 /*
  * Copyright (c) 2015, Lawrence Livermore National Security, LLC.
- * 
+ *
  * Produced at the Lawrence Livermore National Laboratory
- * 
+ *
  * Written by Simone Atzeni (simone@cs.utah.edu), Ganesh Gopalakrishnan,
  * Zvonimir Rakamari\'c Dong H. Ahn, Ignacio Laguna, Martin Schulz, and
  * Gregory L. Lee
- * 
+ *
  * LLNL-CODE-676696
- * 
+ *
  * All rights reserved.
- * 
+ *
  * This file is part of Sword. For details, see
  * https://github.com/soarlab/Sword. Please also read Sword/LICENSE.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
- * 
+ *
  * Redistributions of source code must retain the above copyright notice,
  * this list of conditions and the disclaimer below.
- * 
+ *
  * Redistributions in binary form must reproduce the above copyright
  * notice, this list of conditions and the disclaimer (as noted below) in
  * the documentation and/or other materials provided with the
  * distribution.
- * 
+ *
  * Neither the name of the LLNS/LLNL nor the names of its contributors
  * may be used to endorse or promote products derived from this software
  * without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -47,7 +47,6 @@
 #ifndef UTIL_H
 #define UTIL_H
 
-#include <string.h>
 #include <map>
 #include <set>
 #include <string>
