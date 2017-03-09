@@ -10,7 +10,7 @@ void PrintReport() {
 	for(auto& entry : boost::make_iterator_range(boost::filesystem::directory_iterator(report_data), {})) {
 		size_t filesize = boost::filesystem::file_size(entry.path());
 		if(filesize > 0) {
-			std::ifstream file(entry.path().filename().string(), std::ios::in | std::ios::binary);
+			std::ifstream file(entry.path().string(), std::ios::in | std::ios::binary);
 			size_t size;
 			file.read((char*) &size, sizeof(size));
 			races.resize(current_size + size);
@@ -21,26 +21,33 @@ void PrintReport() {
 	}
 
 	for(std::vector<RaceInfo>::const_iterator race = races.cbegin() ; race != races.cend(); ++race) {
-		std::string race1 = "";
-		std::string race2 = "";
+		std::size_t hash = 0;
+		boost::hash_combine(hash, race->pc1);
+		boost::hash_combine(hash, race->pc2);
+		const bool reported = hash_races.find(hash) != hash_races.end();
+		if(!reported) {
+			hash_races.insert(hash);
+			std::string race1 = "";
+			std::string race2 = "";
 
-		{
-			std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(race->pc1) + "\")'";
-			execute_command(command.c_str(), &race1, 2);
+			{
+				std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(race->pc1) + "\")'";
+				execute_command(command.c_str(), &race1, 2);
+			}
+
+			{
+				std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(race->pc2) + "\")'";
+				execute_command(command.c_str(), &race2, 2);
+			}
+
+			INFO(std::cerr, "--------------------------------------------------");
+			INFO(std::cerr, "WARNING: SWORD: array data race (program=" << executable << ")");
+			INFO(std::cerr, "Two different threads made the following accesses:");
+			INFO(std::cerr, AccessTypeStrings[race->rw1] << " of size " << std::dec << (1 << race->size1) << " in " << race1);
+			INFO(std::cerr, AccessTypeStrings[race->rw2] << " of size " << std::dec << (1 << race->size2) << " in " << race2);
+			INFO(std::cerr, "--------------------------------------------------");
+			INFO(std::cerr, "");
 		}
-
-		{
-			std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(race->pc2) + "\")'";
-			execute_command(command.c_str(), &race2, 2);
-		}
-
-		INFO(std::cerr, "--------------------------------------------------");
-		INFO(std::cerr, "WARNING: SWORD: array data race (program=" << executable << ")");
-		INFO(std::cerr, "Two different threads made the following accesses:");
-		INFO(std::cerr, AccessTypeStrings[race->rw1] << " of size " << std::dec << (1 << race->size1) << " at 0x" << std::hex << race->address << " in " << race1);
-		INFO(std::cerr, AccessTypeStrings[race->rw2] << " of size " << std::dec << (1 << race->size2) << " at 0x" << std::hex << race->address << " in " << race2);
-		INFO(std::cerr, "--------------------------------------------------");
-		INFO(std::cerr, "");
 	}
 }
 

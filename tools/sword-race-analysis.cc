@@ -10,13 +10,13 @@
 #include <map>
 #include <thread>
 
-#define PRINT 1
+#define PRINT 0
 
 void SaveReport(std::string filename) {
 	std::ofstream file(filename, std::ios::out | std::ios::binary);
 	size_t size = races.size();
 	file.write((char*) &size, sizeof(size));
-	file.write((char*) &races[0], races.size() * sizeof(RaceInfo));
+	file.write(reinterpret_cast<char*>(races.data()), races.size() * sizeof(RaceInfo));
 	file.close();
 
 //	std::string race1 = "";
@@ -46,10 +46,12 @@ void ReportRace(unsigned t1, unsigned t2, uint64_t address, uint8_t rw1, uint8_t
 	boost::hash_combine(hash, pc1);
 	boost::hash_combine(hash, pc2);
 	rmtx.lock();
-	std::vector<size_t>::iterator it = std::find(hash_races.begin(), hash_races.end(), hash);
+	const bool reported = hash_races.find(hash) != hash_races.end();
 	rmtx.unlock();
-	if(it == hash_races.end()) {
-		hash_races.push_back(hash);
+	if(reported) {
+		rmtx.lock();
+		hash_races.insert(hash);
+		rmtx.unlock();
 		races.push_back(RaceInfo(address, rw1, size1, pc1, rw2, size2, pc2));
 
 #if PRINT

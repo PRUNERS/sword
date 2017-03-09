@@ -11,5 +11,4 @@ struct TraceInfo {
 };
 
 boost::filesystem::path traces_data;
-std::vector<size_t> hash_races;
 std::mutex rmtx;

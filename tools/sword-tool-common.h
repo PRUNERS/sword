@@ -6,6 +6,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/filesystem.hpp>
 
+#include <unordered_set>
 #include <vector>
 
 #define SWORD_REPORT		"sword_report"
@@ -49,6 +50,7 @@ struct RaceInfo {
 std::string executable;
 std::string shell_path;
 std::string symbolizer_path;
+std::unordered_set<size_t> hash_races;
 std::vector<RaceInfo> races;
 
 boost::filesystem::path report_data;
