@@ -31,6 +31,7 @@ struct TraceInfo {
 };
 
 struct RaceInfo {
+	uint64_t address;
 	uint8_t rw1;
 	uint8_t size1;
 	uint64_t pc1;
@@ -38,8 +39,9 @@ struct RaceInfo {
 	uint8_t size2;
 	uint64_t pc2;
 
-	RaceInfo(uint8_t rw1, uint8_t size1, uint64_t pc1,
+	RaceInfo(uint64_t address, uint8_t rw1, uint8_t size1, uint64_t pc1,
 			uint8_t rw2, uint8_t size2, uint64_t pc2) {
+		this->address = address;
 		this->rw1 = rw1;
 		this->size1 = size1;
 		this->pc1 = pc1;

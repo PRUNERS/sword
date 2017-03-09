@@ -1,6 +1,6 @@
 #include "sword-race-analysis.h"
 
-#define PRINT 0
+#define PRINT 1
 
 void execute_command(const char *cmd, std::string *buf, unsigned carrier = 1) {
     std::array<char, 128> buffer;
@@ -13,39 +13,61 @@ void execute_command(const char *cmd, std::string *buf, unsigned carrier = 1) {
     buf->erase(buf->size() - carrier);
 }
 
+void PrintReport(unsigned t1, unsigned t2, uint64_t address, uint8_t rw1, uint8_t rw2, uint8_t size1, uint8_t size2, uint64_t pc1, uint64_t pc2) {
+	std::string race1 = "";
+	std::string race2 = "";
+
+	{
+		std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(pc1) + "\")'";
+		execute_command(command.c_str(), &race1, 2);
+	}
+
+	{
+		std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(pc2) + "\")'";
+		execute_command(command.c_str(), &race2, 2);
+	}
+
+	INFO(std::cerr, "--------------------------------------------------");
+	INFO(std::cerr, "WARNING: Archer: array data race (program=" << executable << ")");
+	INFO(std::cerr, AccessTypeStrings[rw1] << " of size " << std::dec << (1 << size1) << " at 0x" << std::hex << address << " by thread T" << std::dec << t1 << " in " << race1);
+	INFO(std::cerr, AccessTypeStrings[rw2] << " of size " << std::dec << (1 << size2) << " at 0x" << std::hex << address << " by thread T" << std::dec << t2 << " in " << race2);
+	INFO(std::cerr, "--------------------------------------------------");
+	INFO(std::cerr, "");
+}
+
 void ReportRace(unsigned t1, unsigned t2, uint64_t address, uint8_t rw1, uint8_t rw2, uint8_t size1, uint8_t size2, uint64_t pc1, uint64_t pc2) {
-	    std::size_t hash = 0;
-	    boost::hash_combine(hash, pc1);
-	    boost::hash_combine(hash, pc2);
-	    rmtx.lock();
-	    std::vector<size_t>::iterator it = std::find(hash_races.begin(), hash_races.end(), hash);
-	    rmtx.unlock();
-	    if(it == hash_races.end()) {
-	    	hash_races.push_back(hash);
-	    	races.push_back(RaceInfo(rw1, size1, pc1, rw2, size2, pc2));
+	std::size_t hash = 0;
+	boost::hash_combine(hash, pc1);
+	boost::hash_combine(hash, pc2);
+	rmtx.lock();
+	std::vector<size_t>::iterator it = std::find(hash_races.begin(), hash_races.end(), hash);
+	rmtx.unlock();
+	if(it == hash_races.end()) {
+		hash_races.push_back(hash);
+		races.push_back(RaceInfo(address, rw1, size1, pc1, rw2, size2, pc2));
 
 #if PRINT
-	    	std::string race1 = "";
-	    	std::string race2 = "";
+		std::string race1 = "";
+		std::string race2 = "";
 
-	    	{
-	    		std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(pc1) + "\")'";
-	    		execute_command(command.c_str(), &race1, 2);
-	    	}
+		{
+			std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(pc1) + "\")'";
+			execute_command(command.c_str(), &race1, 2);
+		}
 
-	    	{
-	    		std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(pc2) + "\")'";
-	    		execute_command(command.c_str(), &race2, 2);
-	    	}
+		{
+			std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(pc2) + "\")'";
+			execute_command(command.c_str(), &race2, 2);
+		}
 
-	    	INFO(std::cerr, "--------------------------------------------------");
-	    	INFO(std::cerr, "WARNING: Archer: array data race (program=" << executable << ")");
-	    	INFO(std::cerr, AccessTypeStrings[rw1] << " of size " << std::dec << (1 << size1) << " at 0x" << std::hex << address << " by thread T" << std::dec << t1 << " in " << race1);
-	    	INFO(std::cerr, AccessTypeStrings[rw2] << " of size " << std::dec << (1 << size2) << " at 0x" << std::hex << address << " by thread T" << std::dec << t2 << " in " << race2);
-	    	INFO(std::cerr, "--------------------------------------------------");
-	    	INFO(std::cerr, "");
+		INFO(std::cerr, "--------------------------------------------------");
+		INFO(std::cerr, "WARNING: Archer: array data race (program=" << executable << ")");
+		INFO(std::cerr, AccessTypeStrings[rw1] << " of size " << std::dec << (1 << size1) << " at 0x" << std::hex << address << " by thread T" << std::dec << t1 << " in " << race1);
+		INFO(std::cerr, AccessTypeStrings[rw2] << " of size " << std::dec << (1 << size2) << " at 0x" << std::hex << address << " by thread T" << std::dec << t2 << " in " << race2);
+		INFO(std::cerr, "--------------------------------------------------");
+		INFO(std::cerr, "");
 #endif
-	    }
+	}
 }
 
 unsigned long long getTotalSystemMemory()

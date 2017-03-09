@@ -146,7 +146,6 @@ if __name__ == '__main__':
         if(args.cluster_run):
             # Use MOAB
             # MOAB Configuration values
-            print args.traces_path, subdir
             config_file = MOAB_DIR + "/moab_config_" + sanitizeFileName(subdir)
             output = MOAB_DIR + "/moab_output_" + sanitizeFileName(subdir)
             cmd = "%s --executable %s --traces-path %s --report-path %s" % (analysis_tool, executable, subdir, args.report_path) 
