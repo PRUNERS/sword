@@ -9,49 +9,49 @@
 #//===----------------------------------------------------------------------===//
 #
 
-# void libSWORD_say(string message_to_user);
+# void libsword_say(string message_to_user);
 # - prints out message_to_user
-macro(libSWORD_say message_to_user)
+macro(libsword_say message_to_user)
   message(STATUS "SWORD: ${message_to_user}")
 endmacro()
 
-# void libSWORD_warning_say(string message_to_user);
+# void libsword_warning_say(string message_to_user);
 # - prints out message_to_user with a warning
-macro(libSWORD_warning_say message_to_user)
+macro(libsword_warning_say message_to_user)
   message(WARNING "SWORD: ${message_to_user}")
 endmacro()
 
-# void libSWORD_error_say(string message_to_user);
+# void libsword_error_say(string message_to_user);
 # - prints out message_to_user with an error and exits cmake
-macro(libSWORD_error_say message_to_user)
+macro(libsword_error_say message_to_user)
   message(FATAL_ERROR "SWORD: ${message_to_user}")
 endmacro()
 
-# libSWORD_append(<flag> <flags_list> [(IF_TRUE | IF_FALSE | IF_TRUE_1_0 ) BOOLEAN])
+# libsword_append(<flag> <flags_list> [(IF_TRUE | IF_FALSE | IF_TRUE_1_0 ) BOOLEAN])
 #
-# libSWORD_append(<flag> <flags_list>)
+# libsword_append(<flag> <flags_list>)
 #   - unconditionally appends <flag> to the list of definitions
 #
-# libSWORD_append(<flag> <flags_list> <BOOLEAN>)
+# libsword_append(<flag> <flags_list> <BOOLEAN>)
 #   - appends <flag> to the list of definitions if BOOLEAN is true
 #
-# libSWORD_append(<flag> <flags_list> IF_TRUE <BOOLEAN>)
+# libsword_append(<flag> <flags_list> IF_TRUE <BOOLEAN>)
 #   - appends <flag> to the list of definitions if BOOLEAN is true
 #
-# libSWORD_append(<flag> <flags_list> IF_FALSE <BOOLEAN>)
+# libsword_append(<flag> <flags_list> IF_FALSE <BOOLEAN>)
 #   - appends <flag> to the list of definitions if BOOLEAN is false
 #
-# libSWORD_append(<flag> <flags_list> IF_DEFINED <VARIABLE>)
+# libsword_append(<flag> <flags_list> IF_DEFINED <VARIABLE>)
 #   - appends <flag> to the list of definitions if VARIABLE is defined
 #
-# libSWORD_append(<flag> <flags_list> IF_TRUE_1_0 <BOOLEAN>)
+# libsword_append(<flag> <flags_list> IF_TRUE_1_0 <BOOLEAN>)
 #   - appends <flag>=1 to the list of definitions if <BOOLEAN> is true, <flag>=0 otherwise
-# e.g., libSWORD_append("-D USE_FEATURE" IF_TRUE_1_0 HAVE_FEATURE)
+# e.g., libsword_append("-D USE_FEATURE" IF_TRUE_1_0 HAVE_FEATURE)
 #     appends "-D USE_FEATURE=1" if HAVE_FEATURE is true
 #     or "-D USE_FEATURE=0" if HAVE_FEATURE is false
-macro(libSWORD_append flags flag)
+macro(libsword_append flags flag)
   if(NOT (${ARGC} EQUAL 2 OR ${ARGC} EQUAL 3 OR ${ARGC} EQUAL 4))
-    libSWORD_error_say("libSWORD_append: takes 2, 3, or 4 arguments")
+    libsword_error_say("libsword_append: takes 2, 3, or 4 arguments")
   endif()
   if(${ARGC} EQUAL 2)
     list(APPEND ${flags} "${flag}")
@@ -79,15 +79,15 @@ macro(libSWORD_append flags flag)
         list(APPEND ${flags} "${flag}=0")
       endif()
     else()
-      libSWORD_error_say("libSWORD_append: third argument must be one of IF_TRUE, IF_FALSE, IF_DEFINED, IF_TRUE_1_0")
+      libsword_error_say("libsword_append: third argument must be one of IF_TRUE, IF_FALSE, IF_DEFINED, IF_TRUE_1_0")
     endif()
   endif()
 endmacro()
 
-# void libSWORD_get_legal_arch(string* return_arch_string);
+# void libsword_get_legal_arch(string* return_arch_string);
 # - returns (through return_arch_string) the formal architecture
 #   string or warns user of unknown architecture
-function(libSWORD_get_legal_arch return_arch_string)
+function(libsword_get_legal_arch return_arch_string)
   if(${IA32})
     set(${return_arch_string} "IA-32" PARENT_SCOPE)
   elseif(${INTEL64})
@@ -103,17 +103,17 @@ function(libSWORD_get_legal_arch return_arch_string)
   elseif(${AARCH64})
     set(${return_arch_string} "AARCH64" PARENT_SCOPE)
   else()
-    set(${return_arch_string} "${libSWORD_ARCH}" PARENT_SCOPE)
-    libSWORD_warning_say("libSWORD_get_legal_arch(): Warning: Unknown architecture: Using ${libSWORD_ARCH}")
+    set(${return_arch_string} "${libsword_ARCH}" PARENT_SCOPE)
+    libsword_warning_say("libsword_get_legal_arch(): Warning: Unknown architecture: Using ${libsword_ARCH}")
   endif()
 endfunction()
 
-# void libSWORD_check_variable(string var, ...);
+# void libsword_check_variable(string var, ...);
 # - runs through all values checking if ${var} == value
 # - uppercase and lowercase do not matter
 # - if the var is found, then just print it out
 # - if the var is not found, then error out
-function(libSWORD_check_variable var)
+function(libsword_check_variable var)
   set(valid_flag 0)
   string(TOLOWER "${${var}}" var_lower)
   foreach(value IN LISTS ARGN)
@@ -124,13 +124,13 @@ function(libSWORD_check_variable var)
     endif()
   endforeach()
   if(${valid_flag} EQUAL 0)
-    libSWORD_error_say("libSWORD_check_variable(): ${var} = ${${var}} is unknown")
+    libsword_error_say("libsword_check_variable(): ${var} = ${${var}} is unknown")
   endif()
 endfunction()
 
-# void libSWORD_get_build_number(string src_dir, string* return_build_number);
+# void libsword_get_build_number(string src_dir, string* return_build_number);
 # - grab the eight digit build number (or 00000000) from kmp_version.c
-function(libSWORD_get_build_number src_dir return_build_number)
+function(libsword_get_build_number src_dir return_build_number)
   # sets file_lines_list to a list of all lines in kmp_version.c
   file(STRINGS "${src_dir}/src/kmp_version.c" file_lines_list)
 
@@ -147,9 +147,9 @@ function(libSWORD_get_build_number src_dir return_build_number)
   set(${return_build_number} "${build_number}" PARENT_SCOPE) # return build number
 endfunction()
 
-# void libSWORD_get_legal_type(string* return_legal_type);
+# void libsword_get_legal_type(string* return_legal_type);
 # - set the legal type name Performance/Profiling/Stub
-function(libSWORD_get_legal_type return_legal_type)
+function(libsword_get_legal_type return_legal_type)
   if(${NORMAL_LIBRARY})
     set(${return_legal_type} "Performance" PARENT_SCOPE)
   elseif(${PROFILE_LIBRARY})
@@ -159,10 +159,10 @@ function(libSWORD_get_legal_type return_legal_type)
   endif()
 endfunction()
 
-# void libSWORD_add_suffix(string suffix, list<string>* list_of_items);
+# void libsword_add_suffix(string suffix, list<string>* list_of_items);
 # - returns list_of_items with suffix appended to all items
 # - original list is modified
-function(libSWORD_add_suffix suffix list_of_items)
+function(libsword_add_suffix suffix list_of_items)
   set(local_list "")
   foreach(item IN LISTS "${list_of_items}")
     if(NOT "${item}" STREQUAL "")
@@ -172,18 +172,18 @@ function(libSWORD_add_suffix suffix list_of_items)
   set(${list_of_items} "${local_list}" PARENT_SCOPE)
 endfunction()
 
-# void libSWORD_list_to_string(list<string> list_of_things, string* return_string);
+# void libsword_list_to_string(list<string> list_of_things, string* return_string);
 # - converts a list to a space separated string
-function(libSWORD_list_to_string list_of_things return_string)
+function(libsword_list_to_string list_of_things return_string)
   string(REPLACE ";" " " output_variable "${list_of_things}")
   set(${return_string} "${output_variable}" PARENT_SCOPE)
 endfunction()
 
-# void libSWORD_string_to_list(string str, list<string>* return_list);
+# void libsword_string_to_list(string str, list<string>* return_list);
 # - converts a string to a semicolon separated list
 # - what it really does is just string_replace all running whitespace to a semicolon
 # - in cmake, a list is strings separated by semicolons: i.e., list of four items, list = "item1;item2;item3;item4"
-function(libSWORD_string_to_list str return_list)
+function(libsword_string_to_list str return_list)
   set(outstr)
   string(REGEX REPLACE "[ \t]+" ";" outstr "${str}")
   set(${return_list} "${outstr}" PARENT_SCOPE)

@@ -55,7 +55,7 @@ int main(int argc, char **argv) {
 	std::string unknown_option = "";
 
 	if(argc < 5)
-		INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --traces-path <path-to-traces-folder>\n\n");
+		INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --report-path <path-to-report-folder>\n\n");
 
 	for(int i = 1; i < argc; ++i) {
 		if (std::string(argv[i]) == "--help") {
@@ -119,6 +119,12 @@ int main(int argc, char **argv) {
 	// Look for llvm-symbolizer
 	execute_command(GET_SYMBOLIZER, &symbolizer_path);
     // Look for llvm-symbolizer
+
+	boost::filesystem::recursive_directory_iterator dir(report_data), end;
+	if(dir == end) {
+		INFO(std::cerr, "SWORD did not find any race on '" << executable << "'.");
+		exit(0);
+	}
 
 	PrintReport();
 }

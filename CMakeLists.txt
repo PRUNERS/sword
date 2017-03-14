@@ -18,28 +18,21 @@ set(SWORD_STANDALONE_BUILD FALSE)
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
     project(sword C CXX)
 
-    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-        # require at least clang 3.9
-        if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 3.9)
-            message(FATAL_ERROR "Clang version must be at least 3.9!")
-        endif()
-    else()
-        message(FATAL_ERROR "You are using an unsupported compiler! The required compiler is Clang version >= 3.9.")
-    endif()
-
-    if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-        # require at least clang 3.9
-        if (CMAKE_C_COMPILER_VERSION VERSION_LESS 3.9)
-            message(FATAL_ERROR "Clang version must be at least 3.9!")
-        endif()
-    else()
-        message(FATAL_ERROR "You are using an unsupported compiler! The required compiler is Clang version >= 3.9.")
-    endif()
   set(SWORD_STANDALONE_BUILD TRUE)
-  string(SUBSTRING ${CMAKE_CXX_COMPILER_VERSION} 0 3 LLVM_VERSION)
-  string(REPLACE "." "" LLVM_VERSION ${LLVM_VERSION})
-  add_definitions(-DLLVM_VERSION=${LLVM_VERSION})
 endif()
+
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    # require at least clang 3.9
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 3.9)
+        message(FATAL_ERROR "Clang version must be at least 3.9!")
+    endif()
+else()
+    message(FATAL_ERROR "You are using an unsupported compiler! The required compiler is Clang version >= 3.9.")
+endif()
+
+string(SUBSTRING ${CMAKE_CXX_COMPILER_VERSION} 0 3 LLVM_VERSION)
+string(REPLACE "." "" LLVM_VERSION ${LLVM_VERSION})
+add_definitions(-DLLVM_VERSION=${LLVM_VERSION})
 
 # These include files are in the cmake/ subdirectory
 include(LibswordUtils)
@@ -75,6 +68,9 @@ else()
   set(OMP_PREFIX ${LLVM_ROOT} CACHE PATH "Root of OpenMP runtime install")
 endif()
 
+# These include files are in the cmake/ subdirectory
+include(LibswordUtils)
+
 find_package(Omp)
 include_directories(${OMP_INCLUDE_PATH})
 find_package(Ompt)
@@ -83,5 +79,5 @@ include_directories(${OMPT_INCLUDE_PATH})
 add_subdirectory(lib)
 add_subdirectory(rtl)
 
-# add_subdirectory(test)
+add_subdirectory(test)
 add_subdirectory(tools)

@@ -99,8 +99,6 @@ if __name__ == '__main__':
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    mkdir_p(USER_HOME +'/' + SWORD_REPORT)
-
     parser = argumentsParser();
     args, unknown = parser.parse_known_args()
 
@@ -112,7 +110,7 @@ if __name__ == '__main__':
     analysis_tool = find_executable(args.analysis_tool)
     
     # Report folder       
-    args.report_path = args.report_path[0]    
+    args.report_path = args.report_path[0]
     if os.path.exists(args.report_path + "/" + SWORD_REPORT):
         print "Found existing report folder, please delete or rename it before proceeding with analysis."
         sys.exit(-1)
@@ -130,7 +128,7 @@ if __name__ == '__main__':
     # Executable check
     executable = args.executable[0]
     if not os.path.exists(executable):
-        print "The executable '" + args.executable + "' does not exists.\nPlease specify the correct path and name for the executable."
+        print "The executable '" + executable + "' does not exists.\nPlease specify the correct path and name for the executable."
         sys.exit(-1)
     
     if(args.cluster_run):    

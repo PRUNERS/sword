@@ -48,7 +48,7 @@ void ReportRace(unsigned t1, unsigned t2, uint64_t address, uint8_t rw1, uint8_t
 	rmtx.lock();
 	const bool reported = hash_races.find(hash) != hash_races.end();
 	rmtx.unlock();
-	if(reported) {
+	if(!reported) {
 		rmtx.lock();
 		hash_races.insert(hash);
 		rmtx.unlock();
