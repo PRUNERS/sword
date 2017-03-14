@@ -1,4 +1,4 @@
-// RUN: %raceomp-compile-and-run | FileCheck %s
+// RUN: %raceomp-compile-and-run 2>&1 | FileCheck %s
 #include <omp.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -24,7 +24,6 @@ int main(int argc, char* argv[])
   }
 
   int error = (var != 2);
-  fprintf(stderr, "DONE\n");
   return error;
 }
 

@@ -215,7 +215,7 @@ static void on_ompt_callback_parallel_begin(ompt_task_data_t parent_task_data,
 
 	if(__sword_status__ == 1) {
 		ompt_id_t pid = ompt_get_unique_id();
-		std::string str = sword_flags->trace_path + std::string(SWORD_DATA) + "/" + std::to_string(pid);
+		std::string str = sword_flags->traces_path + "/" + std::to_string(pid);
 		try {
 			boost::filesystem::create_directory(str);
 		} catch( boost::filesystem::filesystem_error const & e) {
@@ -408,7 +408,7 @@ static void on_ompt_callback_mutex_released(ompt_mutex_kind_t kind,
 
 static void on_ompt_event_runtime_shutdown(void)
 {
-	printf("%d: ompt_event_runtime_shutdown\n", omp_get_thread_num());
+	// printf("%d: ompt_event_runtime_shutdown\n", omp_get_thread_num());
 }
 
 #define register_callback(name) {                                           \
@@ -439,7 +439,7 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	register_callback(ompt_callback_mutex_acquired);
 	register_callback(ompt_callback_mutex_released);
 
-	std::string str = sword_flags->trace_path + std::string(SWORD_DATA);
+	std::string str = sword_flags->traces_path;
 	if(boost::filesystem::is_directory(str)) {
 		try {
 			boost::filesystem::rename(str, str + ".old");
@@ -450,7 +450,7 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 		}
 		// INFO(std::cout, "WARNING: Please remove or rename '" << str "' directory before running the program.");
 	}
-	str = sword_flags->trace_path + std::string(SWORD_DATA);
+	str = sword_flags->traces_path;
 	boost::filesystem::create_directory(str);
 
 	if(lzo_init() != LZO_E_OK) {

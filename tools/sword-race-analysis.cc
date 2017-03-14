@@ -33,7 +33,7 @@ void SaveReport(std::string filename) {
 //	}
 //
 //	INFO(std::cerr, "--------------------------------------------------");
-//	INFO(std::cerr, "WARNING: SWORD: array data race (program=" << executable << ")");
+//	INFO(std::cerr, "WARNING: SWORD: data race (program=" << executable << ")");
 //	INFO(std::cerr, "Two different threads made the following accesses:");
 //	INFO(std::cerr, AccessTypeStrings[race.rw1] << " of size " << std::dec << (1 << race.size1) << " at 0x" << std::hex << race.address << " in " << race1);
 //	INFO(std::cerr, AccessTypeStrings[race.rw2] << " of size " << std::dec << (1 << race.size2) << " at 0x" << std::hex << race.address << " in " << race2);
@@ -69,7 +69,7 @@ void ReportRace(unsigned t1, unsigned t2, uint64_t address, uint8_t rw1, uint8_t
 		}
 
 		INFO(std::cerr, "--------------------------------------------------");
-		INFO(std::cerr, "WARNING: SWORD: array data race (program=" << executable << ")");
+		INFO(std::cerr, "WARNING: SWORD: data race (program=" << executable << ")");
 		INFO(std::cerr, AccessTypeStrings[rw1] << " of size " << std::dec << (1 << size1) << " at 0x" << std::hex << address << " by thread T" << std::dec << t1 << " in " << race1);
 		INFO(std::cerr, AccessTypeStrings[rw2] << " of size " << std::dec << (1 << size2) << " at 0x" << std::hex << address << " by thread T" << std::dec << t2 << " in " << race2);
 		INFO(std::cerr, "--------------------------------------------------");

@@ -23,7 +23,6 @@ int main(int argc, char* argv[])
   omp_destroy_nest_lock(&lock);
 
   int error = (var != 2);
-  fprintf(stderr, "DONE\n");
   return error;
 }
 

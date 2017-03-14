@@ -79,9 +79,12 @@ include_directories(${OMPT_INCLUDE_PATH})
 add_subdirectory(lib)
 add_subdirectory(rtl)
 
+set(SWORD_LIB LLVMSword.so)
+set(SWORD_LIB_PATH ${CMAKE_BINARY_DIR}/lib)
 set(SWORD_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(SWORD_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 set(SWORD_RUNTIME_PATH ${CMAKE_BINARY_DIR}/rtl)
+set(SWORD_TOOL_PATH ${CMAKE_BINARY_DIR}/tools)
 set(SWORD_RTL libsword.so)
 
 add_subdirectory(test)

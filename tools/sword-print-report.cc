@@ -41,10 +41,10 @@ void PrintReport() {
 			}
 
 			INFO(std::cerr, "--------------------------------------------------");
-			INFO(std::cerr, "WARNING: SWORD: array data race (program=" << executable << ")");
-			INFO(std::cerr, "Two different threads made the following accesses:");
-			INFO(std::cerr, AccessTypeStrings[race->rw1] << " of size " << std::dec << (1 << race->size1) << " in " << race1);
-			INFO(std::cerr, AccessTypeStrings[race->rw2] << " of size " << std::dec << (1 << race->size2) << " in " << race2);
+			INFO(std::cerr, "WARNING: SWORD: data race (program=" << executable << ")");
+			INFO(std::cerr, "  Two different threads made the following accesses:");
+			INFO(std::cerr, "    " << AccessTypeStrings[race->rw1] << " of size " << std::dec << (1 << race->size1) << " in " << race1);
+			INFO(std::cerr, "    " << AccessTypeStrings[race->rw2] << " of size " << std::dec << (1 << race->size2) << " in " << race2);
 			INFO(std::cerr, "--------------------------------------------------");
 			INFO(std::cerr, "");
 		}
@@ -87,15 +87,15 @@ int main(int argc, char **argv) {
 
 	try {
 		// Output folder
-		if(boost::algorithm::ends_with(report_data.string(), SWORD_REPORT)) {
-			report_data.append("/");
-		} else if(boost::algorithm::ends_with(report_data.string(), std::string(SWORD_REPORT) + std::string("/"))) {
-
-		} else if(boost::algorithm::ends_with(report_data.string(), "/")) {
-			report_data.append(SWORD_REPORT);
-		} else {
-			report_data.append("/").append(SWORD_REPORT);
-		}
+//		if(boost::algorithm::ends_with(report_data.string(), SWORD_REPORT)) {
+//			report_data.append("/");
+//		} else if(boost::algorithm::ends_with(report_data.string(), std::string(SWORD_REPORT) + std::string("/"))) {
+//
+//		} else if(boost::algorithm::ends_with(report_data.string(), "/")) {
+//			report_data.append(SWORD_REPORT);
+//		} else {
+//			report_data.append("/").append(SWORD_REPORT);
+//		}
 
 		if(!boost::filesystem::is_directory(report_data)) {
 			INFO(std::cout, "Report folder not found, please specify a correct path to the report folder.");

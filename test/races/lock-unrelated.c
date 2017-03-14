@@ -1,4 +1,4 @@
-// RUN: %raceomp-compile-and-run | FileCheck %s
+// RUN: %raceomp-compile-and-run 2>&1 | FileCheck %s
 #include <omp.h>
 #include <stdio.h>
 
