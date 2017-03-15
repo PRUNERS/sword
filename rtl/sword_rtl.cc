@@ -15,6 +15,7 @@
 
 #include <boost/filesystem.hpp>
 
+
 #include <assert.h>
 #include <zlib.h>
 
@@ -440,6 +441,10 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	register_callback(ompt_callback_mutex_released);
 
 	std::string str = sword_flags->traces_path;
+	if(sword_flags->traces_path.empty()) {
+		str = std::string("./") + std::string(SWORD_DATA);
+		sword_flags->traces_path = str;
+	}
 	if(boost::filesystem::is_directory(str)) {
 		try {
 			boost::filesystem::rename(str, str + ".old");
@@ -451,6 +456,10 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 		// INFO(std::cout, "WARNING: Please remove or rename '" << str "' directory before running the program.");
 	}
 	str = sword_flags->traces_path;
+	if(sword_flags->traces_path.empty()) {
+		str = std::string("./") + std::string(SWORD_DATA);
+		sword_flags->traces_path = str;
+	}
 	boost::filesystem::create_directory(str);
 
 	if(lzo_init() != LZO_E_OK) {

@@ -192,6 +192,10 @@ public:
 		kind = k;
 		wait_id = wid;
 	}
+
+	ompt_wait_id_t getWaitId() {
+		return wait_id;
+	}
 };
 
 struct __attribute__ ((__packed__)) OffsetSpan {

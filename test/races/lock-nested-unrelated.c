@@ -1,4 +1,4 @@
-// RUN: %raceomp-compile-and-run | FileCheck %s
+// RUN: %raceomp-compile-and-run 2>&1 | FileCheck %s
 #include <omp.h>
 #include <stdio.h>
 
@@ -26,9 +26,9 @@ int main(int argc, char* argv[])
   return error;
 }
 
-// CHECK: WARNING: ThreadSanitizer: data race
-// CHECK:   Write of size 4
-// CHECK: #0 .omp_outlined.
-// CHECK:   Previous write of size 4
-// CHECK: #0 .omp_outlined.
-// CHECK: DONE
+// CHECK: --------------------------------------------------
+// CHECK: WARNING: SWORD: data race (program={{.*}})
+// CHECK:   Two different threads made the following accesses:
+// CHECK:     Write of size 4 in .omp_outlined. at {{.*}}lock-nested-unrelated.c:20:8
+// CHECK:     Write of size 4 in .omp_outlined. at {{.*}}lock-nested-unrelated.c:20:8
+// CHECK: --------------------------------------------------

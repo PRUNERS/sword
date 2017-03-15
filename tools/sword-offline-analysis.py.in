@@ -116,7 +116,6 @@ if __name__ == '__main__':
 #         sys.exit(-1)
 #     args.report_path = "%s/%s" % (args.report_path, SWORD_REPORT)
 #     args.report_path.replace("//", "/")
-    mkdir_p(args.report_path)
 
     # Traces folder
     args.traces_path = args.traces_path[0]
@@ -129,6 +128,8 @@ if __name__ == '__main__':
     if not os.path.exists(executable):
         print "The executable '" + executable + "' does not exists.\nPlease specify the correct path and name for the executable."
         sys.exit(-1)
+        
+    mkdir_p(args.report_path)
     
     if(args.cluster_run):    
         # Create MOAB dir

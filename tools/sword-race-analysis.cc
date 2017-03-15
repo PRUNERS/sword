@@ -85,6 +85,14 @@ unsigned long long getTotalSystemMemory()
     return pages * page_size;
 }
 
+bool overlap(const std::set<size_t>& s1, const std::set<size_t>& s2) {
+	for(const auto& i : s1) {
+		if(std::binary_search(s2.begin(), s2.end(), i))
+			return true;
+	}
+	return false;
+}
+
 #define RACE_CHECK(t1, t2) \
 	(t1->data.access.getAddress() == t2->data.access.getAddress()) &&		\
 	((t1->data.access.getAccessType() == unsafe_write) ||					\
@@ -94,17 +102,22 @@ unsigned long long getTotalSystemMemory()
 	 ((t2->data.access.getAccessType() == atomic_write) &&					\
 	  (t1->data.access.getAccessType() == unsafe_read)))
 
+#define UNSAFE() !overlap(mt1, mt2)
+
 void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vector<TraceItem>> &file_buffers, std::atomic<int> &available_threads) {
 //	INFO(std::cout, "Analyzing pair (" << t1 << "," << t2 << ").");
 
 	if(file_buffers.size() > 0) {
+		std::set<size_t> mt1;
 		for(std::vector<TraceItem>::iterator i = file_buffers[t1].begin() ; i != file_buffers[t1].end(); ++i) {
+			std::set<size_t> mt2;
 			switch(i->getType()) {
 			case data_access:
 				for(std::vector<TraceItem>::iterator j = file_buffers[t2].begin(); j != file_buffers[t2].end(); ++j) {
 					switch(j->getType()) {
 					case data_access:
-						if(RACE_CHECK(i,j)) {
+						if(RACE_CHECK(i,j) &&
+								UNSAFE()) {
 							ReportRace(t1, t2, i->data.access.getAddress(),
 									i->data.access.getAccessType(), j->data.access.getAccessType(),
 									i->data.access.getAccessSize(),
@@ -112,10 +125,30 @@ void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vec
 									i->data.access.getPC() - 1, j->data.access.getPC() - 1);
 						}
 						break;
+					case mutex_acquired:
+						mt2.insert(j->data.mutex_region.getWaitId());
+						break;
+					case mutex_released:
+						mt2.erase(j->data.mutex_region.getWaitId());
+						break;
 					default:
 						break;
 					}
 				}
+				break;
+			case mutex_acquired:
+//				std::size_t hash = 0;
+//				boost::hash_combine(hash, i->data.mutex_region.kind);
+//				boost::hash_combine(hash, i->data.mutex_region.wait_id);
+//				mt1.insert(hash);
+				mt1.insert(i->data.mutex_region.getWaitId());
+				break;
+			case mutex_released:
+//				std::size_t hash = 0;
+//				boost::hash_combine(hash, i->data.mutex_region.kind);
+//				boost::hash_combine(hash, i->data.mutex_region.wait_id);
+//				mt1.insert(hash);
+				mt1.erase(i->data.mutex_region.getWaitId());
 				break;
 			default:
 				break;
