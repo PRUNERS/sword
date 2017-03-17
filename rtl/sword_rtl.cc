@@ -359,6 +359,7 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 	ParallelData *par_data = (ParallelData *) task_data->ptr;
 
 	if(endpoint == ompt_scope_begin) {
+//		INFO(std::cout, tid << " : BarrierBegin");
 		ignore_access = true;
 		bid++;
 		fut.wait();
@@ -377,6 +378,7 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 			exit(-1);
 		}
 	} else {
+//		INFO(std::cout, tid << " : BarrierEnd");
 		ignore_access = false;
 	}
 }
@@ -406,11 +408,38 @@ static void on_ompt_callback_mutex_released(ompt_mutex_kind_t kind,
 	DUMP_TO_FILE
 }
 
-
-static void on_ompt_event_runtime_shutdown(void)
-{
-	// printf("%d: ompt_event_runtime_shutdown\n", omp_get_thread_num());
+static void on_ompt_callback_task_create(ompt_data_t *parent_task_data,
+		const ompt_frame_t *parent_frame,
+		ompt_data_t* new_task_data,
+		ompt_task_type_t type,
+		int has_dependences,
+		const void *codeptr_ra) {
+//	INFO(std::cout, tid << ": type: " << type << " -  Bid: " << bid);
+	accesses[idx].setType(task_create);
+	accesses[idx].data.task = Task(type, has_dependences);
+	DUMP_TO_FILE
 }
+
+static void on_ompt_callback_task_schedule(ompt_data_t *first_task_data,
+		ompt_task_status_t prior_task_status,
+		ompt_data_t *second_task_data) {
+//	INFO(std::cout, tid << ": status: " << prior_task_status << " -  Bid: " << bid);
+	accesses[idx].setType(task_schedule);
+	accesses[idx].data.task = Task();
+	DUMP_TO_FILE
+}
+
+static void on_ompt_callback_task_dependences(ompt_data_t* task_data,
+		const ompt_task_dependence_t *deps,
+		int ndeps) {
+	accesses[idx].setType(task_dependences);
+	accesses[idx].data.task = Task();
+	DUMP_TO_FILE
+}
+
+//static void on_ompt_event_runtime_shutdown(void) {
+//	printf("%d: ompt_event_runtime_shutdown\n", omp_get_thread_num());
+//}
 
 #define register_callback(name) {                                           \
 		if (ompt_set_callback(name, (ompt_callback_t)&on_##name) == 		\
@@ -439,6 +468,10 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	register_callback(ompt_callback_master);
 	register_callback(ompt_callback_mutex_acquired);
 	register_callback(ompt_callback_mutex_released);
+
+	register_callback(ompt_callback_task_create);
+	register_callback(ompt_callback_task_schedule);
+	register_callback(ompt_callback_task_dependences);
 
 	std::string str = sword_flags->traces_path;
 	if(sword_flags->traces_path.empty()) {
@@ -472,7 +505,7 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 }
 
 void ompt_finalize(ompt_fns_t* fns) {
-	on_ompt_event_runtime_shutdown();
+	// on_ompt_event_runtime_shutdown();
 }
 
 ompt_fns_t* ompt_start_tool(unsigned int omp_version,

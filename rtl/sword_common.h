@@ -198,6 +198,23 @@ public:
 	}
 };
 
+struct __attribute__ ((__packed__)) Task {
+private:
+	ompt_task_type_t type;
+	int has_dependences;
+
+public:
+	Task() {
+		type = ompt_task_initial;
+		has_dependences = 0;
+	}
+
+	Task(ompt_task_type_t t, int hd) {
+		type = t;
+		has_dependences = hd;
+	}
+};
+
 struct __attribute__ ((__packed__)) OffsetSpan {
 private:
 	unsigned offset;
@@ -232,7 +249,10 @@ enum CallbackType {
 	sync_region, // 5: SyncRegion: kind, endpoint and barrier id (for offset-span label)
 	mutex_acquired, // 6: MutexRegion: kind and wait id
 	mutex_released, // 7: MutexRegion: kind and wait id
-	os_label // 8: OffsetSpan: offset and span
+	task_create, // 8: Task: type and has dependences
+	task_schedule, // 9: Task: type and has dependences
+	task_dependences, // 10: Task: type and has dependences
+	os_label // 11: OffsetSpan: offset and span
 };
 
 struct TraceItem {
@@ -257,6 +277,7 @@ public:
 		struct Master master;
 		struct SyncRegion sync_region;
 		struct MutexRegion mutex_region;
+		struct Task task;
 		struct OffsetSpan offset_span;
 	} data;
 };

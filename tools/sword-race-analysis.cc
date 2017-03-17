@@ -131,6 +131,12 @@ void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vec
 					case mutex_released:
 						mt2.erase(j->data.mutex_region.getWaitId());
 						break;
+					case task_create:
+						break;
+					case task_schedule:
+						break;
+					case task_dependences:
+						break;
 					default:
 						break;
 					}
@@ -149,6 +155,12 @@ void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vec
 //				boost::hash_combine(hash, i->data.mutex_region.wait_id);
 //				mt1.insert(hash);
 				mt1.erase(i->data.mutex_region.getWaitId());
+				break;
+			case task_create:
+				break;
+			case task_schedule:
+				break;
+			case task_dependences:
 				break;
 			default:
 				break;
