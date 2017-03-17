@@ -72,117 +72,112 @@ void __sword_write16(void *addr) {
 
 // LOAD
 
-void __sword_atomic8_load(void *addr) {
-	// DEF_ACCESS
-
-	// SAVE_ACCESS(atomic8_load, size1, atomic_read)
+void __sword_atomic8_load(void *addr, uint32_t v, uint32_t mo) {
 	SAVE_ACCESS(size1, atomic_read)
 }
 
-void __sword_atomic16_load(void *addr) {
-	// DEF_ACCESS
-
+void __sword_atomic16_load(void *addr, uint32_t v, uint32_t mo) {
 	SAVE_ACCESS(size2, atomic_read)
 }
 
-void __sword_atomic32_load(void *addr) {
+void __sword_atomic32_load(void *addr, uint32_t v, uint32_t mo) {
 	SAVE_ACCESS(size4, atomic_read)
 }
 
-void __sword_atomic64_load(void *addr) {
+void __sword_atomic64_load(void *addr, uint32_t v, uint32_t mo) {
 	SAVE_ACCESS(size8, atomic_read)
 }
 
-void __sword_atomic128_load(void *addr) {
+void __sword_atomic128_load(void *addr, uint32_t v, uint32_t mo) {
 	SAVE_ACCESS(size16, atomic_read)
 }
 // LOAD
 
 // STORE
-void __sword_atomic8_store(void *addr) {
+void __sword_atomic8_store(void *addr, uint32_t v, uint32_t mo) {
 	SAVE_ACCESS(size1, atomic_write)
 }
 
-void __sword_atomic16_store(void *addr) {
+void __sword_atomic16_store(void *addr, uint32_t v, uint32_t mo) {
 	SAVE_ACCESS(size2, atomic_write)
 }
 
-void __sword_atomic32_store(void *addr) {
+void __sword_atomic32_store(void *addr, uint32_t v, uint32_t mo) {
 	SAVE_ACCESS(size4, atomic_write)
 }
 
-void __sword_atomic64_store(void *addr) {
+void __sword_atomic64_store(void *addr, uint32_t v, uint32_t mo) {
 	SAVE_ACCESS(size8, atomic_write)
 }
 
-void __sword_atomic128_store(void *addr) {
+void __sword_atomic128_store(void *addr, uint32_t v, uint32_t mo) {
 	SAVE_ACCESS(size16, atomic_write)
 }
 // STORE
 
 // ADD
-void __sword_atomic8_fetch_add(void *addr) {
-
+void __sword_atomic8_fetch_add(void *addr, uint32_t v, uint32_t mo) {
+	SAVE_ACCESS(size1, atomic_write)
 }
 
-void __sword_atomic16_fetch_add(void *addr) {
-
+void __sword_atomic16_fetch_add(void *addr, uint32_t v, uint32_t mo) {
+	SAVE_ACCESS(size2, atomic_write)
 }
 
-void __sword_atomic32_fetch_add(void *addr) {
-
+void __sword_atomic32_fetch_add(void *addr, uint32_t v, uint32_t mo) {
+	SAVE_ACCESS(size4, atomic_write)
 }
 
-void __sword_atomic64_fetch_add(void *addr) {
-
+void __sword_atomic64_fetch_add(void *addr, uint32_t v, uint32_t mo) {
+	SAVE_ACCESS(size8, atomic_write)
 }
 
-void __sword_atomic128_fetch_add(void *addr) {
-
+void __sword_atomic128_fetch_add(void *addr, uint32_t v, uint32_t mo) {
+	SAVE_ACCESS(size16, atomic_write)
 }
 // ADD
 
 // SUB
-void __sword_atomic8_fetch_sub(void *addr) {
-
+void __sword_atomic8_fetch_sub(void *addr, uint32_t v, uint32_t mo) {
+	SAVE_ACCESS(size1, atomic_write)
 }
 
-void __sword_atomic16_fetch_sub(void *addr) {
-
+void __sword_atomic16_fetch_sub(void *addr, uint32_t v, uint32_t mo) {
+	SAVE_ACCESS(size2, atomic_write)
 }
 
-void __sword_atomic32_fetch_sub(void *addr) {
-
+void __sword_atomic32_fetch_sub(void *addr, uint32_t v, uint32_t mo) {
+	SAVE_ACCESS(size4, atomic_write)
 }
 
-void __sword_atomic64_fetch_sub(void *addr) {
-
+void __sword_atomic64_fetch_sub(void *addr, uint32_t v, uint32_t mo) {
+	SAVE_ACCESS(size8, atomic_write)
 }
 
-void __sword_atomic128_fetch_sub(void *addr) {
-
+void __sword_atomic128_fetch_sub(void *addr, uint32_t v, uint32_t mo) {
+	SAVE_ACCESS(size16, atomic_write)
 }
 // SUB
 
 // COMPARE EXCHANGE
-void __sword_atomic8_compare_exchange_val(void *addr) {
-
+void __sword_atomic8_compare_exchange_val(void *addr, uint32_t v, uint32_t mo) {
+	SAVE_ACCESS(size1, atomic_write)
 }
 
-void __sword_atomic16_compare_exchange_val(void *addr) {
-
+void __sword_atomic16_compare_exchange_val(void *addr, uint32_t v, uint32_t mo) {
+	SAVE_ACCESS(size2, atomic_write)
 }
 
-void __sword_atomic32_compare_exchange_val(void *addr) {
-
+void __sword_atomic32_compare_exchange_val(void *addr, uint32_t v, uint32_t mo) {
+	SAVE_ACCESS(size4, atomic_write)
 }
 
-void __sword_atomic64_compare_exchange_val(void *addr) {
-
+void __sword_atomic64_compare_exchange_val(void *addr, uint32_t v, uint32_t mo) {
+	SAVE_ACCESS(size8, atomic_write)
 }
 
-void __sword_atomic128_compare_exchange_val(void *addr) {
-
+void __sword_atomic128_compare_exchange_val(void *addr, uint32_t v, uint32_t mo) {
+	SAVE_ACCESS(size16, atomic_write)
 }
 
 // COMPARE EXCHANGE

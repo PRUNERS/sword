@@ -116,8 +116,8 @@ private:
   GlobalVariable *AccessMax;
   GlobalVariable *FunctionMin;
   GlobalVariable *FunctionMax;
-  Function *SwordFuncEntry;
-  Function *SwordFuncExit;
+//  Function *SwordFuncEntry;
+//  Function *SwordFuncExit;
   Function *SwordFuncTermination;
   // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
   static const size_t kNumberOfAccessSizes = 5;
@@ -172,10 +172,10 @@ Pass *llvm::createInstrumentParallelPass() {
 void InstrumentParallel::initializeCallbacks(Module &M) {
   IRBuilder<> IRB(M.getContext());
   // Initialize the callbacks.
-  SwordFuncEntry = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-      "__sword_func_entry", IRB.getVoidTy(), IRB.getInt64Ty(), IRB.getInt8PtrTy(), nullptr));
-  SwordFuncExit = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-      "__sword_func_exit", IRB.getVoidTy(), IRB.getInt64Ty(), nullptr));
+//  SwordFuncEntry = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
+//      "__sword_func_entry", IRB.getVoidTy(), IRB.getInt64Ty(), IRB.getInt8PtrTy(), nullptr));
+//  SwordFuncExit = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
+//      "__sword_func_exit", IRB.getVoidTy(), IRB.getInt64Ty(), nullptr));
   SwordFuncTermination = checkSanitizerInterfaceFunction(
     M.getOrInsertFunction("__sword_internal_end_checker_threads", IRB.getVoidTy(), nullptr));
   OrdTy = IRB.getInt32Ty();
@@ -190,11 +190,11 @@ void InstrumentParallel::initializeCallbacks(Module &M) {
 
     SmallString<32> ReadName("__sword_read" + ByteSizeStr);
     SwordRead[i] = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-        ReadName, IRB.getVoidTy(), IRB.getInt8PtrTy(), IntptrTy, nullptr));
+        ReadName, IRB.getVoidTy(), IRB.getInt8PtrTy(), nullptr));
 
     SmallString<32> WriteName("__sword_write" + ByteSizeStr);
     SwordWrite[i] = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-        WriteName, IRB.getVoidTy(), IRB.getInt8PtrTy(), IntptrTy, nullptr));
+        WriteName, IRB.getVoidTy(), IRB.getInt8PtrTy(), nullptr));
 
     SmallString<64> UnalignedReadName("_sword_unaligned_read" + ByteSizeStr);
     SwordUnalignedRead[i] =
@@ -562,34 +562,6 @@ bool InstrumentParallel::runOnFunction(Function &F) {
 
     F.removeFnAttr(llvm::Attribute::SanitizeThread);
 
-#ifndef LIBOMP_ANNOTATION_TSAN_SUPPORT
-    // Add function for Tsan suppressions
-    // const char *__tsan_default_suppressions() {
-    //   return "called_from_lib:libomp.so\nthread:^__kmp_create_worker$\n";
-    // }
-    ArrayType* ArrayTy_0 = ArrayType::get(IntegerType::get(M->getContext(), 8), 57);
-    GlobalVariable* suppression_str =
-      new GlobalVariable(*M,
-                         ArrayTy_0,
-                         true,
-                         GlobalValue::PrivateLinkage,
-                         0,
-                         "__tsan_default_suppressions_value");
-    suppression_str->setAlignment(1);
-    IRBuilder<> IRB(M->getContext());
-    Constant* c = M->getOrInsertFunction("__tsan_default_suppressions",
-                                         IRB.getInt8PtrTy(),
-                                         NULL);
-    Constant *suppression_str_const =
-      ConstantDataArray::getString(M->getContext(),
-      "called_from_lib:libomp.so\nthread:^__kmp_create_worker$\n", true);
-    suppression_str->setInitializer(suppression_str_const);
-    Function* __tsan_default_suppressions = cast<Function>(c);
-    __tsan_default_suppressions->setCallingConv(CallingConv::C);
-    BasicBlock* block = BasicBlock::Create(M->getContext(), "entry", __tsan_default_suppressions);
-    IRBuilder<> builder(block);
-    builder.CreateRet(suppression_str);
-#endif
     return true;
   }
 
@@ -598,8 +570,9 @@ bool InstrumentParallel::runOnFunction(Function &F) {
      functionName.endswith("__clang_call_terminate") ||
      functionName.endswith("__tsan_default_suppressions") ||
 	 functionName.endswith("__sword__get_omp_status") ||
+	 functionName.startswith(".omp.reduction.reduction_func") ||
      (F.getLinkage() == llvm::GlobalValue::AvailableExternallyLinkage)) {
-    return true;
+    return false;
   }
 
   if(!ompStatusGlobal) {
@@ -757,18 +730,18 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   //   }
 
   // Instrument function entry/exit points if there were instrumented accesses.
-  if ((Res || HasCalls) && ClInstrumentFuncEntryExit) {
-    IRBuilder<> IRB(IF->getEntryBlock().getFirstNonPHI());
-    Value *ReturnAddress = IRB.CreateCall(
-        Intrinsic::getDeclaration(IF->getParent(), Intrinsic::returnaddress),
-        IRB.getInt32(0));
-    IRB.CreateCall(SwordFuncEntry, ReturnAddress);
-    for (auto RetInst : RetVec) {
-      IRBuilder<> IRBRet(RetInst);
-      IRBRet.CreateCall(SwordFuncExit);
-    }
-    Res = true;
-  }
+//  if ((Res || HasCalls) && ClInstrumentFuncEntryExit) {
+//    IRBuilder<> IRB(IF->getEntryBlock().getFirstNonPHI());
+//    Value *ReturnAddress = IRB.CreateCall(
+//        Intrinsic::getDeclaration(IF->getParent(), Intrinsic::returnaddress),
+//        IRB.getInt32(0));
+//    IRB.CreateCall(SwordFuncEntry, ReturnAddress);
+//    for (auto RetInst : RetVec) {
+//      IRBuilder<> IRBRet(RetInst);
+//      IRBRet.CreateCall(SwordFuncExit);
+//    }
+//    Res = true;
+//  }
 
   return Res;
 }
