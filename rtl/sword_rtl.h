@@ -24,6 +24,24 @@
 #define ALWAYS_INLINE			__attribute__((always_inline))
 #define CALLERPC 				((size_t) __builtin_return_address(0))
 
+struct TaskData {
+private:
+	ompt_id_t task_id;
+
+public:
+	TaskData() {
+		task_id = 0;
+	}
+
+	TaskData(ompt_id_t id) {
+		task_id = id;
+	}
+
+	ompt_id_t getTaskID() {
+		return task_id;
+	}
+};
+
 struct ParallelData {
 private:
 	unsigned state;

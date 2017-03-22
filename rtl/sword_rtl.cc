@@ -1,3 +1,4 @@
+
 //===-- sword_rtl.cc -------------------------------------------------------===//
 //
 //                     The LLVM Compiler Infrastructure
@@ -17,6 +18,7 @@
 
 
 #include <assert.h>
+#include <stdlib.h>
 #include <zlib.h>
 
 #include <cmath>
@@ -224,7 +226,6 @@ static void on_ompt_callback_parallel_begin(ompt_task_data_t parent_task_data,
 			exit(-1);
 		}
 		parallel_data->ptr = new ParallelData(pid, __sword_status__, str, 0, 1);
-		// current_parallel_idx.store(par_data->getParallelID(), std::memory_order_relaxed);
 	} else {
 		ompt_id_t pid = ompt_get_unique_id();
 		char buff[9];
@@ -291,7 +292,6 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 //			ParallelData *par_data = (ParallelData *) parallel_data->ptr;
 //			pdata.setData(par_data->getParallelID(), __sword_status__, filename, omp_get_thread_num(), team_size);
 		} else {
-//			parallel_idx = current_parallel_idx.load(std::memory_order_relaxed);
 			if(datafile) {
 				fclose(datafile);
 			}
@@ -304,7 +304,7 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 		}
 
 		accesses[idx].setType(parallel_begin);
-		accesses[idx].data.parallel = Parallel(par_data->getParallelID());
+		accesses[idx].data.parallel = Parallel(par_data->getParallelID(), team_size);
 		DUMP_TO_FILE
 
 	} else if(endpoint == ompt_scope_end) {
@@ -315,7 +315,7 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 			if(pdata.getParallelID() == par_data->getParallelID()) {
 				if(ftell(datafile) > 0) {
 					accesses[idx].setType(parallel_end);
-					accesses[idx].data.parallel = Parallel(parallel_idx);
+					accesses[idx].data.parallel = Parallel(pdata.getParallelID(), team_size);
 					idx++;
 					fut.wait();
 					fut = std::async(dump_to_file, accesses, sizeof(TraceItem), idx, datafile, out, &offset);
@@ -359,8 +359,8 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 	ParallelData *par_data = (ParallelData *) task_data->ptr;
 
 	if(endpoint == ompt_scope_begin) {
-//		INFO(std::cout, tid << " : BarrierBegin");
 		ignore_access = true;
+	} else {
 		bid++;
 		fut.wait();
 		fut = std::async(dump_to_file, accesses, sizeof(TraceItem), idx, datafile, out, &offset);
@@ -377,8 +377,6 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 			INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
 			exit(-1);
 		}
-	} else {
-//		INFO(std::cout, tid << " : BarrierEnd");
 		ignore_access = false;
 	}
 }
@@ -414,27 +412,49 @@ static void on_ompt_callback_task_create(ompt_data_t *parent_task_data,
 		ompt_task_type_t type,
 		int has_dependences,
 		const void *codeptr_ra) {
-//	INFO(std::cout, tid << ": type: " << type << " -  Bid: " << bid);
-	accesses[idx].setType(task_create);
-	accesses[idx].data.task = Task(type, has_dependences);
-	DUMP_TO_FILE
+
+	ompt_id_t task_id = ompt_get_unique_id();
+	new_task_data->ptr = new TaskData(task_id);
+
+   if(type == ompt_task_explicit) {
+		accesses[idx].setType(task_create);
+		accesses[idx].data.task_create = TaskCreate(task_id, type, has_dependences);
+		DUMP_TO_FILE
+		// Create empty file to flag that this parallel region has explicit
+		// tasks and needs to be threated differently during the data race
+		// detection analysis
+		std::string filename = pdata.getPath() + "/create_tasks_" + std::to_string(tid) + std::to_string(bid);
+		if(!boost::filesystem::exists(filename))
+			system(std::string("touch " + filename).c_str());
+	}
 }
 
-static void on_ompt_callback_task_schedule(ompt_data_t *first_task_data,
+static void on_ompt_callback_task_schedule(ompt_data_t *prior_task_data,
 		ompt_task_status_t prior_task_status,
-		ompt_data_t *second_task_data) {
-//	INFO(std::cout, tid << ": status: " << prior_task_status << " -  Bid: " << bid);
+		ompt_data_t *next_task_data) {
+	TaskData *tdata1 = (TaskData *) prior_task_data->ptr;
+	TaskData *tdata2 = (TaskData *) next_task_data->ptr;
 	accesses[idx].setType(task_schedule);
-	accesses[idx].data.task = Task();
+	if(prior_task_status == ompt_task_complete) {
+		std::string filename = pdata.getPath() + "/schedule_tasks_" + std::to_string(tid) + std::to_string(bid);
+		if(!boost::filesystem::exists(filename))
+			system(std::string("touch " + filename).c_str());
+		accesses[idx].data.task_schedule = TaskSchedule(tdata1->getTaskID(), ompt_task_complete);
+	} else {
+		accesses[idx].data.task_schedule = TaskSchedule(tdata2->getTaskID(), prior_task_status);
+	}
 	DUMP_TO_FILE
 }
 
 static void on_ompt_callback_task_dependences(ompt_data_t* task_data,
 		const ompt_task_dependence_t *deps,
 		int ndeps) {
-	accesses[idx].setType(task_dependences);
-	accesses[idx].data.task = Task();
-	DUMP_TO_FILE
+	TaskData *tdata = (TaskData *) task_data->ptr;
+	for(int i = 0; i < ndeps; i++) {
+		accesses[idx].setType(task_dependence);
+		accesses[idx].data.task_dependence = TaskDependence(tdata->getTaskID(), deps[i].variable_addr, deps[i].dependence_flags);
+		DUMP_TO_FILE
+	}
 }
 
 //static void on_ompt_event_runtime_shutdown(void) {

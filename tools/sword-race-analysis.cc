@@ -8,6 +8,7 @@
 #include <atomic>
 #include <algorithm>
 #include <map>
+#include <unordered_map>
 #include <thread>
 
 #define PRINT 0
@@ -19,26 +20,26 @@ void SaveReport(std::string filename) {
 	file.write(reinterpret_cast<char*>(races.data()), races.size() * sizeof(RaceInfo));
 	file.close();
 
-//	std::string race1 = "";
-//	std::string race2 = "";
-//
-//	{
-//		std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(race.pc1) + "\")'";
-//		execute_command(command.c_str(), &race1, 2);
-//	}
-//
-//	{
-//		std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(race.pc2) + "\")'";
-//		execute_command(command.c_str(), &race2, 2);
-//	}
-//
-//	INFO(std::cerr, "--------------------------------------------------");
-//	INFO(std::cerr, "WARNING: SWORD: data race (program=" << executable << ")");
-//	INFO(std::cerr, "Two different threads made the following accesses:");
-//	INFO(std::cerr, AccessTypeStrings[race.rw1] << " of size " << std::dec << (1 << race.size1) << " at 0x" << std::hex << race.address << " in " << race1);
-//	INFO(std::cerr, AccessTypeStrings[race.rw2] << " of size " << std::dec << (1 << race.size2) << " at 0x" << std::hex << race.address << " in " << race2);
-//	INFO(std::cerr, "--------------------------------------------------");
-//	INFO(std::cerr, "");
+	//	std::string race1 = "";
+	//	std::string race2 = "";
+	//
+	//	{
+	//		std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(race.pc1) + "\")'";
+	//		execute_command(command.c_str(), &race1, 2);
+	//	}
+	//
+	//	{
+	//		std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(race.pc2) + "\")'";
+	//		execute_command(command.c_str(), &race2, 2);
+	//	}
+	//
+	//	INFO(std::cerr, "--------------------------------------------------");
+	//	INFO(std::cerr, "WARNING: SWORD: data race (program=" << executable << ")");
+	//	INFO(std::cerr, "Two different threads made the following accesses:");
+	//	INFO(std::cerr, AccessTypeStrings[race.rw1] << " of size " << std::dec << (1 << race.size1) << " at 0x" << std::hex << race.address << " in " << race1);
+	//	INFO(std::cerr, AccessTypeStrings[race.rw2] << " of size " << std::dec << (1 << race.size2) << " at 0x" << std::hex << race.address << " in " << race2);
+	//	INFO(std::cerr, "--------------------------------------------------");
+	//	INFO(std::cerr, "");
 }
 
 void ReportRace(unsigned t1, unsigned t2, uint64_t address, uint8_t rw1, uint8_t rw2, uint8_t size1, uint8_t size2, uint64_t pc1, uint64_t pc2) {
@@ -80,9 +81,9 @@ void ReportRace(unsigned t1, unsigned t2, uint64_t address, uint8_t rw1, uint8_t
 
 unsigned long long getTotalSystemMemory()
 {
-    long pages = sysconf(_SC_PHYS_PAGES);
-    long page_size = sysconf(_SC_PAGE_SIZE);
-    return pages * page_size;
+	long pages = sysconf(_SC_PHYS_PAGES);
+	long page_size = sysconf(_SC_PAGE_SIZE);
+	return pages * page_size;
 }
 
 bool overlap(const std::set<size_t>& s1, const std::set<size_t>& s2) {
@@ -94,18 +95,25 @@ bool overlap(const std::set<size_t>& s1, const std::set<size_t>& s2) {
 }
 
 #define RACE_CHECK(t1, t2) \
-	(t1->data.access.getAddress() == t2->data.access.getAddress()) &&		\
-	((t1->data.access.getAccessType() == unsafe_write) ||					\
-	 (t2->data.access.getAccessType() == unsafe_write) ||					\
-	 ((t1->data.access.getAccessType() == atomic_write) &&					\
-	  (t2->data.access.getAccessType() == unsafe_read)) ||					\
-	 ((t2->data.access.getAccessType() == atomic_write) &&					\
-	  (t1->data.access.getAccessType() == unsafe_read)))
+		(t1->data.access.getAddress() == t2->data.access.getAddress()) &&		\
+		((t1->data.access.getAccessType() == unsafe_write) ||					\
+				(t2->data.access.getAccessType() == unsafe_write) ||					\
+				((t1->data.access.getAccessType() == atomic_write) &&					\
+						(t2->data.access.getAccessType() == unsafe_read)) ||					\
+						((t2->data.access.getAccessType() == atomic_write) &&					\
+								(t1->data.access.getAccessType() == unsafe_read)))
 
 #define UNSAFE() !overlap(mt1, mt2)
 
 void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vector<TraceItem>> &file_buffers, std::atomic<int> &available_threads) {
-//	INFO(std::cout, "Analyzing pair (" << t1 << "," << t2 << ").");
+	//	INFO(std::cout, "Analyzing pair (" << t1 << "," << t2 << ").");
+
+	//							case task_create:
+	//							break;
+	//						case task_schedule:
+	//							break;
+	//						case task_dependence:
+	//							break;
 
 	if(file_buffers.size() > 0) {
 		std::set<size_t> mt1;
@@ -131,36 +139,24 @@ void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vec
 					case mutex_released:
 						mt2.erase(j->data.mutex_region.getWaitId());
 						break;
-					case task_create:
-						break;
-					case task_schedule:
-						break;
-					case task_dependences:
-						break;
 					default:
 						break;
 					}
 				}
 				break;
 			case mutex_acquired:
-//				std::size_t hash = 0;
-//				boost::hash_combine(hash, i->data.mutex_region.kind);
-//				boost::hash_combine(hash, i->data.mutex_region.wait_id);
-//				mt1.insert(hash);
+				//				std::size_t hash = 0;
+				//				boost::hash_combine(hash, i->data.mutex_region.kind);
+				//				boost::hash_combine(hash, i->data.mutex_region.wait_id);
+				//				mt1.insert(hash);
 				mt1.insert(i->data.mutex_region.getWaitId());
 				break;
 			case mutex_released:
-//				std::size_t hash = 0;
-//				boost::hash_combine(hash, i->data.mutex_region.kind);
-//				boost::hash_combine(hash, i->data.mutex_region.wait_id);
-//				mt1.insert(hash);
+				//				std::size_t hash = 0;
+				//				boost::hash_combine(hash, i->data.mutex_region.kind);
+				//				boost::hash_combine(hash, i->data.mutex_region.wait_id);
+				//				mt1.insert(hash);
 				mt1.erase(i->data.mutex_region.getWaitId());
-				break;
-			case task_create:
-				break;
-			case task_schedule:
-				break;
-			case task_dependences:
 				break;
 			default:
 				break;
@@ -174,10 +170,10 @@ void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vec
 void load_file(boost::filesystem::path path, unsigned bid, unsigned t, std::vector<TraceItem> &file_buffers) {
 	std::string filename(path.string() + "/threadtrace_" + std::to_string(t) + "_" + std::to_string(bid));
 	uint64_t filesize = boost::filesystem::file_size(filename);
-    lzo_uint out_len;
-    lzo_uint new_len;
+	lzo_uint out_len;
+	lzo_uint new_len;
 
-    FILE *datafile = fopen(filename.c_str(), "r");
+	FILE *datafile = fopen(filename.c_str(), "r");
 	if (!datafile) {
 		INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
 		exit(-1);
@@ -201,16 +197,16 @@ void load_file(boost::filesystem::path path, unsigned bid, unsigned t, std::vect
 		size_t ret = fread(compressed_buffer, 1, block_size, datafile);
 		total_size += block_size;
 		if(ret != block_size) {
-	        printf("Error reading data from the file\n");
-	        exit(-1);
+			printf("Error reading data from the file\n");
+			exit(-1);
 		}
 
-	    lzo_uint r = lzo1x_decompress(compressed_buffer, block_size - (sizeof(lzo_uint) * neof), (unsigned char *) uncompressed_buffer, &new_len, NULL);
-	    if (r != LZO_E_OK) {
-	        /* this should NEVER happen */
-	        printf("internal error - decompression failed: %lu\n", r);
-	        exit(-1);
-	    }
+		lzo_uint r = lzo1x_decompress(compressed_buffer, block_size - (sizeof(lzo_uint) * neof), (unsigned char *) uncompressed_buffer, &new_len, NULL);
+		if (r != LZO_E_OK) {
+			/* this should NEVER happen */
+			printf("internal error - decompression failed: %lu\n", r);
+			exit(-1);
+		}
 
 		file_buffers.insert(file_buffers.end(), uncompressed_buffer, uncompressed_buffer + (new_len / sizeof(TraceItem)));
 
@@ -223,22 +219,22 @@ void load_file(boost::filesystem::path path, unsigned bid, unsigned t, std::vect
 		}
 	}
 
-//	for(int i = 0; i < file_buffers[t].size(); i++) {
-//		if(file_buffers[t][i].getType() == data_access)
-//			INFO(std::cout, t << ": 0x" << std::hex << file_buffers[t][i].data.access.getAddress() << ":" << file_buffers[t][i].data.access.getPC());
-//	}
+	//	for(int i = 0; i < file_buffers[t].size(); i++) {
+	//		if(file_buffers[t][i].getType() == data_access)
+	//			INFO(std::cout, t << ": 0x" << std::hex << file_buffers[t][i].data.access.getAddress() << ":" << file_buffers[t][i].data.access.getPC());
+	//	}
 
 	// INFO(std::cout, "End of file: " << t);
 	free(uncompressed_buffer);
-    fclose(datafile);
+	fclose(datafile);
 }
 
 int main(int argc, char **argv) {
 	std::string unknown_option = "";
 
-//	if(argc < 7)
-//		INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --traces-path <path-to-traces-folder> --report-path <path-to-report-folder>\n\n");
-//		INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --report-path <path-to-report-folder> --traces-path <path-to-traces-folder>\n\n");
+	//	if(argc < 7)
+	//		INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --traces-path <path-to-traces-folder> --report-path <path-to-report-folder>\n\n");
+	//		INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --report-path <path-to-report-folder> --traces-path <path-to-traces-folder>\n\n");
 
 	for(int i = 1; i < argc; ++i) {
 		if (std::string(argv[i]) == "--help") {
@@ -314,16 +310,16 @@ int main(int argc, char **argv) {
         INFO(std::cerr, e.what());
         return false;
     }
-    */
+	 */
 
 #if PRINT
 	// Look for shell
 	execute_command(GET_SHELL, &shell_path);
-    // Look for shell
+	// Look for shell
 
 	// Look for llvm-symbolizer
 	execute_command(GET_SYMBOLIZER, &symbolizer_path);
-    // Look for llvm-symbolizer
+	// Look for llvm-symbolizer
 #endif
 
 	// Get cores info
@@ -339,25 +335,28 @@ int main(int argc, char **argv) {
 	// Initialize decompressor
 
 	// Get list of folders (parallel region) inside traces folder
-//	std::vector<boost::filesystem::path> dir_list;
-//	copy(boost::filesystem::directory_iterator(traces_data), boost::filesystem::directory_iterator(), std::back_inserter(dir_list));
+	//	std::vector<boost::filesystem::path> dir_list;
+	//	copy(boost::filesystem::directory_iterator(traces_data), boost::filesystem::directory_iterator(), std::back_inserter(dir_list));
 	// Sort folder
-//	std::sort(dir_list.begin(), dir_list.end());
+	//	std::sort(dir_list.begin(), dir_list.end());
 	// Reverse order
 	// std::sort(dir_list.rbegin(), dir_list.rend());
 	// Sort folder
 	// Get list of folders (parallel region) inside traces folder
 
 	// Ready to iterate folders (outer parallel regions) in traces folder
-//    for(auto& dir : dir_list) {
+	//    for(auto& dir : dir_list) {
 	std::string dir = traces_data.string();
 	std::map<unsigned, TraceInfo> traces;
+
+	std::unordered_map<unsigned, std::set<unsigned>> creators_threads;
+	std::unordered_map<unsigned, std::set<unsigned>> schedule_threads;
 
 	hash_races.clear();
 	races.clear();
 
 	// Iterate files within folder and create map of barriers intervals and list of threads within the barrier interval
-  	boost::filesystem::directory_iterator end_it;
+	boost::filesystem::directory_iterator end_it;
 	boost::filesystem::directory_iterator begin_it(dir);
 	if(boost::filesystem::is_directory(dir) && (begin_it != end_it)) {
 		for(auto& entry : boost::make_iterator_range(boost::filesystem::directory_iterator(dir), {})) {
@@ -367,6 +366,16 @@ int main(int argc, char **argv) {
 				sscanf(entry.path().filename().string().c_str(), "threadtrace_%d_%d", &tid, &bid);
 				traces[bid].trace_size += boost::filesystem::file_size(entry.path());
 				traces[bid].thread_id.push_back(tid);
+			} else if (entry.path().filename().string().find("create_tasks_") != std::string::npos) {
+				unsigned bid;
+				unsigned tid;
+				sscanf(entry.path().filename().string().c_str(), "create_tasks_%d_%d", &tid, &bid);
+				creators_threads[bid].insert(tid);
+			} else if (entry.path().filename().string().find("schedule_tasks_") != std::string::npos) {
+				unsigned bid;
+				unsigned tid;
+				sscanf(entry.path().filename().string().c_str(), "schedule_tasks_%d_%d", &tid, &bid);
+				schedule_threads[bid].insert(tid);
 			}
 		}
 		// Iterate files within folder and create maps of barriers intervals and list of threads within th barrier interval
@@ -433,21 +442,25 @@ int main(int argc, char **argv) {
 			// Load data into memory of all the threads in given barrier interval, if it fits in memory,
 			// data are compressed so not sure how to check if everything will fit in memory
 
-			// Now we can start analyzing the pairs
-			std::atomic<int> available_threads;
-			std::vector<std::thread> thread_list;
-			available_threads = num_threads;
-			for(std::vector<std::pair<unsigned,unsigned>>::const_iterator p = thread_pairs.begin(); p != thread_pairs.end(); ++p) {
-				while(!available_threads) { /* usleep(1000); */ }
-				available_threads--;
+			if(creators_threads.size() > 0) {
 
-				// Create thread
-				thread_list.push_back(std::thread(analyze_traces, it->first, p->first, p->second, std::ref(file_buffers), std::ref(available_threads)));
+			} else {
+				// Now we can start analyzing the pairs
+				std::atomic<int> available_threads;
+				std::vector<std::thread> thread_list;
+				available_threads = num_threads;
+				for(std::vector<std::pair<unsigned,unsigned>>::const_iterator p = thread_pairs.begin(); p != thread_pairs.end(); ++p) {
+					while(!available_threads) { /* usleep(1000); */ }
+					available_threads--;
+
+					// Create thread
+					thread_list.push_back(std::thread(analyze_traces, it->first, p->first, p->second, std::ref(file_buffers), std::ref(available_threads)));
+				}
+				for(std::vector<std::thread>::iterator th = thread_list.begin(); th != thread_list.end(); th++) {
+					th->join();
+				}
+				thread_list.clear();
 			}
-			for(std::vector<std::thread>::iterator th = thread_list.begin(); th != thread_list.end(); th++) {
-				th->join();
-			}
-			thread_list.clear();
 		}
 		if(races.size() > 0) {
 			std::vector<std::string> strings;
@@ -458,7 +471,7 @@ int main(int argc, char **argv) {
 	} else {
 		INFO(std::cout, "Folder '" << dir << "' does not exists or it's empty. Exiting...");
 	}
-//    }
+	//    }
 
 	return 0;
 }

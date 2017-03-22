@@ -115,14 +115,17 @@ public:
 struct __attribute__ ((__packed__)) Parallel {
 private:
 	ompt_id_t parallel_id;
+	unsigned int team_size;
 
 public:
 	Parallel() {
 		parallel_id = 0;
+		team_size = 0;
 	}
 
-	Parallel(ompt_id_t pid) {
+	Parallel(ompt_id_t pid, unsigned int ts) {
 		parallel_id = pid;
+		team_size = ts;
 	}
 };
 
@@ -198,20 +201,60 @@ public:
 	}
 };
 
-struct __attribute__ ((__packed__)) Task {
+struct __attribute__ ((__packed__)) TaskCreate {
 private:
+	ompt_id_t task_id;
 	ompt_task_type_t type;
 	int has_dependences;
 
 public:
-	Task() {
+	TaskCreate() {
+		task_id = 0;
 		type = ompt_task_initial;
 		has_dependences = 0;
 	}
 
-	Task(ompt_task_type_t t, int hd) {
+	TaskCreate(ompt_id_t id, ompt_task_type_t t, int hd) {
+		task_id = id;
 		type = t;
 		has_dependences = hd;
+	}
+};
+
+struct __attribute__ ((__packed__)) TaskSchedule {
+private:
+	ompt_id_t task_id;
+	ompt_task_status_t status;
+
+public:
+	TaskSchedule() {
+		task_id = 0;
+		status = ompt_task_complete;
+	}
+
+	TaskSchedule(ompt_id_t id, ompt_task_status_t s) {
+		task_id = id;
+		status = s;
+	}
+};
+
+struct __attribute__ ((__packed__)) TaskDependence {
+private:
+	ompt_id_t task_id;
+	void *variable_addr;
+	unsigned int dependence_flags;
+
+public:
+	TaskDependence() {
+		task_id = 0;
+		variable_addr = NULL;
+		dependence_flags = 0;
+	}
+
+	TaskDependence(ompt_id_t id, void *va, unsigned int df) {
+		task_id = id;
+		variable_addr = NULL;
+		dependence_flags = 0;
 	}
 };
 
@@ -250,8 +293,8 @@ enum CallbackType {
 	mutex_acquired, // 6: MutexRegion: kind and wait id
 	mutex_released, // 7: MutexRegion: kind and wait id
 	task_create, // 8: Task: type and has dependences
-	task_schedule, // 9: Task: type and has dependences
-	task_dependences, // 10: Task: type and has dependences
+	task_schedule, // 9: TaskCreate: type and has dependences
+	task_dependence, // 10: TaskDependences: type and has dependences
 	os_label // 11: OffsetSpan: offset and span
 };
 
@@ -277,7 +320,9 @@ public:
 		struct Master master;
 		struct SyncRegion sync_region;
 		struct MutexRegion mutex_region;
-		struct Task task;
+		struct TaskCreate task_create;
+		struct TaskSchedule task_schedule;
+		struct TaskDependence task_dependence;
 		struct OffsetSpan offset_span;
 	} data;
 };
