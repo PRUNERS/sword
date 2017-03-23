@@ -58,55 +58,6 @@ static uint64_t my_next_id()
 
 SwordFlags *sword_flags;
 
-void compress_memory(void *in_data, size_t in_data_size, std::vector<uint8_t> &out_data)
-{
-	std::vector<uint8_t> buffer;
-
-	const size_t BUFSIZE = 128 * 1024;
-	uint8_t temp_buffer[BUFSIZE];
-
-	z_stream strm;
-	strm.zalloc = 0;
-	strm.zfree = 0;
-	strm.next_in = reinterpret_cast<uint8_t *>(in_data);
-	strm.avail_in = in_data_size;
-	strm.next_out = temp_buffer;
-	strm.avail_out = BUFSIZE;
-
-	// Options: Z_BEST_SPEED, Z_BEST_COMPRESSION, Z_DEFAULT_COMPRESSION, Z_DEFAULT_COMPRESSION
-	deflateInit(&strm, Z_BEST_SPEED);
-
-	while (strm.avail_in != 0)
-	{
-		int res = deflate(&strm, Z_NO_FLUSH);
-		assert(res == Z_OK);
-		if (strm.avail_out == 0)
-		{
-			buffer.insert(buffer.end(), temp_buffer, temp_buffer + BUFSIZE);
-			strm.next_out = temp_buffer;
-			strm.avail_out = BUFSIZE;
-		}
-	}
-
-	int deflate_res = Z_OK;
-	while (deflate_res == Z_OK)
-	{
-		if (strm.avail_out == 0)
-		{
-			buffer.insert(buffer.end(), temp_buffer, temp_buffer + BUFSIZE);
-			strm.next_out = temp_buffer;
-			strm.avail_out = BUFSIZE;
-		}
-		deflate_res = deflate(&strm, Z_FINISH);
-	}
-
-	assert(deflate_res == Z_STREAM_END);
-	buffer.insert(buffer.end(), temp_buffer, temp_buffer + BUFSIZE - strm.avail_out);
-	deflateEnd(&strm);
-
-	out_data.swap(buffer);
-}
-
 bool dummy() {
 	return true;
 }
@@ -114,22 +65,7 @@ bool dummy() {
 bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 		FILE *file, unsigned char *buffer, size_t *offset) {
 
-#ifdef ZLIB
-	// ZLIB
-	std::vector<uint8_t> out_data;
-	compress_memory((void *) accesses, size * nmemb, out_data);
-
-	if(*offset + out_data.size() < MB_LIMIT) {
-		memcpy(buffer + *offset, (void *) out_data.data(), out_data.size());
-		*offset += out_data.size();
-	} else {
-		size_t ret = fwrite(buffer + 8, *offset, 1, file);
-		*offset = 0;
-	}
-
-	size_t ret = fwrite(out_data.data(), out_data.size(), 1, file);
-	// ZLIB
-#elif LZO
+#if LZO
 	// LZO
 	lzo_uint out_len;
 	int r = lzo1x_1_compress((unsigned char *) accesses, size * nmemb, buffer + sizeof(out_len), &out_len, wrkmem);
