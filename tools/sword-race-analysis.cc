@@ -8,7 +8,6 @@
 #include <atomic>
 #include <algorithm>
 #include <map>
-#include <unordered_map>
 #include <thread>
 
 #define PRINT 0
@@ -42,7 +41,7 @@ void SaveReport(std::string filename) {
 	//	INFO(std::cerr, "");
 }
 
-void ReportRace(unsigned t1, unsigned t2, uint64_t address, uint8_t rw1, uint8_t rw2, uint8_t size1, uint8_t size2, uint64_t pc1, uint64_t pc2) {
+void ReportRace(uint64_t address, uint8_t rw1, uint8_t rw2, uint8_t size1, uint8_t size2, uint64_t pc1, uint64_t pc2) {
 	std::size_t hash = 0;
 	boost::hash_combine(hash, pc1);
 	boost::hash_combine(hash, pc2);
@@ -71,8 +70,8 @@ void ReportRace(unsigned t1, unsigned t2, uint64_t address, uint8_t rw1, uint8_t
 
 		INFO(std::cerr, "--------------------------------------------------");
 		INFO(std::cerr, "WARNING: SWORD: data race (program=" << executable << ")");
-		INFO(std::cerr, AccessTypeStrings[rw1] << " of size " << std::dec << (1 << size1) << " at 0x" << std::hex << address << " by thread T" << std::dec << t1 << " in " << race1);
-		INFO(std::cerr, AccessTypeStrings[rw2] << " of size " << std::dec << (1 << size2) << " at 0x" << std::hex << address << " by thread T" << std::dec << t2 << " in " << race2);
+		INFO(std::cerr, AccessTypeStrings[rw1] << " of size " << std::dec << (1 << size1) << " at 0x" << std::hex << address << " in " << race1);
+		INFO(std::cerr, AccessTypeStrings[rw2] << " of size " << std::dec << (1 << size2) << " at 0x" << std::hex << address << " in " << race2);
 		INFO(std::cerr, "--------------------------------------------------");
 		INFO(std::cerr, "");
 #endif
@@ -108,13 +107,6 @@ bool overlap(const std::set<size_t>& s1, const std::set<size_t>& s2) {
 void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vector<TraceItem>> &file_buffers, std::atomic<int> &available_threads) {
 	//	INFO(std::cout, "Analyzing pair (" << t1 << "," << t2 << ").");
 
-	//							case task_create:
-	//							break;
-	//						case task_schedule:
-	//							break;
-	//						case task_dependence:
-	//							break;
-
 	if(file_buffers.size() > 0) {
 		std::set<size_t> mt1;
 		for(std::vector<TraceItem>::iterator i = file_buffers[t1].begin() ; i != file_buffers[t1].end(); ++i) {
@@ -126,7 +118,7 @@ void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vec
 					case data_access:
 						if(RACE_CHECK(i,j) &&
 								UNSAFE()) {
-							ReportRace(t1, t2, i->data.access.getAddress(),
+							ReportRace(i->data.access.getAddress(),
 									i->data.access.getAccessType(), j->data.access.getAccessType(),
 									i->data.access.getAccessSize(),
 									j->data.access.getAccessSize(),
@@ -366,20 +358,20 @@ int main(int argc, char **argv) {
 				sscanf(entry.path().filename().string().c_str(), "threadtrace_%d_%d", &tid, &bid);
 				traces[bid].trace_size += boost::filesystem::file_size(entry.path());
 				traces[bid].thread_id.push_back(tid);
-			} else if (entry.path().filename().string().find("create_tasks_") != std::string::npos) {
-				unsigned bid;
-				unsigned tid;
-				sscanf(entry.path().filename().string().c_str(), "create_tasks_%d_%d", &tid, &bid);
-				creators_threads[bid].insert(tid);
-			} else if (entry.path().filename().string().find("schedule_tasks_") != std::string::npos) {
-				unsigned bid;
-				unsigned tid;
-				sscanf(entry.path().filename().string().c_str(), "schedule_tasks_%d_%d", &tid, &bid);
-				schedule_threads[bid].insert(tid);
 			}
+//			} else if (entry.path().filename().string().find("create_tasks_") != std::string::npos) {
+//				unsigned bid;
+//				unsigned tid;
+//				sscanf(entry.path().filename().string().c_str(), "create_tasks_%d_%d", &tid, &bid);
+//				creators_threads[bid].insert(tid);
+//			} else if (entry.path().filename().string().find("schedule_tasks_") != std::string::npos) {
+//				unsigned bid;
+//				unsigned tid;
+//				sscanf(entry.path().filename().string().c_str(), "schedule_tasks_%d_%d", &tid, &bid);
+//				schedule_threads[bid].insert(tid);
+//			}
 		}
 		// Iterate files within folder and create maps of barriers intervals and list of threads within th barrier interval
-
 		// Iterate barrier intervals
 		// it->first: bid
 		// it->second.trace_size: total size of thread traces
@@ -442,25 +434,21 @@ int main(int argc, char **argv) {
 			// Load data into memory of all the threads in given barrier interval, if it fits in memory,
 			// data are compressed so not sure how to check if everything will fit in memory
 
-			if(creators_threads.size() > 0) {
+			// Now we can start analyzing the pairs
+			std::atomic<int> available_threads;
+			std::vector<std::thread> thread_list;
+			available_threads = num_threads;
+			for(std::vector<std::pair<unsigned,unsigned>>::const_iterator p = thread_pairs.begin(); p != thread_pairs.end(); ++p) {
+				while(!available_threads) { /* usleep(1000); */ }
+				available_threads--;
 
-			} else {
-				// Now we can start analyzing the pairs
-				std::atomic<int> available_threads;
-				std::vector<std::thread> thread_list;
-				available_threads = num_threads;
-				for(std::vector<std::pair<unsigned,unsigned>>::const_iterator p = thread_pairs.begin(); p != thread_pairs.end(); ++p) {
-					while(!available_threads) { /* usleep(1000); */ }
-					available_threads--;
-
-					// Create thread
-					thread_list.push_back(std::thread(analyze_traces, it->first, p->first, p->second, std::ref(file_buffers), std::ref(available_threads)));
-				}
-				for(std::vector<std::thread>::iterator th = thread_list.begin(); th != thread_list.end(); th++) {
-					th->join();
-				}
-				thread_list.clear();
+				// Create thread
+				thread_list.push_back(std::thread(analyze_traces, it->first, p->first, p->second, std::ref(file_buffers), std::ref(available_threads)));
 			}
+			for(std::vector<std::thread>::iterator th = thread_list.begin(); th != thread_list.end(); th++) {
+				th->join();
+			}
+			thread_list.clear();
 		}
 		if(races.size() > 0) {
 			std::vector<std::string> strings;

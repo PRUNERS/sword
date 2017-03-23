@@ -423,9 +423,9 @@ static void on_ompt_callback_task_create(ompt_data_t *parent_task_data,
 		// Create empty file to flag that this parallel region has explicit
 		// tasks and needs to be threated differently during the data race
 		// detection analysis
-		std::string filename = pdata.getPath() + "/create_tasks_" + std::to_string(tid) + std::to_string(bid);
-		if(!boost::filesystem::exists(filename))
-			system(std::string("touch " + filename).c_str());
+//		std::string filename = pdata.getPath() + "/create_tasks_" + std::to_string(tid) + "_" + std::to_string(bid);
+//		if(!boost::filesystem::exists(filename))
+//			system(std::string("touch " + filename).c_str());
 	}
 }
 
@@ -436,9 +436,9 @@ static void on_ompt_callback_task_schedule(ompt_data_t *prior_task_data,
 	TaskData *tdata2 = (TaskData *) next_task_data->ptr;
 	accesses[idx].setType(task_schedule);
 	if(prior_task_status == ompt_task_complete) {
-		std::string filename = pdata.getPath() + "/schedule_tasks_" + std::to_string(tid) + std::to_string(bid);
-		if(!boost::filesystem::exists(filename))
-			system(std::string("touch " + filename).c_str());
+//		std::string filename = pdata.getPath() + "/schedule_tasks_" + std::to_string(tid) + "_" + std::to_string(bid);
+//		if(!boost::filesystem::exists(filename))
+//			system(std::string("touch " + filename).c_str());
 		accesses[idx].data.task_schedule = TaskSchedule(tdata1->getTaskID(), ompt_task_complete);
 	} else {
 		accesses[idx].data.task_schedule = TaskSchedule(tdata2->getTaskID(), prior_task_status);
@@ -489,9 +489,9 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	register_callback(ompt_callback_mutex_acquired);
 	register_callback(ompt_callback_mutex_released);
 
-	register_callback(ompt_callback_task_create);
-	register_callback(ompt_callback_task_schedule);
-	register_callback(ompt_callback_task_dependences);
+//	register_callback(ompt_callback_task_create);
+//	register_callback(ompt_callback_task_schedule);
+//	register_callback(ompt_callback_task_dependences);
 
 	std::string str = sword_flags->traces_path;
 	if(sword_flags->traces_path.empty()) {

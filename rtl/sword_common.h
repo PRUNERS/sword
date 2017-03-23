@@ -236,6 +236,14 @@ public:
 		task_id = id;
 		status = s;
 	}
+
+	ompt_id_t getTaskID() {
+		return task_id;
+	}
+
+	ompt_task_status_t getStatus() {
+		return status;
+	}
 };
 
 struct __attribute__ ((__packed__)) TaskDependence {

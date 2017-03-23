@@ -24,7 +24,6 @@ int main(int argc, char* argv[])
 
     #pragma omp master
     {
-      printf("Master\n");
       var++;
     }
   }

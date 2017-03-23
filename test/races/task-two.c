@@ -27,9 +27,4 @@ int main(int argc, char* argv[])
   return error;
 }
 
-// CHECK: WARNING: ThreadSanitizer: data race
-// CHECK:   Write of size 4
-// CHECK: #0 .omp_task_entry.
-// CHECK:   Previous write of size 4
-// CHECK: #0 .omp_task_entry.
-// CHECK: DONE
+// XFAIL: *
