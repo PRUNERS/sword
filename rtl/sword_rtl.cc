@@ -113,7 +113,7 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 //		INFO(std::cout, tid << ": " << std::hex << addr << ":" << CALLERPC);	\
 // #define SAVE_ACCESS(asize, atype)
 #define SAVE_ACCESS(asize, atype)											\
-		if(ignore_access) return;											\
+		if(__sword_ignore_access) return; 									\
 		accesses[idx].setType(data_access);									\
 		accesses[idx].data.access = Access(asize, atype,					\
 				(size_t) addr, CALLERPC); 									\
@@ -295,7 +295,7 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 	ParallelData *par_data = (ParallelData *) task_data->ptr;
 
 	if(endpoint == ompt_scope_begin) {
-		ignore_access = true;
+		__sword_ignore_access = 1;
 	} else {
 		bid++;
 		fut.wait();
@@ -313,7 +313,7 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 			INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
 			exit(-1);
 		}
-		ignore_access = false;
+		__sword_ignore_access = 0;
 	}
 }
 

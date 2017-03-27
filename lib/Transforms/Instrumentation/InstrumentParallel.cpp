@@ -406,6 +406,7 @@ void InstrumentParallel::chooseInstructionsToInstrument(
   SmallSet<Value*, 8> WriteTargets;
   // Iterate from the end.
   for (Instruction *I : reverse(Local)) {
+//    if(I->getMetadata("sword.ompstatus") || I->getMetadata("sword.ignore_access"))
     if(I->getMetadata("sword.ompstatus"))
       continue;
     // BAD!: This will remove any instrumentation basically
@@ -524,6 +525,7 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   	return false;
   Function *IF;
   llvm::GlobalVariable *ompStatusGlobal = NULL;
+//  llvm::GlobalVariable *ompIgnoreAccess = NULL;
   Module *M = F.getParent();
   StringRef functionName = F.getName();
 
@@ -616,7 +618,42 @@ bool InstrumentParallel::runOnFunction(Function &F) {
 //    } else {
 //      report_fatal_error("Broken function found, compilation aborted!");
 //    }
-    IF = &F;
+
+//	  for (auto &BB : F) {
+//		  for (auto &Inst : BB) {
+//			  if (isa<CallInst>(Inst)) {
+//				  StringRef name = cast<CallInst>(Inst).getCalledFunction()->getName();
+//				  if(name.startswith("__kmpc_reduce_nowait")) {
+//					  IntegerType *Int32Ty = IntegerType::getInt32Ty(M->getContext());
+//					  ompIgnoreAccess =
+//							  new llvm::GlobalVariable(*M, Int32Ty, false,
+//									  llvm::GlobalValue::AvailableExternallyLinkage,
+//									  0, "__sword_ignore_access", NULL,
+//									  GlobalVariable::GeneralDynamicTLSModel,
+//									  0, false);
+//					  StoreInst *storeIgnoreAccess = new StoreInst(One, ompIgnoreAccess);
+//					  storeIgnoreAccess->setAlignment(4);
+//					  setMetadata(storeIgnoreAccess, "sword.ignore_access", "sword Instrumentation");
+//					  storeIgnoreAccess->insertAfter(&cast<CallInst>(Inst));
+//				  } else if(name.startswith("__kmpc_end_reduce_nowait")) {
+//					  if(!ompIgnoreAccess) {
+//						  IntegerType *Int32Ty = IntegerType::getInt32Ty(M->getContext());
+//						  ompIgnoreAccess =
+//								  new llvm::GlobalVariable(*M, Int32Ty, false,
+//										  llvm::GlobalValue::AvailableExternallyLinkage,
+//										  0, "__sword_ignore_access", NULL,
+//										  GlobalVariable::GeneralDynamicTLSModel,
+//										  0, false);
+//					  }
+//					  StoreInst *storeIgnoreAccess = new StoreInst(Zero32, ompIgnoreAccess, &cast<CallInst>(Inst));
+//					  storeIgnoreAccess->setAlignment(4);
+//					  setMetadata(storeIgnoreAccess, "sword.ignore_access", "sword Instrumentation");
+//				  }
+//			  }
+//		  }
+//	  }
+
+	  IF = &F;
   } else {
     ValueToValueMapTy VMap;
     Function *new_function = CloneFunction(&F, VMap);

@@ -385,29 +385,11 @@ int main(int argc, char **argv) {
 			std::sort(traces[it->first].thread_id.begin(), traces[it->first].thread_id.end());
 
 			// Create thread pairs for comparisons
-			std::vector<std::pair<unsigned,unsigned>> thread_pairs;
+			std::set<std::pair<unsigned,unsigned>> thread_pairs;
 			unsigned length = it->second.thread_id.size();
-			unsigned len = length / 2;
-			if(length % 2 == 1) {
-				for(int i = 0; i < length; i++) {
-					for(int k = i + 1; k < i + len + 1; k++) {
-						thread_pairs.push_back(std::make_pair(it->second.thread_id[i], it->second.thread_id[i]));
-					}
-				}
-			} else {
-				for(int i = 0; i < length; i++) {
-					unsigned ub = 0;
-					if(i < len)
-						ub = i + len + 1;
-					else
-						ub = i + len;
-					for(int k = i + 1; k < ub; k++) {
-						if(it->second.thread_id[i] < it->second.thread_id[k % length])
-							thread_pairs.push_back(std::make_pair(it->second.thread_id[i], it->second.thread_id[k % length]));
-						else
-							thread_pairs.push_back(std::make_pair(it->second.thread_id[k % length], it->second.thread_id[i]));
-						std::sort(thread_pairs.begin(), thread_pairs.end());
-					}
+			for(int i = 0; i < length; i++) {
+				for(int k = i + 1; k < length; k++) {
+					thread_pairs.insert(std::make_pair(it->second.thread_id[i], it->second.thread_id[k]));
 				}
 			}
 			// Create thread pairs for comparisons
@@ -438,7 +420,7 @@ int main(int argc, char **argv) {
 			std::atomic<int> available_threads;
 			std::vector<std::thread> thread_list;
 			available_threads = num_threads;
-			for(std::vector<std::pair<unsigned,unsigned>>::const_iterator p = thread_pairs.begin(); p != thread_pairs.end(); ++p) {
+			for(std::set<std::pair<unsigned,unsigned>>::const_iterator p = thread_pairs.begin(); p != thread_pairs.end(); ++p) {
 				while(!available_threads) { /* usleep(1000); */ }
 				available_threads--;
 
