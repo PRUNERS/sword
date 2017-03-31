@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
 		}
 	} catch(boost::filesystem::filesystem_error const & e) {
         INFO(std::cerr, e.what());
-        return false;
+        return -1;
     }
 
 	// Look for shell
