@@ -172,7 +172,7 @@ thread_local uint64_t bid = 0;
 thread_local ompt_id_t parallel_idx = 0;
 thread_local FILE *datafile = NULL;
 thread_local char *buffer = NULL;
-thread_local int __sword_ignore_access = 0;
+// thread_local int __sword_ignore_access = 0;
 thread_local std::future<bool> fut;
 thread_local size_t offset = 0;
 thread_local ParallelData pdata;
