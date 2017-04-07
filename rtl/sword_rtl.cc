@@ -112,8 +112,11 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 
 //		INFO(std::cout, tid << ": " << std::hex << addr << ":" << CALLERPC);	\
 // #define SAVE_ACCESS(asize, atype)
+
+// It adds a lot of runtime overhead because of the TLS access and seems it's not needed, will add later if we find any false positives
+// if(__sword_ignore_access) return; 									\
+
 #define SAVE_ACCESS(asize, atype)											\
-		if(__sword_ignore_access) return; 									\
 		accesses[idx].setType(data_access);									\
 		accesses[idx].data.access = Access(asize, atype,					\
 				(size_t) addr, CALLERPC); 									\
@@ -294,9 +297,12 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 		const void *codeptr_ra) {
 	ParallelData *par_data = (ParallelData *) task_data->ptr;
 
-	if(endpoint == ompt_scope_begin) {
-		__sword_ignore_access = 1;
-	} else {
+	// It adds a lot of runtime overhead because of the TLS access and seems it's not needed, will add later if we find any false positives
+//	if(endpoint == ompt_scope_begin) {
+//		__sword_ignore_access = 1;
+//	} else {
+
+	if(endpoint == ompt_scope_end) {
 		bid++;
 		fut.wait();
 		fut = std::async(dump_to_file, accesses, sizeof(TraceItem), idx, datafile, out, &offset);
@@ -313,7 +319,8 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 			INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
 			exit(-1);
 		}
-		__sword_ignore_access = 0;
+		// It adds a lot of runtime overhead because of the TLS access and seems it's not needed, will add later if we find any false positives
+		// __sword_ignore_access = 0;
 	}
 }
 
