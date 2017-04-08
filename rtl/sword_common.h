@@ -89,7 +89,7 @@ public:
 		size_type = (as << 4);
 		size_type |= at;
 		address = a;
-		pc.num = (p << 16);
+		pc.num = p;
 	}
 
 	void setData(AccessSize as, AccessType at,
@@ -97,7 +97,7 @@ public:
 		address = a;
 		size_type = (as << 4);
 		size_type |= at;
-		pc.num = (p << 16);
+		pc.num = p;
 	}
 
 	AccessSize getAccessSize() const {
