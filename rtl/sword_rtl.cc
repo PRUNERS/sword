@@ -428,7 +428,7 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	register_callback(ompt_callback_implicit_task);
 	// register_callback(ompt_callback_work);
 	register_callback(ompt_callback_sync_region);
-	register_callback(ompt_callback_master);
+	//register_callback(ompt_callback_master);
 	register_callback(ompt_callback_mutex_acquired);
 	register_callback(ompt_callback_mutex_released);
 
