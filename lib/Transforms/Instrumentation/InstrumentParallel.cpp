@@ -79,6 +79,29 @@ static cl::opt<bool>  ClInstrumentMemIntrinsics(
     "sword-instrument-memintrinsics", cl::init(true),
     cl::desc("Instrument memintrinsics (memset/memcpy/memmove)"), cl::Hidden);
 
+#define TLS_DECLARE(var, type, name)		  		                           \
+		if(!var) {                                                             \
+			var = new llvm::GlobalVariable(*M, type, false,                    \
+					llvm::GlobalValue::CommonLinkage,           			   \
+					Zero32, name, NULL,                         			   \
+					GlobalVariable::GeneralDynamicTLSModel,     			   \
+					0, false);                                  			   \
+		} else if(var && (var->getLinkage() !=								   \
+				llvm::GlobalValue::CommonLinkage)) {  			   			   \
+			var->setLinkage(llvm::GlobalValue::CommonLinkage);                 \
+			var->setExternallyInitialized(false);                              \
+			var->setInitializer(Zero32);                                       \
+		}
+
+#define TLS_DECLARE_EXTERN(var, type, name)			  		                   \
+		if(!var) {															   \
+			var = new llvm::GlobalVariable(*M, type, false,  	   	   		   \
+					llvm::GlobalValue::AvailableExternallyLinkage,	 		   \
+					0, name, NULL,								  		  	   \
+					GlobalVariable::GeneralDynamicTLSModel,			   		   \
+					0, true);												   \
+		}
+
 namespace {
 
 struct InstrumentParallel : public FunctionPass {
@@ -525,7 +548,16 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   	return false;
   Function *IF;
   llvm::GlobalVariable *ompStatusGlobal = NULL;
-//  llvm::GlobalVariable *ompIgnoreAccess = NULL;
+  llvm::GlobalVariable *ompOutLZO = NULL;
+  llvm::GlobalVariable *ompThreadID = NULL;
+  llvm::GlobalVariable *ompAccesses = NULL;
+  llvm::GlobalVariable *ompAccesses1 = NULL;
+  llvm::GlobalVariable *ompAccesses2 = NULL;
+  llvm::GlobalVariable *ompIndex = NULL;
+  llvm::GlobalVariable *ompBarrierID = NULL;
+  llvm::GlobalVariable *ompBuffer = NULL;
+  llvm::GlobalVariable *ompOffset = NULL;
+
   Module *M = F.getParent();
   StringRef functionName = F.getName();
 
@@ -534,35 +566,29 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   ConstantInt *Zero64 = ConstantInt::get(Type::getInt64Ty(M->getContext()), 0);
   ConstantInt *One = ConstantInt::get(Type::getInt32Ty(M->getContext()), 1);
 
+  ompOutLZO = M->getNamedGlobal("out");
+  ompThreadID = M->getNamedGlobal("tid");
   ompStatusGlobal = M->getNamedGlobal("__sword_status__");
+  ompAccesses = M->getNamedGlobal("accesses");
+  ompAccesses1 = M->getNamedGlobal("accesses1");
+  ompAccesses2 = M->getNamedGlobal("accesses2");
+  ompIndex = M->getNamedGlobal("idx");
+  ompBarrierID = M->getNamedGlobal("bid");
+  ompBuffer = M->getNamedGlobal("buffer");
+  ompOffset = M->getNamedGlobal("offset");
+
   if(functionName.compare("main") == 0) {
-    if(!ompStatusGlobal) {
-      IntegerType *Int32Ty = IntegerType::getInt32Ty(M->getContext());
-      ompStatusGlobal =
-        new llvm::GlobalVariable(*M, Int32Ty, false,
-                                 llvm::GlobalValue::CommonLinkage,
-                                 Zero32, "__sword_status__", NULL,
-                                 GlobalVariable::GeneralDynamicTLSModel,
-                                 0, false);
-    } else if(ompStatusGlobal &&
-              (ompStatusGlobal->getLinkage() != llvm::GlobalValue::CommonLinkage)) {
-      ompStatusGlobal->setLinkage(llvm::GlobalValue::CommonLinkage);
-      ompStatusGlobal->setExternallyInitialized(false);
-      ompStatusGlobal->setInitializer(Zero32);
-    }
-
-    IRBuilder<> IRB2(M->getContext());
-    Constant* constant = M->getOrInsertFunction("__sword__get_omp_status",
-    		IRB2.getInt32Ty(),
-			NULL);
-    Function* __sword_get_omp_status = cast<Function>(constant);
-    __sword_get_omp_status->setCallingConv(CallingConv::C);
-    BasicBlock* block2 = BasicBlock::Create(M->getContext(), "entry", __sword_get_omp_status);
-    IRBuilder<> builder2(block2);
-    LoadInst *loadOmpStatus = builder2.CreateLoad(IRB2.getInt32Ty(), ompStatusGlobal);
-    builder2.CreateRet(loadOmpStatus);
-
-    F.removeFnAttr(llvm::Attribute::SanitizeThread);
+	IRBuilder<> IRB(M->getContext());
+//    TLS_DECLARE(ompOutLZO, IRB.getInt8PtrTy(), "out"); // unsigned char
+    TLS_DECLARE(ompThreadID, IRB.getInt32Ty(), "tid"); // int
+    TLS_DECLARE(ompStatusGlobal, IRB.getInt32Ty(), "__sword_status__"); // int
+//    TLS_DECLARE(ompAccesses, IRB.getInt8PtrTy(), "accesses"); // TraceItem *
+//    TLS_DECLARE(ompAccesses1, IRB.getInt8PtrTy(), "accesses1"); // TraceItem *
+//    TLS_DECLARE(ompAccesses2, IRB.getInt8PtrTy(), "accesses2"); // TraceItem *
+    TLS_DECLARE(ompIndex, IRB.getInt64Ty(), "idx"); // uint64_t
+    TLS_DECLARE(ompBarrierID, IRB.getInt64Ty(), "bid"); // uint64_t
+    TLS_DECLARE(ompBuffer, IRB.getInt8PtrTy(), "buffer"); // char *
+//    TLS_DECLARE(ompOffset, IRB.getInt64Ty(), "offset"); // size_t
 
     return true;
   }
@@ -577,83 +603,20 @@ bool InstrumentParallel::runOnFunction(Function &F) {
     return false;
   }
 
-  if(!ompStatusGlobal) {
-    IntegerType *Int32Ty = IntegerType::getInt32Ty(M->getContext());
-    ompStatusGlobal =
-      new llvm::GlobalVariable(*M, Int32Ty, false,
-                               llvm::GlobalValue::AvailableExternallyLinkage,
-                               0, "__sword_status__", NULL,
-                               GlobalVariable::GeneralDynamicTLSModel,
-                               0, true);
-  }
+  IRBuilder<> IRB(M->getContext());
+//  TLS_DECLARE_EXTERN(ompOutLZO, IRB.getInt8PtrTy(), "out"); // unsigned char
+  TLS_DECLARE_EXTERN(ompThreadID, IRB.getInt32Ty(), "tid"); // int
+  TLS_DECLARE_EXTERN(ompStatusGlobal, IRB.getInt32Ty(), "__sword_status__"); // int
+//  TLS_DECLARE_EXTERN(ompAccesses, IRB.getInt8PtrTy(), "accesses"); // TraceItem *
+//  TLS_DECLARE_EXTERN(ompAccesses1, IRB.getInt8PtrTy(), "accesses1"); // TraceItem *
+//  TLS_DECLARE_EXTERN(ompAccesses2, IRB.getInt8PtrTy(), "accesses2"); // TraceItem *
+  TLS_DECLARE_EXTERN(ompIndex, IRB.getInt64Ty(), "idx"); // uint64_t
+  TLS_DECLARE_EXTERN(ompBarrierID, IRB.getInt64Ty(), "bid"); // uint64_t
+  TLS_DECLARE_EXTERN(ompBuffer, IRB.getInt8PtrTy(), "buffer"); // char *
+//  TLS_DECLARE_EXTERN(ompOffset, IRB.getInt64Ty(), "offset"); // size_t
 
   if(functionName.startswith(".omp")) {
-    // Increment of __sword_status__
-//    Instruction *entryBBI = &F.getEntryBlock().front();
-//    LoadInst *loadInc = new LoadInst(ompStatusGlobal, "loadIncOmpStatus", false, entryBBI);
-//    loadInc->setAlignment(4);
-//    setMetadata(loadInc, "sword.ompstatus", "SWORD Instrumentation");
-//    Instruction *inc = BinaryOperator::Create (BinaryOperator::Add,
-//                                               loadInc, One,
-//                                               "incOmpStatus",
-//                                               entryBBI);
-//    setMetadata(loadInc, "sword.ompstatus", "sword Instrumentation");
-//    StoreInst *storeInc = new StoreInst(inc, ompStatusGlobal, entryBBI);
-//    storeInc->setAlignment(4);
-//    setMetadata(storeInc, "sword.ompstatus", "sword Instrumentation");
-//
-//    // Decrement of __sword_status__
-//    Instruction *exitBBI = F.back().getTerminator();
-//    if(exitBBI) {
-//      LoadInst *loadDec = new LoadInst(ompStatusGlobal, "loadDecOmpStatus", false, exitBBI);
-//      loadDec->setAlignment(4);
-//      setMetadata(loadDec, "sword.ompstatus", "sword Instrumentation");
-//      Instruction *dec = BinaryOperator::Create (BinaryOperator::Sub,
-//                                                 loadDec, One,
-//                                                 "decOmpStatus",
-//                                                 exitBBI);
-//      StoreInst *storeDec = new StoreInst(dec, ompStatusGlobal, exitBBI);
-//      storeDec->setAlignment(4);
-//      setMetadata(storeDec, "sword.ompstatus", "sword Instrumentation");
-//    } else {
-//      report_fatal_error("Broken function found, compilation aborted!");
-//    }
-
-//	  for (auto &BB : F) {
-//		  for (auto &Inst : BB) {
-//			  if (isa<CallInst>(Inst)) {
-//				  StringRef name = cast<CallInst>(Inst).getCalledFunction()->getName();
-//				  if(name.startswith("__kmpc_reduce_nowait")) {
-//					  IntegerType *Int32Ty = IntegerType::getInt32Ty(M->getContext());
-//					  ompIgnoreAccess =
-//							  new llvm::GlobalVariable(*M, Int32Ty, false,
-//									  llvm::GlobalValue::AvailableExternallyLinkage,
-//									  0, "__sword_ignore_access", NULL,
-//									  GlobalVariable::GeneralDynamicTLSModel,
-//									  0, false);
-//					  StoreInst *storeIgnoreAccess = new StoreInst(One, ompIgnoreAccess);
-//					  storeIgnoreAccess->setAlignment(4);
-//					  setMetadata(storeIgnoreAccess, "sword.ignore_access", "sword Instrumentation");
-//					  storeIgnoreAccess->insertAfter(&cast<CallInst>(Inst));
-//				  } else if(name.startswith("__kmpc_end_reduce_nowait")) {
-//					  if(!ompIgnoreAccess) {
-//						  IntegerType *Int32Ty = IntegerType::getInt32Ty(M->getContext());
-//						  ompIgnoreAccess =
-//								  new llvm::GlobalVariable(*M, Int32Ty, false,
-//										  llvm::GlobalValue::AvailableExternallyLinkage,
-//										  0, "__sword_ignore_access", NULL,
-//										  GlobalVariable::GeneralDynamicTLSModel,
-//										  0, false);
-//					  }
-//					  StoreInst *storeIgnoreAccess = new StoreInst(Zero32, ompIgnoreAccess, &cast<CallInst>(Inst));
-//					  storeIgnoreAccess->setAlignment(4);
-//					  setMetadata(storeIgnoreAccess, "sword.ignore_access", "sword Instrumentation");
-//				  }
-//			  }
-//		  }
-//	  }
-
-	  IF = &F;
+    IF = &F;
   } else {
     ValueToValueMapTy VMap;
     Function *new_function = CloneFunction(&F, VMap);
