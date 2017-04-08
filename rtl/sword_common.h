@@ -18,6 +18,7 @@
 std::mutex pmtx;
 std::mutex smtx;
 
+// #define TASK_SUPPORT
 #define SWORD_DEBUG 	1
 #ifdef SWORD_DEBUG
 #define ASSERT(x) assert(x);
@@ -45,7 +46,7 @@ HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
 
 #define SWORD_DATA 				"sword_data"
 #define OFFSET_SPAN_FORMAT		"%01d%01d"
-#define NUM_OF_ACCESSES			30000
+#define NUM_OF_ACCESSES			25000
 #define BLOCK_SIZE 				NUM_OF_ACCESSES * sizeof(TraceItem)
 #define MB_LIMIT 				BLOCK_SIZE
 #define OUT_LEN     			(BLOCK_SIZE + BLOCK_SIZE / 16 + 64 + 3 + sizeof(lzo_uint)) // 8 byte to store the size of the block
@@ -65,26 +66,30 @@ enum AccessType {
 	atomic_write,
 };
 
+struct __attribute__ ((__packed__)) Int48 {
+  uint64_t num : 48;
+};
+
 static const char * AccessTypeStrings[] = { "Read", "Write", "Atomic Read", "Atomic Write" };
 
 struct __attribute__ ((__packed__)) Access {
 private:
 	uint8_t size_type; // size in first 4 bits, type in last 4 bits
 	size_t address;
-	size_t pc;
+	Int48 pc;
 
 public:
 	Access() {
 		size_type = 0;
 		address = 0;
-		pc = 0;
+		pc.num = 0;
 	}
 
 	Access(AccessSize as, AccessType at, size_t a, size_t p) {
 		size_type = (as << 4);
 		size_type |= at;
 		address = a;
-		pc = p;
+		pc.num = (p << 16);
 	}
 
 	void setData(AccessSize as, AccessType at,
@@ -92,7 +97,7 @@ public:
 		address = a;
 		size_type = (as << 4);
 		size_type |= at;
-		pc = p;
+		pc.num = (p << 16);
 	}
 
 	AccessSize getAccessSize() const {
@@ -108,7 +113,7 @@ public:
 	}
 
 	size_t getPC() const {
-		return pc;
+		return pc.num;
 	}
 };
 
@@ -326,12 +331,13 @@ public:
 		struct Parallel parallel;
 		struct Work work;
 		struct Master master;
-		struct SyncRegion sync_region;
+                // struct SyncRegion sync_region;
 		struct MutexRegion mutex_region;
+#ifdef TASK_SUPPORT
 		struct TaskCreate task_create;
 		struct TaskSchedule task_schedule;
 		struct TaskDependence task_dependence;
-		struct OffsetSpan offset_span;
+#endif
 	} data;
 };
 

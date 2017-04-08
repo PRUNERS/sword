@@ -349,6 +349,7 @@ static void on_ompt_callback_mutex_released(ompt_mutex_kind_t kind,
 	DUMP_TO_FILE
 }
 
+#ifdef TASK_SUPPORT
 static void on_ompt_callback_task_create(ompt_data_t *parent_task_data,
 		const ompt_frame_t *parent_frame,
 		ompt_data_t* new_task_data,
@@ -399,6 +400,7 @@ static void on_ompt_callback_task_dependences(ompt_data_t* task_data,
 		DUMP_TO_FILE
 	}
 }
+#endif
 
 //static void on_ompt_event_runtime_shutdown(void) {
 //	printf("%d: ompt_event_runtime_shutdown\n", omp_get_thread_num());
@@ -428,13 +430,15 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	register_callback(ompt_callback_implicit_task);
 	// register_callback(ompt_callback_work);
 	register_callback(ompt_callback_sync_region);
-	//register_callback(ompt_callback_master);
+	// register_callback(ompt_callback_master);
 	register_callback(ompt_callback_mutex_acquired);
 	register_callback(ompt_callback_mutex_released);
 
-//	register_callback(ompt_callback_task_create);
-//	register_callback(ompt_callback_task_schedule);
-//	register_callback(ompt_callback_task_dependences);
+#ifdef TASK_SUPPORT
+	register_callback(ompt_callback_task_create);
+	register_callback(ompt_callback_task_schedule);
+	register_callback(ompt_callback_task_dependences);
+#endif
 
 	std::string str = sword_flags->traces_path;
 	if(sword_flags->traces_path.empty()) {
@@ -463,6 +467,18 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 		printf("(this usually indicates a compiler bug - try recompiling\nwithout optimizations, and enable '-DLZO_DEBUG' for diagnostics)\n");
 		exit(-1);
 	}
+
+        // INFO(std::cout, "SIZE:" << sizeof(TraceItem));
+        // INFO(std::cout, "SIZE ACCESS:" << sizeof(Access));
+        // INFO(std::cout, "SIZE PARALLEL:" << sizeof(Parallel));
+        // INFO(std::cout, "SIZE WORK:" << sizeof(Work));
+        // INFO(std::cout, "SIZE MASTER:" << sizeof(Master));
+        // INFO(std::cout, "SIZE SYNC REGION:" << sizeof(SyncRegion));
+        // INFO(std::cout, "SIZE MUTEX REGION:" << sizeof(MutexRegion));
+        // INFO(std::cout, "SIZE TASK CREATE:" << sizeof(TaskCreate));
+        // INFO(std::cout, "SIZE TASK SCHEDULE:" << sizeof(TaskSchedule));
+        // INFO(std::cout, "SIZE TASK DEPENDENCE:" << sizeof(TaskDependence));
+        // INFO(std::cout, "SIZE OFFSET SPAN:" << sizeof(OffsetSpan));
 
 	return 0;
 }
