@@ -582,9 +582,9 @@ bool InstrumentParallel::runOnFunction(Function &F) {
 //    TLS_DECLARE(ompOutLZO, IRB.getInt8PtrTy(), "out"); // unsigned char
     TLS_DECLARE(ompThreadID, IRB.getInt32Ty(), "tid"); // int
     TLS_DECLARE(ompStatusGlobal, IRB.getInt32Ty(), "__sword_status__"); // int
-//    TLS_DECLARE(ompAccesses, IRB.getInt8PtrTy(), "accesses"); // TraceItem *
-//    TLS_DECLARE(ompAccesses1, IRB.getInt8PtrTy(), "accesses1"); // TraceItem *
-//    TLS_DECLARE(ompAccesses2, IRB.getInt8PtrTy(), "accesses2"); // TraceItem *
+    TLS_DECLARE(ompAccesses, IRB.getInt8PtrTy(), "accesses"); // TraceItem *
+    TLS_DECLARE(ompAccesses1, IRB.getInt8PtrTy(), "accesses1"); // TraceItem *
+    TLS_DECLARE(ompAccesses2, IRB.getInt8PtrTy(), "accesses2"); // TraceItem *
     TLS_DECLARE(ompIndex, IRB.getInt64Ty(), "idx"); // uint64_t
     TLS_DECLARE(ompBarrierID, IRB.getInt64Ty(), "bid"); // uint64_t
     TLS_DECLARE(ompBuffer, IRB.getInt8PtrTy(), "buffer"); // char *
@@ -607,9 +607,9 @@ bool InstrumentParallel::runOnFunction(Function &F) {
 //  TLS_DECLARE_EXTERN(ompOutLZO, IRB.getInt8PtrTy(), "out"); // unsigned char
   TLS_DECLARE_EXTERN(ompThreadID, IRB.getInt32Ty(), "tid"); // int
   TLS_DECLARE_EXTERN(ompStatusGlobal, IRB.getInt32Ty(), "__sword_status__"); // int
-//  TLS_DECLARE_EXTERN(ompAccesses, IRB.getInt8PtrTy(), "accesses"); // TraceItem *
-//  TLS_DECLARE_EXTERN(ompAccesses1, IRB.getInt8PtrTy(), "accesses1"); // TraceItem *
-//  TLS_DECLARE_EXTERN(ompAccesses2, IRB.getInt8PtrTy(), "accesses2"); // TraceItem *
+  TLS_DECLARE_EXTERN(ompAccesses, IRB.getInt8PtrTy(), "accesses"); // TraceItem *
+  TLS_DECLARE_EXTERN(ompAccesses1, IRB.getInt8PtrTy(), "accesses1"); // TraceItem *
+  TLS_DECLARE_EXTERN(ompAccesses2, IRB.getInt8PtrTy(), "accesses2"); // TraceItem *
   TLS_DECLARE_EXTERN(ompIndex, IRB.getInt64Ty(), "idx"); // uint64_t
   TLS_DECLARE_EXTERN(ompBarrierID, IRB.getInt64Ty(), "bid"); // uint64_t
   TLS_DECLARE_EXTERN(ompBuffer, IRB.getInt8PtrTy(), "buffer"); // char *
