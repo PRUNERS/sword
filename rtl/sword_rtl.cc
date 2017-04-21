@@ -76,7 +76,7 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 		return -1;
 	}
 
-	// memcpy(buffer, &out_len, sizeof(out_len));
+	memcpy(buffer, &out_len, sizeof(out_len));
 	size_t ret = fwrite((char *) buffer, out_len + sizeof(out_len), 1, file);
 	// LZO
 #elif defined(SNAPPY)
