@@ -16,7 +16,6 @@
 
 #include <boost/filesystem.hpp>
 
-
 #include <assert.h>
 #include <stdlib.h>
 #include <zlib.h>
@@ -24,8 +23,6 @@
 #include <cmath>
 #include <fstream>
 #include <sstream>
-
-#define LZO 1
 
 static const char* ompt_thread_type_t_values[] = {
 		NULL,
@@ -65,7 +62,7 @@ bool dummy() {
 bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 		FILE *file, unsigned char *buffer, size_t *offset) {
 
-#if LZO
+#ifdef LZO
 	// LZO
 	lzo_uint out_len;
 	int r = lzo1x_1_compress((unsigned char *) accesses, size * nmemb, buffer + sizeof(out_len), &out_len, wrkmem);
@@ -79,12 +76,13 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 		return -1;
 	}
 
-	memcpy(buffer, &out_len, sizeof(out_len));
+	// memcpy(buffer, &out_len, sizeof(out_len));
 	size_t ret = fwrite((char *) buffer, out_len + sizeof(out_len), 1, file);
 	// LZO
-#elif HUFFMAN
-#elif ARITHMETIC
-#elif TCGEN
+#elif defined(SNAPPY)
+#elif defined(HUFFMAN)
+#elif defined(ARITHMETIC)
+#elif defined(TCGEN)
 #else
 	size_t ret = fwrite((char *) accesses, size * nmemb, 1, file); // Write plain
 #endif

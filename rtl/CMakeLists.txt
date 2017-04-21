@@ -1,5 +1,6 @@
 # add_definitions(-D ZLIB)
 add_definitions(-D LZO)
+# add_definitions(-D LZ4)
 # add_definitions(-D HUFFMAN)
 # add_definitions(-D ARITHMETIC)
 # add_definitions(-D TCGEN)
@@ -14,7 +15,7 @@ set(SWORD_SOURCES
 add_library(sword MODULE ${SWORD_SOURCES})
 add_library(sword_static STATIC ${SWORD_SOURCES})
 
-set(CMAKE_SHARED_LINKER_FLAGS "-lz -fopenmp")
+set(CMAKE_SHARED_LINKER_FLAGS "-fopenmp")
 
 install(TARGETS sword sword_static
     LIBRARY DESTINATION lib
