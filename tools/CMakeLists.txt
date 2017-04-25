@@ -1,4 +1,4 @@
-add_executable(sword-race-analysis sword-race-analysis.cc ../rtl/minilzo.c)
+add_executable(sword-race-analysis sword-race-analysis.cc ${SRCS})
 add_executable(sword-print-report sword-print-report.cc)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -stdlib=libstdc++")
 set_target_properties(sword-race-analysis sword-print-report PROPERTIES LINK_FLAGS "-lboost_system -lboost_filesystem -pthread")

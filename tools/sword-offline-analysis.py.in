@@ -56,7 +56,7 @@ def signal_handler(signal, frame):
 #             f.write('1')
 #             f.close()
     sys.exit(0)
-    
+
 def executeCommand(command, wait = True):
     if(wait):
             process = subprocess.Popen(command, shell=True, stdin=None, stdout=None, stderr=None)
@@ -92,7 +92,7 @@ def argumentsParser():
     parser.add_argument('--traces-path', nargs=1, default=["./" + SWORD_TRACE], help='Specify the path to the ' + TOOL_NAME + ' traces folder.')
     parser.add_argument('--analysis-tool', nargs=1, default="sword-race-analysis", help='Specify the path to ' + TOOL_NAME + ' custom analysis tool.')
     parser.add_argument('--cluster-run', action='store_true', help='Run offline analysis across a cluster using MOAB and SLURM.')
-    
+
     return parser
 
 if __name__ == '__main__':
@@ -105,11 +105,11 @@ if __name__ == '__main__':
     # Unknown arguments
     if(unknown):
         print "Ignoring the following unknown args:", unknown
-        
+
     # Set default analysis tool
-    analysis_tool = find_executable(args.analysis_tool)
-    
-    # Report folder       
+    analysis_tool = find_executable(args.analysis_tool[0])
+
+    # Report folder
     args.report_path = args.report_path[0]
 #     if os.path.exists(args.report_path + "/" + SWORD_REPORT):
 #         print "Found existing report folder, please delete or rename it before proceeding with analysis."
@@ -128,16 +128,16 @@ if __name__ == '__main__':
     if not os.path.exists(executable):
         print "The executable '" + executable + "' does not exists.\nPlease specify the correct path and name for the executable."
         sys.exit(-1)
-        
+
     mkdir_p(args.report_path)
-    
-    if(args.cluster_run):    
+
+    if(args.cluster_run):
         # Create MOAB dir
         mkdir_p(MOAB_DIR)
         # Common MOAB Configuration values
         shell = find_executable("bash")
         partition = os.environ['LCSCHEDCLUSTER']
-        
+
     for subdir, dirs, files in os.walk(args.traces_path, False):
         if subdir == args.traces_path:
             continue
@@ -146,7 +146,7 @@ if __name__ == '__main__':
             # MOAB Configuration values
             config_file = MOAB_DIR + "/moab_config_" + sanitizeFileName(subdir)
             output = MOAB_DIR + "/moab_output_" + sanitizeFileName(subdir)
-            cmd = "%s --executable %s --traces-path %s --report-path %s" % (analysis_tool, executable, subdir, args.report_path) 
+            cmd = "%s --executable %s --traces-path %s --report-path %s" % (analysis_tool, executable, subdir, args.report_path)
             createMOABConfig(config_file , shell, partition, output, cmd)
             # Run on cluster
             command = "msub " +  config_file
@@ -157,4 +157,4 @@ if __name__ == '__main__':
             command = "%s --executable %s --traces-path %s --report-path %s" % (analysis_tool, executable, subdir, args.report_path)
             ret = executeCommand(command)
             if(ret):
-                print "A problem occurred while analyzing the traces in folder '" + subdir + "'.\n\nPlease run the analysis again with the command: '" + command + "'." 
+                print "A problem occurred while analyzing the traces in folder '" + subdir + "'.\n\nPlease run the analysis again with the command: '" + command + "'."

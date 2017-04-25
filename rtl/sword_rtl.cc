@@ -14,6 +14,15 @@
 #include "sword_rtl.h"
 #include "sword_flags.h"
 
+#ifdef SNAPPY
+#include "snappy.h"
+#endif
+
+#ifdef LZ4
+#include "lz4.h"
+#define ACCELERATION 20
+#endif
+
 #include <boost/filesystem.hpp>
 
 #include <assert.h>
@@ -64,9 +73,12 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 
 #ifdef LZO
 	// LZO
-	lzo_uint out_len;
-	int r = lzo1x_1_compress((unsigned char *) accesses, size * nmemb, buffer + sizeof(out_len), &out_len, wrkmem);
-	if (r != LZO_E_OK) {
+        lzo_uint *out_len = (lzo_uint *) buffer;
+	// int r = lzo1x_1_compress((unsigned char *) accesses, size * nmemb, buffer + sizeof(lzo_uint), out_len, wrkmem);
+        lzo1x_1_compress((unsigned char *) accesses, size * nmemb, buffer + sizeof(lzo_uint), out_len, wrkmem);
+
+        /*
+        if (r != LZO_E_OK) {
 		printf("internal error - compression failed: %d\n", r);
 		return -1;
 	}
@@ -75,11 +87,26 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 		printf("This block contains incompressible data.\n");
 		return -1;
 	}
+        */
 
-	memcpy(buffer, &out_len, sizeof(out_len));
-	size_t ret = fwrite((char *) buffer, out_len + sizeof(out_len), 1, file);
+	fwrite((char *) buffer, *out_len + sizeof(lzo_uint), 1, file);
 	// LZO
 #elif defined(SNAPPY)
+        size_t *out_len = (size_t *) buffer;
+        snappy::RawCompress((char *) accesses, size * nmemb, (char*) buffer + sizeof(size_t), out_len);
+        fwrite((char *) buffer, *out_len + sizeof(size_t), 1, file);
+#elif defined(LZ4)
+        const int64_t max_dst_size = LZ4_compressBound(size * nmemb);
+        int64_t *out_len = (int64_t *) buffer;
+        *out_len = LZ4_compress_fast((char *) accesses, (char*) buffer + sizeof(int64_t), size * nmemb, max_dst_size, ACCELERATION);
+
+        // if (out_len < 0) {
+        //   printf("A negative result from LZ4_compress_default indicates a failure trying to compress the data.");
+        // } else if (out_len == 0) {
+        //   printf("A result of 0 means compression worked, but was stopped because the destination buffer couldn't hold all the information.");
+        // }
+
+        fwrite((char *) buffer, *out_len + sizeof(int64_t), 1, file);
 #elif defined(HUFFMAN)
 #elif defined(ARITHMETIC)
 #elif defined(TCGEN)
@@ -107,9 +134,6 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 			idx = 0;														\
 			SWAP_BUFFER														\
 		}
-
-//		INFO(std::cout, tid << ": " << std::hex << addr << ":" << CALLERPC);	\
-// #define SAVE_ACCESS(asize, atype)
 
 // It adds a lot of runtime overhead because of the TLS access and seems it's not needed, will add later if we find any false positives
 // if(__sword_ignore_access) return; 									\
@@ -460,11 +484,13 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	}
 	boost::filesystem::create_directory(str);
 
+#ifdef LZO
 	if(lzo_init() != LZO_E_OK) {
 		printf("internal error - lzo_init() failed !!!\n");
 		printf("(this usually indicates a compiler bug - try recompiling\nwithout optimizations, and enable '-DLZO_DEBUG' for diagnostics)\n");
 		exit(-1);
 	}
+#endif
 
         // INFO(std::cout, "SIZE:" << sizeof(TraceItem));
         // INFO(std::cout, "SIZE ACCESS:" << sizeof(Access));

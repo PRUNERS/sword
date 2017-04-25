@@ -1,6 +1,14 @@
 #include "sword-race-analysis.h"
 #include <boost/algorithm/string.hpp>
 
+#ifdef SNAPPY
+#include "../rtl/snappy.h"
+#endif
+
+#ifdef LZ4
+#include "../rtl/lz4.h"
+#endif
+
 #include <sched.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -162,8 +170,8 @@ void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vec
 void load_file(boost::filesystem::path path, unsigned bid, unsigned t, std::vector<TraceItem> &file_buffers) {
 	std::string filename(path.string() + "/threadtrace_" + std::to_string(t) + "_" + std::to_string(bid));
 	uint64_t filesize = boost::filesystem::file_size(filename);
-	lzo_uint out_len;
-	lzo_uint new_len;
+	uint64_t out_len;
+        uint64_t new_len;
 
 	FILE *datafile = fopen(filename.c_str(), "r");
 	if (!datafile) {
@@ -174,16 +182,16 @@ void load_file(boost::filesystem::path path, unsigned bid, unsigned t, std::vect
 	unsigned char compressed_buffer[OUT_LEN];
 	TraceItem *uncompressed_buffer = (TraceItem *) malloc(BLOCK_SIZE);
 
-	lzo_uint block_size;
-	size_t size = fread(&block_size, sizeof(lzo_uint), 1, datafile);
+	unsigned int block_size;
+	size_t size = fread(&block_size, sizeof(uint64_t), 1, datafile);
 	unsigned neof = 0;
 
-	if(block_size + sizeof(lzo_uint) < filesize) {
-		block_size += sizeof(lzo_uint);
-		neof = 1;
+	if(block_size + sizeof(uint64_t) < filesize) {
+          block_size += sizeof(uint64_t);
+          neof = 1;
 	}
 
-	size_t total_size = sizeof(lzo_uint);
+	size_t total_size = sizeof(uint64_t);
 
 	while(total_size < filesize) {
 		size_t ret = fread(compressed_buffer, 1, block_size, datafile);
@@ -193,18 +201,30 @@ void load_file(boost::filesystem::path path, unsigned bid, unsigned t, std::vect
 			exit(-1);
 		}
 
-		lzo_uint r = lzo1x_decompress(compressed_buffer, block_size - (sizeof(lzo_uint) * neof), (unsigned char *) uncompressed_buffer, &new_len, NULL);
+#if defined(LZO)
+		lzo_uint r = lzo1x_decompress(compressed_buffer, block_size - (sizeof(uint64_t) * neof), (unsigned char *) uncompressed_buffer, &new_len, NULL);
 		if (r != LZO_E_OK) {
 			/* this should NEVER happen */
 			printf("internal error - decompression failed: %lu\n", r);
 			exit(-1);
 		}
+#elif defined(SNAPPY)
+                snappy::GetUncompressedLength((char *) compressed_buffer, block_size - (sizeof(uint64_t) * neof), &new_len);
+                bool r = snappy::RawUncompress((char *) compressed_buffer, block_size - (sizeof(uint64_t) * neof), (char *) uncompressed_buffer);
+		if (!r) {
+			/* this should NEVER happen */
+			printf("internal error - decompression failed\n");
+			exit(-1);
+		}
+#else // elif defined(LZ4)
+                new_len = LZ4_decompress_safe((char *) compressed_buffer, (char *) uncompressed_buffer, block_size - (sizeof(uint64_t) * neof), BLOCK_SIZE);
+#endif
 
 		file_buffers.insert(file_buffers.end(), uncompressed_buffer, uncompressed_buffer + (new_len / sizeof(TraceItem)));
 
-		memcpy(&block_size, compressed_buffer + block_size - sizeof(lzo_uint), sizeof(lzo_uint));
-		if(total_size + block_size + sizeof(lzo_uint) < filesize) {
-			block_size += sizeof(lzo_uint);
+		memcpy(&block_size, compressed_buffer + block_size - sizeof(uint64_t), sizeof(uint64_t));
+		if(total_size + block_size + sizeof(uint64_t) < filesize) {
+			block_size += sizeof(uint64_t);
 			neof = 1;
 		} else {
 			neof = 0;
@@ -318,6 +338,7 @@ int main(int argc, char **argv) {
 	unsigned num_threads = sysconf(_SC_NPROCESSORS_ONLN);
 	// Get cores info
 
+#ifdef LZO
 	// Initialize decompressor
 	if(lzo_init() != LZO_E_OK) {
 		INFO(std::cerr, "Internal error - lzo_init() failed!");
@@ -325,6 +346,7 @@ int main(int argc, char **argv) {
 		exit(-1);
 	}
 	// Initialize decompressor
+#endif
 
 	// Get list of folders (parallel region) inside traces folder
 	//	std::vector<boost::filesystem::path> dir_list;

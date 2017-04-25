@@ -49,7 +49,7 @@ HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
 #define NUM_OF_ACCESSES			25000
 #define BLOCK_SIZE 				NUM_OF_ACCESSES * sizeof(TraceItem)
 #define MB_LIMIT 				BLOCK_SIZE
-#define OUT_LEN     			(BLOCK_SIZE + BLOCK_SIZE / 16 + 64 + 3 + sizeof(lzo_uint)) // 8 byte to store the size of the block
+#define OUT_LEN     			(BLOCK_SIZE + BLOCK_SIZE / 16 + 64 + 3 + sizeof(uint64_t)) // 8 byte to store the size of the block
 
 enum AccessSize {
 	size1 = 0,
