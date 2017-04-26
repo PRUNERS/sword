@@ -20,7 +20,7 @@
 
 #ifdef LZ4
 #include "lz4.h"
-#define ACCELERATION 20
+#define ACCELERATION 5
 #endif
 
 #include <boost/filesystem.hpp>
@@ -109,7 +109,6 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
         fwrite((char *) buffer, *out_len + sizeof(int64_t), 1, file);
 #elif defined(HUFFMAN)
 #elif defined(ARITHMETIC)
-#elif defined(TCGEN)
 #else
 	size_t ret = fwrite((char *) accesses, size * nmemb, 1, file); // Write plain
 #endif
@@ -138,6 +137,17 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 // It adds a lot of runtime overhead because of the TLS access and seems it's not needed, will add later if we find any false positives
 // if(__sword_ignore_access) return; 									\
 
+// #define GET_STACK                                                       \
+//   pthread_t self = pthread_self();                                      \
+//   pthread_attr_t attr;                                                  \
+//   pthread_getattr_np(self, &attr);                                      \
+//   pthread_attr_getstack(&attr, (void **) &stack, &stacksize);           \
+//   pthread_attr_destroy(&attr);
+
+// #define CHECK_STACK                                                     \
+//   if(((size_t) addr >= (size_t) stack) &&                               \
+//      ((size_t) addr < (size_t) stack + stacksize)) return;
+
 #define SAVE_ACCESS(asize, atype)											\
 		accesses[idx].setType(data_access);									\
 		accesses[idx].data.access = Access(asize, atype,					\
@@ -160,10 +170,13 @@ static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 		ompt_thread_data_t *thread_data) {
 	tid = my_next_id();
 
+        // Get stack pointer and stack size
+	// GET_STACK
+
 	accesses1 = (TraceItem *) malloc(BLOCK_SIZE);
 	accesses2 = (TraceItem *) malloc(BLOCK_SIZE);
 	accesses = accesses1;
-	out = (unsigned char *) malloc(OUT_LEN);
+        out = (unsigned char *) malloc(OUT_LEN);
 
 	fut = std::async(dummy);
 }
@@ -484,7 +497,7 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	}
 	boost::filesystem::create_directory(str);
 
-#ifdef LZO
+#if defined(LZO)
 	if(lzo_init() != LZO_E_OK) {
 		printf("internal error - lzo_init() failed !!!\n");
 		printf("(this usually indicates a compiler bug - try recompiling\nwithout optimizations, and enable '-DLZO_DEBUG' for diagnostics)\n");

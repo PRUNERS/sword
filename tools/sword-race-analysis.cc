@@ -216,8 +216,9 @@ void load_file(boost::filesystem::path path, unsigned bid, unsigned t, std::vect
 			printf("internal error - decompression failed\n");
 			exit(-1);
 		}
-#else // elif defined(LZ4)
+#elif defined(LZ4)
                 new_len = LZ4_decompress_safe((char *) compressed_buffer, (char *) uncompressed_buffer, block_size - (sizeof(uint64_t) * neof), BLOCK_SIZE);
+#else
 #endif
 
 		file_buffers.insert(file_buffers.end(), uncompressed_buffer, uncompressed_buffer + (new_len / sizeof(TraceItem)));

@@ -158,10 +158,10 @@ public:
 };
 
 // Global Variables
-std::atomic<ompt_id_t> current_parallel_idx(0);
+// std::atomic<ompt_id_t> current_parallel_idx(0);
 
 // Thread Local Variables
-thread_local unsigned char __LZO_MMODEL *out;
+thread_local unsigned char *out;
 extern thread_local int tid;
 extern thread_local int __sword_status__;
 extern thread_local TraceItem *accesses;
@@ -170,7 +170,9 @@ extern thread_local TraceItem *accesses2;
 extern thread_local uint64_t idx;
 extern thread_local uint64_t bid;
 extern thread_local char *buffer;
-thread_local size_t offset;
+// extern thread_local size_t *stack;
+// extern thread_local size_t stacksize;
+extern thread_local size_t offset;
 
 thread_local FILE *datafile = NULL;
 thread_local std::future<bool> fut;

@@ -556,7 +556,10 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   llvm::GlobalVariable *ompIndex = NULL;
   llvm::GlobalVariable *ompBarrierID = NULL;
   llvm::GlobalVariable *ompBuffer = NULL;
+  // llvm::GlobalVariable *ompStack = NULL;
+  // llvm::GlobalVariable *ompStackSize = NULL;
   llvm::GlobalVariable *ompOffset = NULL;
+  // llvm::GlobalVariable *ompDatafile = NULL;
 
   Module *M = F.getParent();
   StringRef functionName = F.getName();
@@ -566,7 +569,7 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   ConstantInt *Zero64 = ConstantInt::get(Type::getInt64Ty(M->getContext()), 0);
   ConstantInt *One = ConstantInt::get(Type::getInt32Ty(M->getContext()), 1);
 
-  ompOutLZO = M->getNamedGlobal("out");
+  // ompOutLZO = M->getNamedGlobal("out");
   ompThreadID = M->getNamedGlobal("tid");
   ompStatusGlobal = M->getNamedGlobal("__sword_status__");
   ompAccesses = M->getNamedGlobal("accesses");
@@ -575,11 +578,14 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   ompIndex = M->getNamedGlobal("idx");
   ompBarrierID = M->getNamedGlobal("bid");
   ompBuffer = M->getNamedGlobal("buffer");
+  // ompStack = M->getNamedGlobal("stack");
+  // ompStackSize = M->getNamedGlobal("stacksize");
   ompOffset = M->getNamedGlobal("offset");
+  // ompDatafile = M->getNamedGlobal("datafile");
 
   if(functionName.compare("main") == 0) {
-	IRBuilder<> IRB(M->getContext());
-//    TLS_DECLARE(ompOutLZO, IRB.getInt8PtrTy(), "out"); // unsigned char
+    IRBuilder<> IRB(M->getContext());
+    // TLS_DECLARE(ompOutLZO, IRB.getInt8PtrTy(), "out"); // unsigned char *
     TLS_DECLARE(ompThreadID, IRB.getInt32Ty(), "tid"); // int
     TLS_DECLARE(ompStatusGlobal, IRB.getInt32Ty(), "__sword_status__"); // int
     TLS_DECLARE(ompAccesses, IRB.getInt8PtrTy(), "accesses"); // TraceItem *
@@ -588,7 +594,10 @@ bool InstrumentParallel::runOnFunction(Function &F) {
     TLS_DECLARE(ompIndex, IRB.getInt64Ty(), "idx"); // uint64_t
     TLS_DECLARE(ompBarrierID, IRB.getInt64Ty(), "bid"); // uint64_t
     TLS_DECLARE(ompBuffer, IRB.getInt8PtrTy(), "buffer"); // char *
-//    TLS_DECLARE(ompOffset, IRB.getInt64Ty(), "offset"); // size_t
+    // TLS_DECLARE(ompStack, IRB.getInt8PtrTy(), "stack"); // size_t *
+    // TLS_DECLARE(ompStackSize, IRB.getInt64Ty(), "stacksize"); // size_t
+    TLS_DECLARE(ompOffset, IRB.getInt64Ty(), "offset"); // size_t
+    // TLS_DECLARE(ompDatafile, IRB.getInt8PtrTy(), "datafile"); // FILE *
 
     return true;
   }
@@ -604,7 +613,7 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   }
 
   IRBuilder<> IRB(M->getContext());
-//  TLS_DECLARE_EXTERN(ompOutLZO, IRB.getInt8PtrTy(), "out"); // unsigned char
+  // TLS_DECLARE_EXTERN(ompOutLZO, IRB.getInt8PtrTy(), "out"); // unsigned char *
   TLS_DECLARE_EXTERN(ompThreadID, IRB.getInt32Ty(), "tid"); // int
   TLS_DECLARE_EXTERN(ompStatusGlobal, IRB.getInt32Ty(), "__sword_status__"); // int
   TLS_DECLARE_EXTERN(ompAccesses, IRB.getInt8PtrTy(), "accesses"); // TraceItem *
@@ -613,7 +622,10 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   TLS_DECLARE_EXTERN(ompIndex, IRB.getInt64Ty(), "idx"); // uint64_t
   TLS_DECLARE_EXTERN(ompBarrierID, IRB.getInt64Ty(), "bid"); // uint64_t
   TLS_DECLARE_EXTERN(ompBuffer, IRB.getInt8PtrTy(), "buffer"); // char *
-//  TLS_DECLARE_EXTERN(ompOffset, IRB.getInt64Ty(), "offset"); // size_t
+  // TLS_DECLARE_EXTERN(ompStack, IRB.getInt8PtrTy(), "stack"); // size_t *
+  // TLS_DECLARE_EXTERN(ompStackSize, IRB.getInt64Ty(), "stacksize"); // size_t
+  TLS_DECLARE_EXTERN(ompOffset, IRB.getInt64Ty(), "offset"); // size_t
+  // TLS_DECLARE_EXTERN(ompDatafile, IRB.getInt8PtrTy(), "datafile"); // FILE *
 
   if(functionName.startswith(".omp")) {
     IF = &F;
