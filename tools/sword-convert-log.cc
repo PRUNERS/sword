@@ -18,6 +18,50 @@
 #include <map>
 #include <thread>
 
+struct Interval {
+	size_t address;
+	unsigned count;
+	uint8_t size_type; // size in first 4 bits, type in last 4 bits
+	size_t diff;
+	Int48 pc;
+
+	Interval(size_t addr, uint8_t st, size_t p) {
+		address  = addr;
+		size_type = st;
+		pc.num = p;
+		count = 1;
+		diff = 0;
+	}
+
+	Interval(const TraceItem &item) {
+		address  = item.data.access.getAddress();
+		count = 1;
+		diff = 0;
+		size_type = item.data.access.getAccessSizeType();
+		pc.num = item.data.access.getPC();
+	}
+
+	uint8_t getAccessSizeType() const {
+		return size_type;
+	}
+
+	AccessSize getAccessSize() const {
+		return (AccessSize) (size_type >> 4);
+	}
+
+	AccessType getAccessType() const {
+		return (AccessType) (size_type & 0x0F);
+	}
+
+	size_t getAddress() const {
+		return address;
+	}
+
+	size_t getPC() const {
+		return pc.num;
+	}
+};
+
 #define PRINT 0
 
 void SaveReport(std::string filename) {
@@ -167,7 +211,58 @@ void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vec
 	available_threads++;
 }
 
-void load_file(std::string filename, std::vector<TraceItem> &file_buffer) {
+#define INTERVAL_CHECK 														\
+		if((item.data.access.getAccessSizeType() == it->getAccessSizeType()) && (item.data.access.getPC() == it->getPC())) { \
+			if(it->diff != 0) { 											\
+				max = it->address + (it->diff * (it->count - 1)); 			\
+				if(item.data.access.getAddress() == (max + it->diff)) { 	\
+					it->count++; 											\
+					return;							 						\
+				} 															\
+				if((item.data.access.getAddress() >= it->address) && (item.data.access.getAddress() <= max)) \
+					return; 												\
+				if(item.data.access.getAddress() == (it->address - it->diff)) { \
+					it->address = item.data.access.getAddress(); 			\
+					it->count++; 											\
+					return; 												\
+				} 															\
+			} else { 														\
+				it->diff = item.data.access.getAddress() - it->address; 	\
+				max = it->address + (it->diff * (it->count - 1)); 			\
+				if(item.data.access.getAddress() == (max + it->diff)) { 	\
+					it->count++; 											\
+					return; 												\
+				} 															\
+				if((item.data.access.getAddress() >= it->address) && (item.data.access.getAddress() <= max)) \
+					return; 												\
+				if(item.data.access.getAddress() == (it->address - it->diff)) { \
+					it->address = item.data.access.getAddress(); 			\
+					it->count++; 											\
+					return; 												\
+				} 															\
+			} 																\
+		}
+
+inline void addToIntervals(std::vector<Interval> &intervals, const TraceItem &item) {
+	size_t max;
+	if(intervals.size() > 0) {
+		for(std::vector<Interval>::iterator it = intervals.begin(); it != intervals.end(); ++it) {
+			INTERVAL_CHECK
+			++it;
+			if(it == intervals.end()) break;
+			INTERVAL_CHECK
+			++it;
+			if(it == intervals.end()) break;
+			INTERVAL_CHECK
+			++it;
+			if(it == intervals.end()) break;
+			INTERVAL_CHECK
+		}
+	}
+	intervals.push_back(Interval(item));
+}
+
+void load_file(std::string filename, std::vector<Interval> &intervals) {
 	uint64_t filesize = boost::filesystem::file_size(filename);
 	uint64_t out_len;
 	uint64_t new_len;
@@ -191,7 +286,7 @@ void load_file(std::string filename, std::vector<TraceItem> &file_buffer) {
 	}
 
 	size_t total_size = sizeof(uint64_t);
-
+	std::vector<TraceItem> file_buffer;
 	while(total_size < filesize) {
 		size_t ret = fread(compressed_buffer, 1, block_size, datafile);
 		total_size += block_size;
@@ -221,6 +316,17 @@ void load_file(std::string filename, std::vector<TraceItem> &file_buffer) {
 #endif
 
         file_buffer.insert(file_buffer.end(), uncompressed_buffer, uncompressed_buffer + (new_len / sizeof(TraceItem)));
+
+    	for(std::vector<TraceItem>::const_iterator it = file_buffer.begin(); it != file_buffer.end(); ++it) {
+    		switch(it->getType()) {
+    		case data_access:
+    			addToIntervals(intervals, *it);
+    			break;
+    		default:
+    			break;
+    		}
+    	}
+    	file_buffer.clear();
 
 		memcpy(&block_size, compressed_buffer + block_size - sizeof(uint64_t), sizeof(uint64_t));
 		if(total_size + block_size + sizeof(uint64_t) < filesize) {
@@ -252,12 +358,31 @@ int main(int argc, char **argv) {
 	}
 
 	std::string filename(argv[1]);
+
+	// File check
+	if (!boost::filesystem::exists(filename)) {
+		INFO(std::cerr, "The file'" << filename << "' does not exists.\nPlease specify the correct path and name of the file to convert.");
+		return -1;
+	}
+
 	INFO(std::cout, "Analyzing file: " << filename << std::endl);
 
-	std::vector<TraceItem> buffer;
-	load_file(filename, buffer);
+	std::vector<Interval> intervals;
+	load_file(filename, intervals);
 
-	INFO(std::cout, "Buffer size: " << buffer.size() << std::endl);
+//  INFO(std::cout, "Buffer size: " << buffer.size() << std::endl);
+//	std::vector<Interval> intervals;
+//	for(std::vector<TraceItem>::const_iterator it = buffer.begin(); it != buffer.end(); ++it) {
+//		switch(it->getType()) {
+//		case data_access:
+//			addToIntervals(intervals, *it);
+//			break;
+//		default:
+//			break;
+//		}
+//	}
+
+	INFO(std::cout, "Intervals size: " << intervals.size());
 
 	return 0;
 }

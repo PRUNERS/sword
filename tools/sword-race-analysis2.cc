@@ -18,50 +18,6 @@
 #include <map>
 #include <thread>
 
-struct Interval {
-	size_t address;
-	unsigned count;
-	uint8_t size_type; // size in first 4 bits, type in last 4 bits
-	size_t diff;
-	Int48 pc;
-
-	Interval(size_t addr, uint8_t st, size_t p) {
-		address  = addr;
-		size_type = st;
-		pc.num = p;
-		count = 1;
-		diff = 0;
-	}
-
-	Interval(const TraceItem &item) {
-		address  = item.data.access.getAddress();
-		count = 1;
-		diff = 0;
-		size_type = item.data.access.getAccessSizeType();
-		pc.num = item.data.access.getPC();
-	}
-
-	uint8_t getAccessSizeType() const {
-		return size_type;
-	}
-
-	AccessSize getAccessSize() const {
-		return (AccessSize) (size_type >> 4);
-	}
-
-	AccessType getAccessType() const {
-		return (AccessType) (size_type & 0x0F);
-	}
-
-	size_t getAddress() const {
-		return address;
-	}
-
-	size_t getPC() const {
-		return pc.num;
-	}
-};
-
 #define PRINT 0
 
 void SaveReport(std::string filename) {
@@ -211,59 +167,7 @@ void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vec
 	available_threads++;
 }
 
-#define INTERVAL_CHECK 														\
-		if((item.data.access.getAccessSizeType() == it->getAccessSizeType()) && (item.data.access.getPC() == it->getPC())) { \
-			if(it->diff != 0) { 											\
-				max = it->address + (it->diff * (it->count - 1)); 			\
-				if(item.data.access.getAddress() == (max + it->diff)) { 	\
-					it->count++; 											\
-					return;							 						\
-				} 															\
-				if((item.data.access.getAddress() >= it->address) && (item.data.access.getAddress() <= max)) \
-					return; 												\
-				if(item.data.access.getAddress() == (it->address - it->diff)) { \
-					it->address = item.data.access.getAddress(); 			\
-					it->count++; 											\
-					return; 												\
-				} 															\
-			} else { 														\
-				it->diff = item.data.access.getAddress() - it->address; 	\
-				max = it->address + (it->diff * (it->count - 1)); 			\
-				if(item.data.access.getAddress() == (max + it->diff)) { 	\
-					it->count++; 											\
-					return; 												\
-				} 															\
-				if((item.data.access.getAddress() >= it->address) && (item.data.access.getAddress() <= max)) \
-					return; 												\
-				if(item.data.access.getAddress() == (it->address - it->diff)) { \
-					it->address = item.data.access.getAddress(); 			\
-					it->count++; 											\
-					return; 												\
-				} 															\
-			} 																\
-		}
-
-inline void addToIntervals(std::vector<Interval> &intervals, const TraceItem &item) {
-	size_t max;
-	if(intervals.size() > 0) {
-		for(std::vector<Interval>::iterator it = intervals.begin(); it != intervals.end(); ++it) {
-			INTERVAL_CHECK
-			++it;
-			if(it == intervals.end()) break;
-			INTERVAL_CHECK
-			++it;
-			if(it == intervals.end()) break;
-			INTERVAL_CHECK
-			++it;
-			if(it == intervals.end()) break;
-			INTERVAL_CHECK
-		}
-	}
-	intervals.push_back(Interval(item));
-}
-
-void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned t, std::vector<Interval> &interval_buffer) {
-	std::vector<TraceItem> file_buffer;
+void load_file(boost::filesystem::path path, unsigned bid, unsigned t, std::vector<TraceItem> &file_buffers) {
 	std::string filename(path.string() + "/threadtrace_" + std::to_string(t) + "_" + std::to_string(bid));
 	uint64_t filesize = boost::filesystem::file_size(filename);
 	uint64_t out_len;
@@ -317,7 +221,7 @@ void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned 
 #else
 #endif
 
-        file_buffer.insert(file_buffer.end(), uncompressed_buffer, uncompressed_buffer + (new_len / sizeof(TraceItem)));
+		file_buffers.insert(file_buffers.end(), uncompressed_buffer, uncompressed_buffer + (new_len / sizeof(TraceItem)));
 
 		memcpy(&block_size, compressed_buffer + block_size - sizeof(uint64_t), sizeof(uint64_t));
 		if(total_size + block_size + sizeof(uint64_t) < filesize) {
@@ -336,8 +240,6 @@ void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned 
 	// INFO(std::cout, "End of file: " << t);
 	free(uncompressed_buffer);
 	fclose(datafile);
-
-	INFO(std::cout, "Intervals size: " << interval_buffer.size());
 }
 
 int main(int argc, char **argv) {
@@ -381,6 +283,47 @@ int main(int argc, char **argv) {
 		INFO(std::cerr, "Sword Error: " << unknown_option << " is an unknown option.\nSpecify --help for usage.");
 		return -1;
 	}
+
+	/* Checks already done in Python script
+	try {
+		// Output folder
+		// Output folder
+		if(boost::algorithm::ends_with(report_data.string(), SWORD_REPORT)) {
+			report_data.append("/");
+		} else if(boost::algorithm::ends_with(report_data.string(), std::string(SWORD_REPORT) + std::string("/"))) {
+
+		} else if(boost::algorithm::ends_with(report_data.string(), "/")) {
+			report_data.append(SWORD_REPORT);
+		} else {
+			report_data.append("/").append(SWORD_REPORT);
+		}
+
+		if(boost::filesystem::is_directory(report_data)) {
+			INFO(std::cout, "Found existing report folder, please delete or rename it before proceeding with analysis.");
+			return -1;
+		}
+		if(!boost::filesystem::create_directory(report_data)) {
+			INFO(std::cerr, "Unable to create destination directory " << report_data.string());
+			return -1;
+		}
+
+		// Input folder
+		traces_data.append(SWORD_DATA);
+		if(!boost::filesystem::is_directory(traces_data)) {
+			INFO(std::cerr, "The traces folder '" << traces_data.string() << "' does not exists.\nPlease specify the correct path with the option '--traces-path <path-to-traces-folder>'.");
+			return -1;
+		}
+
+		// Executable check
+		if (!boost::filesystem::exists(executable)) {
+			INFO(std::cerr, "The executable '" << executable << "' does not exists.\nPlease specify the correct path and name for the executable.");
+			return -1;
+		}
+	} catch( boost::filesystem::filesystem_error const & e) {
+        INFO(std::cerr, e.what());
+        return false;
+    }
+	 */
 
 #if PRINT
 	// Look for shell
@@ -439,6 +382,17 @@ int main(int argc, char **argv) {
 				traces[bid].trace_size += boost::filesystem::file_size(entry.path());
 				traces[bid].thread_id.push_back(tid);
 			}
+//			} else if (entry.path().filename().string().find("create_tasks_") != std::string::npos) {
+//				unsigned bid;
+//				unsigned tid;
+//				sscanf(entry.path().filename().string().c_str(), "create_tasks_%d_%d", &tid, &bid);
+//				creators_threads[bid].insert(tid);
+//			} else if (entry.path().filename().string().find("schedule_tasks_") != std::string::npos) {
+//				unsigned bid;
+//				unsigned tid;
+//				sscanf(entry.path().filename().string().c_str(), "schedule_tasks_%d_%d", &tid, &bid);
+//				schedule_threads[bid].insert(tid);
+//			}
 		}
 		// Iterate files within folder and create maps of barriers intervals and list of threads within th barrier interval
 		// Iterate barrier intervals
@@ -473,10 +427,10 @@ int main(int argc, char **argv) {
 			// Struct to load uncompressed data from file
 			std::vector<std::thread> lm_thread;
 			lm_thread.reserve(it->second.thread_id.size());
-			std::vector<std::vector<Interval>> interval_buffers;
-			interval_buffers.resize(it->second.thread_id.size());
+			std::vector<std::vector<TraceItem>> file_buffers;
+			file_buffers.resize(it->second.thread_id.size());
 			for(std::vector<unsigned>::const_iterator th_id = it->second.thread_id.begin(); th_id != it->second.thread_id.end(); ++th_id) {
-				lm_thread.push_back(std::thread(load_and_convert_file, dir, it->first, *th_id, std::ref(interval_buffers[*th_id])));
+				lm_thread.push_back(std::thread(load_file, dir, it->first, *th_id, std::ref(file_buffers[*th_id])));
 			}
 			for(int k = 0; k < lm_thread.size(); k++) {
 				lm_thread[k].join();
@@ -485,13 +439,12 @@ int main(int argc, char **argv) {
 			// Load data into memory of all the threads in given barrier interval, if it fits in memory,
 			// data are compressed so not sure how to check if everything will fit in memory
 
-			/* Trace Analysis
 			// Now we can start analyzing the pairs
 			std::atomic<int> available_threads;
 			std::vector<std::thread> thread_list;
 			available_threads = num_threads;
 			for(std::set<std::pair<unsigned,unsigned>>::const_iterator p = thread_pairs.begin(); p != thread_pairs.end(); ++p) {
-				while(!available_threads) { } // { usleep(1000); }
+				while(!available_threads) { /* usleep(1000); */ }
 				available_threads--;
 
 				// Create thread
@@ -501,7 +454,6 @@ int main(int argc, char **argv) {
 				th->join();
 			}
 			thread_list.clear();
-			*/
 		}
 		if(races.size() > 0) {
 			std::vector<std::string> strings;

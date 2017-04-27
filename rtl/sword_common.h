@@ -105,6 +105,10 @@ public:
 		pc.num = p;
 	}
 
+	uint8_t getAccessSizeType() const {
+		return size_type;
+	}
+
 	AccessSize getAccessSize() const {
 		return (AccessSize) (size_type >> 4);
 	}
