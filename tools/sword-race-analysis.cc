@@ -541,7 +541,6 @@ int main(int argc, char **argv) {
 			interval_buffers.resize(it->second.thread_id.size());
 			for(std::vector<unsigned>::const_iterator th_id = it->second.thread_id.begin(); th_id != it->second.thread_id.end(); ++th_id) {
 				lm_thread.push_back(std::thread(load_and_convert_file, dir, it->first, *th_id, std::ref(interval_buffers[*th_id])));
-				break;
 			}
 			for(int k = 0; k < lm_thread.size(); k++) {
 				lm_thread[k].join();
