@@ -1,3 +1,4 @@
+#include "interval_tree.h"
 #include "sword-race-analysis.h"
 #include <boost/algorithm/string.hpp>
 
@@ -18,6 +19,7 @@
 #include <map>
 #include <thread>
 
+/*
 struct Interval {
 public:
 	size_t address;
@@ -110,6 +112,7 @@ public:
 		D() { new(&interval) Interval(); }
 	} data;
 };
+*/
 
 #define PRINT 0
 
@@ -208,6 +211,7 @@ bool overlap(const std::set<size_t>& s1, const std::set<size_t>& s2) {
 
 #define UNSAFE() !overlap(mt1, mt2)
 
+/*
 void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vector<LogItem>> &interval_buffers, std::atomic<int> &available_threads) {
 	//	INFO(std::cout, "Analyzing pair (" << t1 << "," << t2 << ").");
 
@@ -309,8 +313,9 @@ inline void addToIntervals(std::vector<LogItem> &intervals, const TraceItem &ite
 bool interval_sort(const LogItem &item1, const LogItem &item2) {
 	return (item1.data.interval.getAddress() < item2.data.interval.getAddress());
 }
+*/
 
-void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned t, std::vector<LogItem> &interval_buffer) {
+void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned t, IntervalTree &interval_buffer) {
 	std::string filename(path.string() + "/threadtrace_" + std::to_string(t) + "_" + std::to_string(bid));
 	uint64_t filesize = boost::filesystem::file_size(filename);
 	uint64_t out_len;
@@ -336,7 +341,7 @@ void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned 
 
 	size_t total_size = sizeof(uint64_t);
 	std::vector<TraceItem> file_buffer;
-	std::vector<LogItem> intervals;
+	IntervalTree intervals;
 	while(total_size < filesize) {
 		size_t ret = fread(compressed_buffer, 1, block_size, datafile);
 		total_size += block_size;
@@ -370,15 +375,15 @@ void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned 
     	for(std::vector<TraceItem>::const_iterator it = file_buffer.begin(); it != file_buffer.end(); ++it) {
     		switch(it->getType()) {
     		case data_access:
-    			addToIntervals(intervals, *it);
+    			interval_buffer.root = interval_buffer.insertNode(interval_buffer.root, it->data.access);
     			break;
-    		case mutex_acquired:
-    		case mutex_released:
-    			std::sort(intervals.begin(), intervals.end(), interval_sort);
-    			intervals.push_back(LogItem(it->getType(), it->data.mutex_region));
-    			copy(intervals.begin(), intervals.end(), std::back_inserter(interval_buffer));
-    			intervals.clear();
-    			break;
+//    		case mutex_acquired:
+//    		case mutex_released:
+//    			std::sort(intervals.begin(), intervals.end(), interval_sort);
+//    			intervals.push_back(LogItem(it->getType(), it->data.mutex_region));
+//    			copy(intervals.begin(), intervals.end(), std::back_inserter(interval_buffer));
+//    			intervals.clear();
+//    			break;
     		default:
     			break;
     		}
@@ -394,11 +399,13 @@ void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned 
 			neof = 0;
 		}
 	}
+	/*
 	if(intervals.size() > 0) {
 		std::sort(intervals.begin(), intervals.end(), interval_sort);
 		copy(intervals.begin(), intervals.end(), std::back_inserter(interval_buffer));
 		intervals.clear();
 	}
+	*/
 
 	free(uncompressed_buffer);
 	fclose(datafile);
@@ -537,7 +544,7 @@ int main(int argc, char **argv) {
 			// Struct to load uncompressed data from file
 			std::vector<std::thread> lm_thread;
 			lm_thread.reserve(it->second.thread_id.size());
-			std::vector<std::vector<LogItem>> interval_buffers;
+			std::vector<IntervalTree> interval_buffers;
 			interval_buffers.resize(it->second.thread_id.size());
 			for(std::vector<unsigned>::const_iterator th_id = it->second.thread_id.begin(); th_id != it->second.thread_id.end(); ++th_id) {
 				lm_thread.push_back(std::thread(load_and_convert_file, dir, it->first, *th_id, std::ref(interval_buffers[*th_id])));
@@ -549,7 +556,10 @@ int main(int argc, char **argv) {
 			// Load data into memory of all the threads in given barrier interval, if it fits in memory,
 			// data are compressed so not sure how to check if everything will fit in memory
 
+			// interval_buffers[0].printTree(interval_buffers[0].root);
+
 			// Now we can start analyzing the pairs
+			/*
 			std::atomic<int> available_threads;
 			std::vector<std::thread> thread_list;
 			available_threads = num_threads;
@@ -564,6 +574,7 @@ int main(int argc, char **argv) {
 				th->join();
 			}
 			thread_list.clear();
+			*/
 		}
 		if(races.size() > 0) {
 			std::vector<std::string> strings;
