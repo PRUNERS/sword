@@ -341,7 +341,6 @@ void load_file(std::string filename, std::vector<LogItem> &intervals) {
 	size_t total_size = sizeof(uint64_t);
 	std::vector<TraceItem> file_buffer;
 	while(total_size < filesize) {
-		INFO(std::cout, total_size);
 		size_t ret = fread(compressed_buffer, 1, block_size, datafile);
 		total_size += block_size;
 		if(ret != block_size) {

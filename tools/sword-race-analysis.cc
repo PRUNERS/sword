@@ -338,7 +338,6 @@ void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned 
 	std::vector<TraceItem> file_buffer;
 	std::vector<LogItem> intervals;
 	while(total_size < filesize) {
-		INFO(std::cout, total_size);
 		size_t ret = fread(compressed_buffer, 1, block_size, datafile);
 		total_size += block_size;
 		if(ret != block_size) {
