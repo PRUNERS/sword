@@ -1,16 +1,30 @@
 #include "rtl/sword_common.h"
+#include <algorithm>
 #include <cstdio>
 #include <iostream>
 #include <list>
 #include <string>
+#include <set>
 #include <vector>
 
+#define RACE_CHECK(node1, node2) 											\
+		((node1->getAccessType() == unsafe_write) ||						\
+				(node2->getAccessType() == unsafe_write) ||					\
+				((node1->getAccessType() == atomic_write) &&				\
+						(node2->getAccessType() == unsafe_read)) ||			\
+						((node2->getAccessType() == atomic_write) &&		\
+								(node1->getAccessType() == unsafe_read)))
+
+#if PRINT
 static int global_key = 0;
+#endif
 
 class Interval {
 	friend class IntervalTree;
 private:
+#if PRINT
 	int key;
+#endif
 	size_t address;
 	unsigned count;
 	uint8_t size_type; // size in first 4 bits, type in last 4 bits
@@ -19,10 +33,13 @@ private:
 	size_t max;
 	Interval *left;
 	Interval *right;
+	std::set<size_t> mutex;
 
 public:
 	Interval(size_t addr, uint8_t st, size_t p) {
+#if PRINT
 		key = ++global_key;
+#endif
 		address = addr;
 		count = 1;
 		diff = 0;
@@ -33,8 +50,10 @@ public:
 		right = NULL;
 	}
 
-	Interval(const Access &item) {
+	Interval(const Access &item, const std::set<size_t> mtx) {
+#if PRINT
 		key = ++global_key;
+#endif
 		address = item.getAddress();
 		count = 1;
 		diff = 0;
@@ -43,6 +62,7 @@ public:
 		max = item.getAddress();;
 		left = NULL;
 		right = NULL;
+		mutex.insert(mtx.begin(), mtx.end());
 	}
 
 	uint8_t getAccessSizeType() const {
@@ -102,12 +122,8 @@ public:
 	}
 
 	std::string tostring() {
-		// return "[" + std::to_string(getAddress()) + ", " + std::to_string(getEnd()) + ", " + std::to_string(getMax()) + "]";
 		std::stringstream ss;
-		// ss << "[" << std::hex << address << "," << getEnd() << "," << getMax() << "," << std::dec << count << "," << diff << "]";
 		ss << "[" << address << "," << getEnd() << "," << getMax() << "," << std::dec << count << "," << diff << "]";
-//		for(int i = 0; i < count + 1; i++)
-//			ss << address + (diff * i) << ",";
 		ss << std::endl;
 		return ss.str();
 	}
@@ -122,14 +138,23 @@ public:
 };
 
 class IntervalTree {
+private:
+	bool overlap(const std::set<size_t>& s1, const std::set<size_t>& s2) {
+		for(const auto& i : s1) {
+			if(std::binary_search(s2.begin(), s2.end(), i))
+				return true;
+		}
+		return false;
+	}
+
 public:
 	Interval *root;
 
-	Interval *insertNode(Interval *tmp, const Access &item) {
+	Interval *insertNode(Interval *tmp, const Access &item, const std::set<size_t> &mutex) {
 		size_t end;
 
 		if (tmp == NULL) {
-			tmp = new Interval(item);
+			tmp = new Interval(item, mutex);
 			return tmp;
 		}
 
@@ -137,7 +162,7 @@ public:
 			tmp->setMax(item.getAddress());
 		}
 
-		if((item.getAccessSizeType() == tmp->size_type) && (item.getPC() == tmp->getPC())) {
+		if((item.getAccessSizeType() == tmp->size_type) && (item.getPC() == tmp->getPC()) && (mutex == tmp->mutex)) {
 			if(tmp->diff != 0) {
 				end = tmp->getEnd();
 				if(item.getAddress() == (end + tmp->diff)) {
@@ -182,15 +207,15 @@ public:
 
 		if (tmp->compareTo(item) <= 0) {
 			if (tmp->getRight() == NULL) {
-				tmp->setRight(new Interval(item));
+				tmp->setRight(new Interval(item, mutex));
 			} else {
-				insertNode(tmp->getRight(), item);
+				insertNode(tmp->getRight(), item, mutex);
 			}
 		} else {
 			if (tmp->getLeft() == NULL) {
-				tmp->setLeft(new Interval(item));
+				tmp->setLeft(new Interval(item, mutex));
 			} else {
-				insertNode(tmp->getLeft(), item);
+				insertNode(tmp->getLeft(), item, mutex);
 			}
 		}
 		return tmp;
@@ -212,24 +237,23 @@ public:
 		}
 	}
 
-	void intersectInterval(Interval *tmp, Interval *i, std::vector<std::pair<Interval,Interval>> &res) {
+	void intersectInterval(Interval *node1, Interval *node2, std::vector<std::pair<Interval,Interval>> &res) {
 
-		if (tmp == NULL) {
+		if (node1 == NULL || node2 == NULL) {
 			return;
 		}
 
-		// std::cout << "Compare: " << tmp->tostring() << " to " << i->tostring() << std::endl;
-	    // std::cout << "Compare: " << i->tostring() << std::endl;
-
-		if (!((tmp->getAddress() > i->getEnd()) || (tmp->getEnd() < i->getAddress()))) {
-			res.emplace_back(*tmp, *i);
+		if(RACE_CHECK(node1,node2) && !overlap(node1->mutex, node2->mutex)) {
+			if (!((node1->getAddress() > node2->getEnd()) || (node1->getEnd() < node2->getAddress()))) {
+				res.emplace_back(*node1, *node2);
+			}
 		}
 
-		if ((tmp->getLeft() != NULL) && (tmp->getLeft()->getMax() >= i->getAddress())) {
-			intersectInterval(tmp->getLeft(), i, res);
+		if ((node1->getLeft() != NULL) && (node1->getLeft()->getMax() >= node2->getAddress())) {
+			intersectInterval(node1->getLeft(), node2, res);
 		}
 
-		intersectInterval(tmp->getRight(), i, res);
+		intersectInterval(node1->getRight(), node2, res);
 	}
 
 	void intersectIntervals(Interval *tree1, Interval *tree2, std::vector<std::pair<Interval,Interval>> &res) {
@@ -239,7 +263,6 @@ public:
 		}
 
 		// Search current interval of tree2 in tree1
-		//std::cout << "To check: " << tree2->tostring() << std::endl;
 		intersectInterval(tree1, tree2, res);
 
 		// Call recursively on left and right tree
@@ -252,49 +275,51 @@ public:
 		}
 	}
 
+#if PRINT
 	void bst_print_dot_null(int key, int nullcount)
 	{
-	    printf("    null%d [shape=point];\n", nullcount);
-	    printf("    %d -> null%d;\n", key, nullcount);
+		printf("    null%d [shape=point];\n", nullcount);
+		printf("    %d -> null%d;\n", key, nullcount);
 	}
 
 	void bst_print_dot_aux(Interval *node)
 	{
-	    static int nullcount = 0;
+		static int nullcount = 0;
 
-	    if (node->getLeft())
-	    {
-	        printf("    %d -> %d;\n", node->key, node->left->key);
-	        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->key, node->address, node->getEnd(), node->getMax(), node->count);
-	        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->left->key, node->left->address, node->left->getEnd(), node->left->getMax(), node->count);
-	        bst_print_dot_aux(node->getLeft());
-	    }
-	    else
-	        bst_print_dot_null(node->key, nullcount++);
+		if (node->getLeft())
+		{
+			printf("    %d -> %d;\n", node->key, node->left->key);
+			printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->key, node->address, node->getEnd(), node->getMax(), node->count);
+			printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->left->key, node->left->address, node->left->getEnd(), node->left->getMax(), node->count);
+			bst_print_dot_aux(node->getLeft());
+		}
+		else
+			bst_print_dot_null(node->key, nullcount++);
 
-	    if (node->getRight())
-	    {
-	        printf("    %d -> %d;\n", node->key, node->right->key);
-	        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->key, node->address, node->getEnd(), node->getMax(), node->count);
-	        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->right->key, node->right->address, node->right->getEnd(), node->right->getMax(), node->count);
-	        bst_print_dot_aux(node->getRight());
-	    }
-	    else
-	        bst_print_dot_null(node->key, nullcount++);
+		if (node->getRight())
+		{
+			printf("    %d -> %d;\n", node->key, node->right->key);
+			printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->key, node->address, node->getEnd(), node->getMax(), node->count);
+			printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->right->key, node->right->address, node->right->getEnd(), node->right->getMax(), node->count);
+			bst_print_dot_aux(node->getRight());
+		}
+		else
+			bst_print_dot_null(node->key, nullcount++);
 	}
 
 	void bst_print_dot(Interval *tree)
 	{
-	    printf("digraph BST {\n");
-	    printf("    node [fontname=\"Arial\"];\n");
+		printf("digraph BST {\n");
+		printf("    node [fontname=\"Arial\"];\n");
 
-	    if (!tree)
-	        printf("\n");
-	    else if (!tree->right && !tree->left)
-	        printf("    %d;\n", tree->key);
-	    else
-	        bst_print_dot_aux(tree);
+		if (!tree)
+			printf("\n");
+		else if (!tree->right && !tree->left)
+			printf("    %d;\n", tree->key);
+		else
+			bst_print_dot_aux(tree);
 
-	    printf("}\n");
+		printf("}\n");
 	}
+#endif
 };

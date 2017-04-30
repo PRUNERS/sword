@@ -210,7 +210,7 @@ public:
 		wait_id = wid;
 	}
 
-	ompt_wait_id_t getWaitId() {
+	ompt_wait_id_t getWaitId() const {
 		return wait_id;
 	}
 };

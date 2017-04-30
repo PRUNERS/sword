@@ -114,7 +114,7 @@ public:
 };
 */
 
-#define PRINT 1
+#define PRINT 0
 
 void SaveReport(std::string filename) {
 	std::ofstream file(filename, std::ios::out | std::ios::binary);
@@ -189,28 +189,6 @@ unsigned long long getTotalSystemMemory()
 	return pages * page_size;
 }
 
-bool overlap(const std::set<size_t>& s1, const std::set<size_t>& s2) {
-	for(const auto& i : s1) {
-		if(std::binary_search(s2.begin(), s2.end(), i))
-			return true;
-	}
-	return false;
-}
-
-//#define RACE_CHECK(t1, t2) \
-//		(t1->data.access.getAddress() == t2->data.access.getAddress()) &&		\
-//		((t1->data.access.getAccessType() == unsafe_write) ||					\
-//				(t2->data.access.getAccessType() == unsafe_write) ||					\
-//				((t1->data.access.getAccessType() == atomic_write) &&					\
-//						(t2->data.access.getAccessType() == unsafe_read)) ||					\
-//						((t2->data.access.getAccessType() == atomic_write) &&					\
-//								(t1->data.access.getAccessType() == unsafe_read)))
-
-#define RACE_CHECK(t1, t2) \
-	1
-
-#define UNSAFE() !overlap(mt1, mt2)
-
 void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<IntervalTree> &interval_buffers, std::atomic<int> &available_threads) {
 	std::vector<std::pair<Interval,Interval>> res;
 	//	INFO(std::cout, "Analyzing pair (" << t1 << "," << t2 << ").");
@@ -259,7 +237,7 @@ void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<Interval
 		}
 		*/
 	}
-	INFO(std::cout, "Size: " << res.size());
+	// INFO(std::cout, "Size: " << res.size());
 
 	for(std::vector<std::pair<Interval, Interval>>::iterator it = res.begin(); it != res.end(); ++it) {
 		Interval i = std::get<0>(*it);
@@ -268,7 +246,7 @@ void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<Interval
 				i.getAccessType(), j.getAccessType(),
 				i.getAccessSize(),
 				j.getAccessSize(),
-				i.getPC(), j.getPC());
+				i.getPC() - 1, j.getPC() - 1);
 	}
 
 	available_threads++;
@@ -331,18 +309,18 @@ void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned 
 
         file_buffer.insert(file_buffer.end(), uncompressed_buffer, uncompressed_buffer + (new_len / sizeof(TraceItem)));
 
+        std::set<size_t> mutex;
     	for(std::vector<TraceItem>::const_iterator it = file_buffer.begin(); it != file_buffer.end(); ++it) {
     		switch(it->getType()) {
     		case data_access:
-    			interval_buffer.root = interval_buffer.insertNode(interval_buffer.root, it->data.access);
+    			interval_buffer.root = interval_buffer.insertNode(interval_buffer.root, it->data.access, mutex);
     			break;
-//    		case mutex_acquired:
-//    		case mutex_released:
-//    			std::sort(intervals.begin(), intervals.end(), interval_sort);
-//    			intervals.push_back(LogItem(it->getType(), it->data.mutex_region));
-//    			copy(intervals.begin(), intervals.end(), std::back_inserter(interval_buffer));
-//    			intervals.clear();
-//    			break;
+    		case mutex_acquired:
+    			mutex.insert(it->data.mutex_region.getWaitId());
+    			break;
+    		case mutex_released:
+    			mutex.erase(it->data.mutex_region.getWaitId());
+    			break;
     		default:
     			break;
     		}
