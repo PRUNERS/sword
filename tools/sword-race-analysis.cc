@@ -19,101 +19,6 @@
 #include <map>
 #include <thread>
 
-/*
-struct Interval {
-public:
-	size_t address;
-	unsigned count;
-	uint8_t size_type; // size in first 4 bits, type in last 4 bits
-	size_t diff;
-	Int48 pc;
-
-	Interval() {
-		address = 0;
-		size_type = 0;
-		pc.num = 0;
-		count = 0;
-		diff = 0;
-	}
-
-	Interval(size_t addr, uint8_t st, size_t p) {
-		address = addr;
-		size_type = st;
-		pc.num = p;
-		count = 1;
-		diff = 0;
-	}
-
-	Interval(const Access &item) {
-		address = item.getAddress();
-		count = 1;
-		diff = 0;
-		size_type = item.getAccessSizeType();
-		pc.num = item.getPC();
-	}
-
-	uint8_t getAccessSizeType() const {
-		return size_type;
-	}
-
-	AccessSize getAccessSize() const {
-		return (AccessSize) (size_type >> 4);
-	}
-
-	AccessType getAccessType() const {
-		return (AccessType) (size_type & 0x0F);
-	}
-
-	size_t getAddress() const {
-		return address;
-	}
-
-	size_t getPC() const {
-		return pc.num;
-	}
-};
-
-struct LogItem {
-private:
-	uint8_t item_type;
-
-public:
-	LogItem() = default;
-
-	LogItem(uint8_t type, const Interval &item) {
-		item_type = type;
-		data.interval = item;
-	}
-
-	LogItem(uint8_t type, const MutexRegion &item) {
-		item_type = type;
-		data.mutex_region = item;
-	}
-
-	void setInterval(Interval &item) {
-		data.interval= item;
-	}
-
-	void setMutexRegion(MutexRegion &item) {
-		data.mutex_region = item;
-	}
-
-	void setType(CallbackType t) {
-		item_type = (uint8_t) t;
-	}
-
-	CallbackType getType() const {
-		return (CallbackType) item_type;
-	}
-
-	union D {
-		struct Interval interval;
-		struct MutexRegion mutex_region;
-		D() { new(&interval) Interval(); }
-	} data;
-};
-*/
-
 #define PRINT 0
 
 void SaveReport(std::string filename) {
@@ -194,50 +99,8 @@ void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<Interval
 	//	INFO(std::cout, "Analyzing pair (" << t1 << "," << t2 << ").");
 
 	if(interval_buffers.size() > 0) {
-		std::set<size_t> mt1;
-
 		interval_buffers[t1].intersectIntervals(interval_buffers[t1].root, interval_buffers[t2].root, res);
-		/*
-		for(std::vector<LogItem>::iterator i = interval_buffers[t1].begin() ; i != interval_buffers[t1].end(); ++i) {
-			std::set<size_t> mt2;
-			switch(i->getType()) {
-			case data_access:
-				for(std::vector<LogItem>::iterator j = interval_buffers[t2].begin(); j != interval_buffers[t2].end(); ++j) {
-					switch(j->getType()) {
-					case data_access:
-						if(RACE_CHECK(i,j) &&
-								UNSAFE()) {
-							ReportRace(i->data.interval.getAddress(),
-									i->data.interval.getAccessType(), j->data.interval.getAccessType(),
-									i->data.interval.getAccessSize(),
-									j->data.interval.getAccessSize(),
-									i->data.interval.getPC() - 1, j->data.interval.getPC() - 1);
-						}
-						break;
-					case mutex_acquired:
-						mt2.insert(j->data.mutex_region.getWaitId());
-						break;
-					case mutex_released:
-						mt2.erase(j->data.mutex_region.getWaitId());
-						break;
-					default:
-						break;
-					}
-				}
-				break;
-			case mutex_acquired:
-				mt1.insert(i->data.mutex_region.getWaitId());
-				break;
-			case mutex_released:
-				mt1.erase(i->data.mutex_region.getWaitId());
-				break;
-			default:
-				break;
-			}
-		}
-		*/
 	}
-	// INFO(std::cout, "Size: " << res.size());
 
 	for(std::vector<std::pair<Interval, Interval>>::iterator it = res.begin(); it != res.end(); ++it) {
 		Interval i = std::get<0>(*it);
@@ -336,13 +199,6 @@ void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned 
 			neof = 0;
 		}
 	}
-	/*
-	if(intervals.size() > 0) {
-		std::sort(intervals.begin(), intervals.end(), interval_sort);
-		copy(intervals.begin(), intervals.end(), std::back_inserter(interval_buffer));
-		intervals.clear();
-	}
-	*/
 
 	free(uncompressed_buffer);
 	fclose(datafile);
