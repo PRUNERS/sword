@@ -114,7 +114,7 @@ public:
 };
 */
 
-#define PRINT 0
+#define PRINT 1
 
 void SaveReport(std::string filename) {
 	std::ofstream file(filename, std::ios::out | std::ios::binary);
@@ -211,12 +211,15 @@ bool overlap(const std::set<size_t>& s1, const std::set<size_t>& s2) {
 
 #define UNSAFE() !overlap(mt1, mt2)
 
-/*
-void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vector<LogItem>> &interval_buffers, std::atomic<int> &available_threads) {
+void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<IntervalTree> &interval_buffers, std::atomic<int> &available_threads) {
+	std::vector<std::pair<Interval,Interval>> res;
 	//	INFO(std::cout, "Analyzing pair (" << t1 << "," << t2 << ").");
 
 	if(interval_buffers.size() > 0) {
 		std::set<size_t> mt1;
+
+		interval_buffers[t1].intersectIntervals(interval_buffers[t1].root, interval_buffers[t2].root, res);
+		/*
 		for(std::vector<LogItem>::iterator i = interval_buffers[t1].begin() ; i != interval_buffers[t1].end(); ++i) {
 			std::set<size_t> mt2;
 			switch(i->getType()) {
@@ -254,66 +257,22 @@ void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vec
 				break;
 			}
 		}
+		*/
+	}
+	INFO(std::cout, "Size: " << res.size());
+
+	for(std::vector<std::pair<Interval, Interval>>::iterator it = res.begin(); it != res.end(); ++it) {
+		Interval i = std::get<0>(*it);
+		Interval j = std::get<1>(*it);
+		ReportRace(i.getAddress(),
+				i.getAccessType(), j.getAccessType(),
+				i.getAccessSize(),
+				j.getAccessSize(),
+				i.getPC(), j.getPC());
 	}
 
 	available_threads++;
 }
-
-#define INTERVAL_CHECK 														\
-		if((item.data.access.getAccessSizeType() == it->data.interval.getAccessSizeType()) && (item.data.access.getPC() == it->data.interval.getPC())) { \
-			if(it->data.interval.diff != 0) { 											\
-				max = it->data.interval.address + (it->data.interval.diff * (it->data.interval.count - 1)); 			\
-				if(item.data.access.getAddress() == (max + it->data.interval.diff)) { 	\
-					it->data.interval.count++; 											\
-					return;							 						\
-				} 															\
-				if((item.data.access.getAddress() >= it->data.interval.address) && (item.data.access.getAddress() <= max)) \
-					return; 												\
-				if(item.data.access.getAddress() == (it->data.interval.address - it->data.interval.diff)) { \
-					it->data.interval.address = item.data.access.getAddress(); 			\
-					it->data.interval.count++; 											\
-					return; 												\
-				} 															\
-			} else { 														\
-				it->data.interval.diff = item.data.access.getAddress() - it->data.interval.address; 	\
-				max = it->data.interval.address + (it->data.interval.diff * (it->data.interval.count - 1)); 			\
-				if(item.data.access.getAddress() == (max + it->data.interval.diff)) { 	\
-					it->data.interval.count++; 											\
-					return; 												\
-				} 															\
-				if((item.data.access.getAddress() >= it->data.interval.address) && (item.data.access.getAddress() <= max)) \
-					return; 												\
-				if(item.data.access.getAddress() == (it->data.interval.address - it->data.interval.diff)) { \
-					it->data.interval.address = item.data.access.getAddress(); 			\
-					it->data.interval.count++; 											\
-					return; 												\
-				} 															\
-			} 																\
-		}
-
-inline void addToIntervals(std::vector<LogItem> &intervals, const TraceItem &item) {
-	size_t max;
-	if(intervals.size() > 0) {
-		for(std::vector<LogItem>::iterator it = intervals.begin(); it != intervals.end(); ++it) {
-			INTERVAL_CHECK
-			++it;
-			if(it == intervals.end()) break;
-			INTERVAL_CHECK
-			++it;
-			if(it == intervals.end()) break;
-			INTERVAL_CHECK
-			++it;
-			if(it == intervals.end()) break;
-			INTERVAL_CHECK
-		}
-	}
-	intervals.push_back(LogItem(item.getType(), Interval(item.data.access)));
-}
-
-bool interval_sort(const LogItem &item1, const LogItem &item2) {
-	return (item1.data.interval.getAddress() < item2.data.interval.getAddress());
-}
-*/
 
 void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned t, IntervalTree &interval_buffer) {
 	std::string filename(path.string() + "/threadtrace_" + std::to_string(t) + "_" + std::to_string(bid));
@@ -556,10 +515,14 @@ int main(int argc, char **argv) {
 			// Load data into memory of all the threads in given barrier interval, if it fits in memory,
 			// data are compressed so not sure how to check if everything will fit in memory
 
+			// INFO(std::cout, "T0");
 			// interval_buffers[0].printTree(interval_buffers[0].root);
+			// interval_buffers[0].bst_print_dot(interval_buffers[0].root);
+			// INFO(std::cout, "T1");
+			// interval_buffers[1].printTree(interval_buffers[1].root);
+			// interval_buffers[1].bst_print_dot(interval_buffers[1].root);
 
 			// Now we can start analyzing the pairs
-			/*
 			std::atomic<int> available_threads;
 			std::vector<std::thread> thread_list;
 			available_threads = num_threads;
@@ -574,7 +537,6 @@ int main(int argc, char **argv) {
 				th->join();
 			}
 			thread_list.clear();
-			*/
 		}
 		if(races.size() > 0) {
 			std::vector<std::string> strings;
