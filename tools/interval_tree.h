@@ -139,7 +139,7 @@ public:
 
 class IntervalTree {
 private:
-	bool overlap(const std::set<size_t>& s1, const std::set<size_t>& s2) {
+	inline bool overlap(const std::set<size_t>& s1, const std::set<size_t>& s2) {
 		for(const auto& i : s1) {
 			if(std::binary_search(s2.begin(), s2.end(), i))
 				return true;
@@ -151,10 +151,13 @@ public:
 	Interval *root;
 
 	Interval *insertNode(Interval *tmp, const Access &item, const std::set<size_t> &mutex) {
+		static int count;
 		size_t end;
 
 		if (tmp == NULL) {
 			tmp = new Interval(item, mutex);
+			count++;
+			printf("Count: %d\n", count);
 			return tmp;
 		}
 
@@ -243,7 +246,10 @@ public:
 			return;
 		}
 
-		if(RACE_CHECK(node1,node2) && !overlap(node1->mutex, node2->mutex)) {
+		bool overlapping = false;
+		if((node1->mutex.size() != 0) && (node2->mutex.size() != 0))
+			overlapping = overlap(node1->mutex, node2->mutex);
+		if(RACE_CHECK(node1,node2) && !overlapping) {
 			if (!((node1->getAddress() > node2->getEnd()) || (node1->getEnd() < node2->getAddress()))) {
 				res.emplace_back(*node1, *node2);
 			}

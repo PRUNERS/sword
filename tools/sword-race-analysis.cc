@@ -142,6 +142,7 @@ void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned 
 	size_t total_size = sizeof(uint64_t);
 	std::vector<TraceItem> file_buffer;
 	IntervalTree intervals;
+	size_t uncompressed_size = 0;
 	while(total_size < filesize) {
 		size_t ret = fread(compressed_buffer, 1, block_size, datafile);
 		total_size += block_size;
@@ -169,6 +170,8 @@ void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned 
                 new_len = LZ4_decompress_safe((char *) compressed_buffer, (char *) uncompressed_buffer, block_size - (sizeof(uint64_t) * neof), BLOCK_SIZE);
 #else
 #endif
+
+        uncompressed_size += new_len;
 
         file_buffer.insert(file_buffer.end(), uncompressed_buffer, uncompressed_buffer + (new_len / sizeof(TraceItem)));
 
@@ -199,6 +202,8 @@ void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned 
 			neof = 0;
 		}
 	}
+
+	INFO(std::cout, "Total Size: " << uncompressed_size);
 
 	free(uncompressed_buffer);
 	fclose(datafile);
@@ -365,6 +370,7 @@ int main(int argc, char **argv) {
 				available_threads--;
 
 				// Create thread
+				INFO(std::cout, "Analyzing pair: " << p->first << "," << p->second);
 				thread_list.push_back(std::thread(analyze_traces, it->first, p->first, p->second, std::ref(interval_buffers), std::ref(available_threads)));
 			}
 			for(std::vector<std::thread>::iterator th = thread_list.begin(); th != thread_list.end(); th++) {
