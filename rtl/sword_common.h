@@ -126,6 +126,10 @@ public:
 	}
 };
 
+bool operator<(const Access &a, const Access &b) {
+    return a.getAddress() < b.getAddress();
+}
+
 struct __attribute__ ((__packed__)) Parallel {
 private:
 	ompt_id_t parallel_id;
