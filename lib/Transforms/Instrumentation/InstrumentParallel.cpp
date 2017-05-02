@@ -559,6 +559,7 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   // llvm::GlobalVariable *ompStack = NULL;
   // llvm::GlobalVariable *ompStackSize = NULL;
   llvm::GlobalVariable *ompOffset = NULL;
+  llvm::GlobalVariable *ompNoDup = NULL;
   // llvm::GlobalVariable *ompDatafile = NULL;
 
   Module *M = F.getParent();
@@ -581,6 +582,7 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   // ompStack = M->getNamedGlobal("stack");
   // ompStackSize = M->getNamedGlobal("stacksize");
   ompOffset = M->getNamedGlobal("offset");
+  ompNoDup = M->getNamedGlobal("nodup");
   // ompDatafile = M->getNamedGlobal("datafile");
 
   if(functionName.compare("main") == 0) {
@@ -597,6 +599,7 @@ bool InstrumentParallel::runOnFunction(Function &F) {
     // TLS_DECLARE(ompStack, IRB.getInt8PtrTy(), "stack"); // size_t *
     // TLS_DECLARE(ompStackSize, IRB.getInt64Ty(), "stacksize"); // size_t
     TLS_DECLARE(ompOffset, IRB.getInt64Ty(), "offset"); // size_t
+    TLS_DECLARE(ompNoDup, IRB.getInt8PtrTy(), "nodup"); // unordered_set<TraceItem> *
     // TLS_DECLARE(ompDatafile, IRB.getInt8PtrTy(), "datafile"); // FILE *
 
     return true;
@@ -625,6 +628,7 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   // TLS_DECLARE_EXTERN(ompStack, IRB.getInt8PtrTy(), "stack"); // size_t *
   // TLS_DECLARE_EXTERN(ompStackSize, IRB.getInt64Ty(), "stacksize"); // size_t
   TLS_DECLARE_EXTERN(ompOffset, IRB.getInt64Ty(), "offset"); // size_t
+  TLS_DECLARE_EXTERN(ompNoDup, IRB.getInt8PtrTy(), "nodup"); // unordered_set<TraceItem> *
   // TLS_DECLARE_EXTERN(ompDatafile, IRB.getInt8PtrTy(), "datafile"); // FILE *
 
   if(functionName.startswith(".omp")) {

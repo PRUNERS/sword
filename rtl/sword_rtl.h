@@ -15,10 +15,13 @@
 
 #include "sword_common.h"
 
+// #include <boost/unordered_set.hpp>
+
 #include <fcntl.h>
 #include <sys/stat.h>
 
 #include <future>
+#include <unordered_set>
 #include <vector>
 
 #define ALWAYS_INLINE			__attribute__((always_inline))
@@ -167,6 +170,7 @@ extern thread_local int __sword_status__;
 extern thread_local TraceItem *accesses;
 extern thread_local TraceItem *accesses1;
 extern thread_local TraceItem *accesses2;
+extern thread_local std::unordered_set<size_t> *nodup;
 extern thread_local uint64_t idx;
 extern thread_local uint64_t bid;
 extern thread_local char *buffer;

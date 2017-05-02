@@ -149,18 +149,20 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 //      ((size_t) addr < (size_t) stack + stacksize)) return;
 
 #define SAVE_ACCESS(asize, atype)											\
-		accesses[idx].setType(data_access);									\
-		accesses[idx].data.access = Access(asize, atype,					\
-				(size_t) addr, CALLERPC); 									\
-				idx++;														\
-				if(idx == NUM_OF_ACCESSES)	{								\
-					fut.wait();												\
-					fut = std::async(dump_to_file, accesses,				\
+		TraceItem item(data_access, Access(asize, atype,					\
+					   (size_t) addr, CALLERPC));							\
+		if(nodup->insert(hash_value(item)).second)	{						\
+			accesses[idx] = item;											\
+			idx++;															\
+		}																	\
+		if(idx == NUM_OF_ACCESSES)	{										\
+			fut.wait();														\
+			fut = std::async(dump_to_file, accesses,						\
 							sizeof(TraceItem), NUM_OF_ACCESSES, datafile, 	\
 							out, &offset);	  								\
 							idx = 0;										\
 							SWAP_BUFFER										\
-				}
+			}
 
 extern "C" {
 
@@ -175,8 +177,11 @@ static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 
 	accesses1 = (TraceItem *) malloc(BLOCK_SIZE);
 	accesses2 = (TraceItem *) malloc(BLOCK_SIZE);
+	// nodup = new boost::unordered_set<size_t>;
+	nodup = new std::unordered_set<size_t>;
+	nodup->reserve(NUM_OF_ACCESSES);
 	accesses = accesses1;
-        out = (unsigned char *) malloc(OUT_LEN);
+    out = (unsigned char *) malloc(OUT_LEN);
 
 	fut = std::async(dummy);
 }
