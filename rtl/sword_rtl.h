@@ -16,6 +16,8 @@
 #include "sword_common.h"
 
 // #include <boost/unordered_set.hpp>
+//#include "lazy/memory/buffer_allocator.h"
+//#include "alb/stack_allocator.hpp"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -165,6 +167,16 @@ public:
 // Global Variables
 // std::atomic<ompt_id_t> current_parallel_idx(0);
 
+//typedef uint64_t key_type;
+//typedef lazy::memory::buffer_allocator<key_type> allocator_type;
+//typedef std::unordered_set<key_type, std::hash<key_type>, std::equal_to<key_type>, allocator_type> set_type;
+//
+//thread_local char buff[(NUM_OF_ACCESSES) * sizeof(uint64_t) * 20];
+//thread_local allocator_type allocator(NUM_OF_ACCESSES * sizeof(uint64_t));
+//std::hash<key_type> hasher;
+//std::equal_to<key_type> cmp;
+//thread_local set_type set(NUM_OF_ACCESSES, hasher, cmp, allocator);
+
 // Thread Local Variables
 thread_local unsigned char *out;
 extern thread_local int tid;
@@ -172,7 +184,8 @@ extern thread_local int __sword_status__;
 extern thread_local std::vector<TraceItem> *accesses;
 extern thread_local std::vector<TraceItem> *accesses1;
 extern thread_local std::vector<TraceItem> *accesses2;
-thread_local google::dense_hash_set<uint64_t> set;
+//thread_local std::unordered_set<uint64_t> set(NUM_OF_ACCESSES);
+thread_local google::dense_hash_set<uint64_t> set(NUM_OF_ACCESSES);
 //extern thread_local TraceItem *accesses;
 //extern thread_local TraceItem *accesses1;
 //extern thread_local TraceItem *accesses2;
@@ -182,8 +195,7 @@ extern thread_local char *buffer;
 // extern thread_local size_t *stack;
 // extern thread_local size_t stacksize;
 extern thread_local size_t offset;
-
-thread_local FILE *datafile = NULL;
+extern thread_local FILE *datafile;
 thread_local std::future<bool> fut;
 thread_local ParallelData pdata;
 // thread_local int __sword_ignore_access = 0;

@@ -548,7 +548,7 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   	return false;
   Function *IF;
   llvm::GlobalVariable *ompStatusGlobal = NULL;
-  llvm::GlobalVariable *ompOutLZO = NULL;
+  // llvm::GlobalVariable *ompOutLZO = NULL;
   llvm::GlobalVariable *ompThreadID = NULL;
   llvm::GlobalVariable *ompAccesses = NULL;
   llvm::GlobalVariable *ompAccesses1 = NULL;
@@ -560,6 +560,7 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   // llvm::GlobalVariable *ompStackSize = NULL;
   llvm::GlobalVariable *ompOffset = NULL;
   llvm::GlobalVariable *ompDatafile = NULL;
+  // llvm::GlobalVariable *ompWrkmem = NULL;
 
   Module *M = F.getParent();
   StringRef functionName = F.getName();
@@ -582,6 +583,7 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   // ompStackSize = M->getNamedGlobal("stacksize");
   ompOffset = M->getNamedGlobal("offset");
   ompDatafile = M->getNamedGlobal("datafile");
+  // ompWrkmem = M->getNamedGlobal("wrkmem");
 
   if(functionName.compare("main") == 0) {
     IRBuilder<> IRB(M->getContext());
@@ -598,6 +600,7 @@ bool InstrumentParallel::runOnFunction(Function &F) {
     // TLS_DECLARE(ompStackSize, IRB.getInt64Ty(), "stacksize"); // size_t
     TLS_DECLARE(ompOffset, IRB.getInt64Ty(), "offset"); // size_t
     TLS_DECLARE(ompDatafile, IRB.getInt8PtrTy(), "datafile"); // FILE *
+    // TLS_DECLARE(ompWrkmem, llvm::Type::getInt64PtrTy(M->getContext()), "wrkmem"); // wrkmem *
 
     return true;
   }
@@ -626,6 +629,7 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   // TLS_DECLARE_EXTERN(ompStackSize, IRB.getInt64Ty(), "stacksize"); // size_t
   TLS_DECLARE_EXTERN(ompOffset, IRB.getInt64Ty(), "offset"); // size_t
   TLS_DECLARE_EXTERN(ompDatafile, IRB.getInt8PtrTy(), "datafile"); // FILE *
+  // TLS_DECLARE_EXTERN(ompWrkmem, llvm::Type::getInt64PtrTy(M->getContext()), "wrkmem"); // wrkmem *
 
   if(functionName.startswith(".omp")) {
     IF = &F;
