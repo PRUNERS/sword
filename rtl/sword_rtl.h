@@ -197,7 +197,7 @@ extern thread_local char *buffer;
 extern thread_local size_t offset;
 extern thread_local FILE *datafile;
 thread_local std::future<bool> fut;
-thread_local ParallelData pdata;
+extern thread_local ParallelData *pdata;
 // thread_local int __sword_ignore_access = 0;
 
 #endif  // SWORD_RTL_H
