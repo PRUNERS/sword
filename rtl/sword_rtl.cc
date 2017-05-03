@@ -68,14 +68,15 @@ bool dummy() {
 	return true;
 }
 
-bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
+// bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
+bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 		FILE *file, unsigned char *buffer, size_t *offset) {
 
 #ifdef LZO
 	// LZO
         lzo_uint *out_len = (lzo_uint *) buffer;
 	// int r = lzo1x_1_compress((unsigned char *) accesses, size * nmemb, buffer + sizeof(lzo_uint), out_len, wrkmem);
-        lzo1x_1_compress((unsigned char *) accesses, size * nmemb, buffer + sizeof(lzo_uint), out_len, wrkmem);
+        lzo1x_1_compress((unsigned char *) accesses->data(), size * nmemb, buffer + sizeof(lzo_uint), out_len, wrkmem);
 
         /*
         if (r != LZO_E_OK) {
@@ -126,12 +127,17 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 #define DUMP_TO_FILE														\
 		idx++;																\
 		if(idx == NUM_OF_ACCESSES)	{										\
-			fut.wait();														\
-			fut = std::async(dump_to_file, accesses,						\
-					sizeof(TraceItem), NUM_OF_ACCESSES, datafile,			\
-					out, &offset);											\
-			idx = 0;														\
-			SWAP_BUFFER														\
+			accesses->erase(std::unique(accesses->begin(),					\
+							accesses->end()), accesses->end()); 			\
+			idx = accesses->size();											\
+			if(idx == NUM_OF_ACCESSES)	{									\
+				fut.wait();													\
+				fut = std::async(dump_to_file, accesses,					\
+						sizeof(TraceItem), NUM_OF_ACCESSES, datafile,		\
+						out, &offset);										\
+						idx = 0;											\
+						SWAP_BUFFER											\
+			}																\
 		}
 
 // It adds a lot of runtime overhead because of the TLS access and seems it's not needed, will add later if we find any false positives
@@ -149,19 +155,21 @@ bool dump_to_file(TraceItem *accesses, size_t size, size_t nmemb,
 //      ((size_t) addr < (size_t) stack + stacksize)) return;
 
 #define SAVE_ACCESS(asize, atype)											\
-		TraceItem item(data_access, Access(asize, atype,					\
+		(*accesses)[idx] = TraceItem(data_access, Access(asize, atype,			\
 					   (size_t) addr, CALLERPC));							\
-		if(nodup->insert(hash_value(item)).second)	{						\
-			accesses[idx] = item;											\
-			idx++;															\
-		}																	\
+		idx++;																\
 		if(idx == NUM_OF_ACCESSES)	{										\
+			accesses->erase(std::unique(accesses->begin(),					\
+							accesses->end()), accesses->end()); 			\
+			idx = accesses->size();											\
+			if(idx == NUM_OF_ACCESSES)	{									\
 			fut.wait();														\
 			fut = std::async(dump_to_file, accesses,						\
 							sizeof(TraceItem), NUM_OF_ACCESSES, datafile, 	\
 							out, &offset);	  								\
 							idx = 0;										\
 							SWAP_BUFFER										\
+			}\
 			}
 
 extern "C" {
@@ -175,11 +183,10 @@ static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
         // Get stack pointer and stack size
 	// GET_STACK
 
-	accesses1 = (TraceItem *) malloc(BLOCK_SIZE);
-	accesses2 = (TraceItem *) malloc(BLOCK_SIZE);
-	// nodup = new boost::unordered_set<size_t>;
-	nodup = new std::unordered_set<size_t>;
-	nodup->reserve(NUM_OF_ACCESSES);
+//	accesses1 = (TraceItem *) malloc(BLOCK_SIZE);
+//	accesses2 = (TraceItem *) malloc(BLOCK_SIZE);
+	accesses1 = new std::vector<TraceItem>(NUM_OF_ACCESSES);
+	accesses2 = new std::vector<TraceItem>(NUM_OF_ACCESSES);
 	accesses = accesses1;
     out = (unsigned char *) malloc(OUT_LEN);
 
@@ -282,9 +289,8 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 			}
 		}
 
-		accesses[idx].setType(parallel_begin);
-		accesses[idx].data.parallel = Parallel(par_data->getParallelID(), team_size);
-		DUMP_TO_FILE
+//		(*accesses)[idx = TraceItem(parallel_begin, Parallel(par_data->getParallelID(), team_size);
+//		DUMP_TO_FILE
 
 	} else if(endpoint == ompt_scope_end) {
 		__sword_status__--;
@@ -293,9 +299,9 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 		if(par_data) {
 			if(pdata.getParallelID() == par_data->getParallelID()) {
 				if(ftell(datafile) > 0) {
-					accesses[idx].setType(parallel_end);
-					accesses[idx].data.parallel = Parallel(pdata.getParallelID(), team_size);
-					idx++;
+//					accesses[idx].setType(parallel_end);
+//					accesses[idx].data.parallel = Parallel(pdata.getParallelID(), team_size);
+//					idx++;
 					fut.wait();
 					fut = std::async(dump_to_file, accesses, sizeof(TraceItem), idx, datafile, out, &offset);
 					idx = 0;
@@ -325,9 +331,9 @@ static void on_ompt_callback_work(ompt_work_type_t wstype,
 		ompt_data_t *task_data,
 		uint64_t count,
 		const void *codeptr_ra) {
-	accesses[idx].setType(work);
-	accesses[idx].data.work = Work(wstype, endpoint);
-	DUMP_TO_FILE
+//	accesses[idx].setType(work);
+//	accesses[idx].data.work = Work(wstype, endpoint);
+//	DUMP_TO_FILE
 }
 
 static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
@@ -368,24 +374,22 @@ static void on_ompt_callback_master(ompt_scope_endpoint_t endpoint,
 		ompt_data_t *parallel_data,
 		ompt_data_t *task_data,
 		const void *codeptr_ra) {
-	accesses[idx].setType(master);
-	accesses[idx].data.master = Master(endpoint);
-	DUMP_TO_FILE
+//	accesses[idx].setType(master);
+//	accesses[idx].data.master = Master(endpoint);
+//	DUMP_TO_FILE
 }
 
 static void on_ompt_callback_mutex_acquired(ompt_mutex_kind_t kind,
 		ompt_wait_id_t wait_id,
 		const void *codeptr_ra) {
-	accesses[idx].setType(mutex_acquired);
-	accesses[idx].data.mutex_region = MutexRegion(kind, wait_id);
+	(*accesses)[idx] = TraceItem(mutex_acquired, MutexRegion(kind, wait_id));
 	DUMP_TO_FILE
 }
 
 static void on_ompt_callback_mutex_released(ompt_mutex_kind_t kind,
 		ompt_wait_id_t wait_id,
 		const void *codeptr_ra) {
-	accesses[idx].setType(mutex_released);
-	accesses[idx].data.mutex_region = MutexRegion(kind, wait_id);
+	(*accesses)[idx] = TraceItem(mutex_released, MutexRegion(kind, wait_id));
 	DUMP_TO_FILE
 }
 

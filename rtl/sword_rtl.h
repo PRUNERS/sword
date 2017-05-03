@@ -167,10 +167,12 @@ public:
 thread_local unsigned char *out;
 extern thread_local int tid;
 extern thread_local int __sword_status__;
-extern thread_local TraceItem *accesses;
-extern thread_local TraceItem *accesses1;
-extern thread_local TraceItem *accesses2;
-extern thread_local std::unordered_set<size_t> *nodup;
+extern thread_local std::vector<TraceItem> *accesses;
+extern thread_local std::vector<TraceItem> *accesses1;
+extern thread_local std::vector<TraceItem> *accesses2;
+//extern thread_local TraceItem *accesses;
+//extern thread_local TraceItem *accesses1;
+//extern thread_local TraceItem *accesses2;
 extern thread_local uint64_t idx;
 extern thread_local uint64_t bid;
 extern thread_local char *buffer;
