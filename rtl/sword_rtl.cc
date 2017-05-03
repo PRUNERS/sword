@@ -77,6 +77,7 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
         lzo_uint *out_len = (lzo_uint *) buffer;
 	// int r = lzo1x_1_compress((unsigned char *) accesses, size * nmemb, buffer + sizeof(lzo_uint), out_len, wrkmem);
         lzo1x_1_compress((unsigned char *) accesses->data(), size * nmemb, buffer + sizeof(lzo_uint), out_len, wrkmem);
+        set.clear();
 
         /*
         if (r != LZO_E_OK) {
