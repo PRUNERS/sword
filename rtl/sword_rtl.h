@@ -24,6 +24,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include <sparsehash/dense_hash_set>
+
 #define ALWAYS_INLINE			__attribute__((always_inline))
 #define CALLERPC 				((size_t) __builtin_return_address(0))
 
@@ -170,6 +172,7 @@ extern thread_local int __sword_status__;
 extern thread_local std::vector<TraceItem> *accesses;
 extern thread_local std::vector<TraceItem> *accesses1;
 extern thread_local std::vector<TraceItem> *accesses2;
+thread_local google::dense_hash_set<uint64_t> set;
 //extern thread_local TraceItem *accesses;
 //extern thread_local TraceItem *accesses1;
 //extern thread_local TraceItem *accesses2;

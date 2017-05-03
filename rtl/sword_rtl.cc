@@ -126,18 +126,13 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 
 #define DUMP_TO_FILE														\
 		idx++;																\
-		if(idx == NUM_OF_ACCESSES)	{										\
-			accesses->erase(std::unique(accesses->begin(),					\
-							accesses->end()), accesses->end()); 			\
-			idx = accesses->size();											\
-			if(idx == NUM_OF_ACCESSES)	{									\
+		if(idx == NUM_OF_ACCESSES)	{									\
 				fut.wait();													\
 				fut = std::async(dump_to_file, accesses,					\
 						sizeof(TraceItem), NUM_OF_ACCESSES, datafile,		\
 						out, &offset);										\
 						idx = 0;											\
 						SWAP_BUFFER											\
-			}																\
 		}
 
 // It adds a lot of runtime overhead because of the TLS access and seems it's not needed, will add later if we find any false positives
@@ -155,22 +150,23 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 //      ((size_t) addr < (size_t) stack + stacksize)) return;
 
 #define SAVE_ACCESS(asize, atype)											\
-		(*accesses)[idx] = TraceItem(data_access, Access(asize, atype,			\
-					   (size_t) addr, CALLERPC));							\
-		idx++;																\
-		if(idx == NUM_OF_ACCESSES)	{										\
-			accesses->erase(std::unique(accesses->begin(),					\
-							accesses->end()), accesses->end()); 			\
-			idx = accesses->size();											\
-			if(idx == NUM_OF_ACCESSES)	{									\
-			fut.wait();														\
-			fut = std::async(dump_to_file, accesses,						\
+		TraceItem item = TraceItem(data_access, Access(asize, atype,		\
+				(size_t) addr, CALLERPC));									\
+		uint64_t hash = hash_value(item);		\
+		google::dense_hash_set<uint64_t>::const_iterator it = set.find(hash); \
+		if(it == set.end()) { \
+			(*accesses)[idx] = item;										\
+			set.insert(hash); \
+				idx++;														\
+		} \
+				if(idx == NUM_OF_ACCESSES)	{								\
+					fut.wait();												\
+					fut = std::async(dump_to_file, accesses,				\
 							sizeof(TraceItem), NUM_OF_ACCESSES, datafile, 	\
 							out, &offset);	  								\
 							idx = 0;										\
 							SWAP_BUFFER										\
-			}\
-			}
+				}
 
 extern "C" {
 
@@ -187,6 +183,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 //	accesses2 = (TraceItem *) malloc(BLOCK_SIZE);
 	accesses1 = new std::vector<TraceItem>(NUM_OF_ACCESSES);
 	accesses2 = new std::vector<TraceItem>(NUM_OF_ACCESSES);
+	set.set_empty_key(0);
 	accesses = accesses1;
     out = (unsigned char *) malloc(OUT_LEN);
 
