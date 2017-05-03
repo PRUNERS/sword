@@ -178,14 +178,13 @@ public:
 //thread_local set_type set(NUM_OF_ACCESSES, hasher, cmp, allocator);
 
 // Thread Local Variables
-thread_local unsigned char *out;
+
 extern thread_local int tid;
 extern thread_local int __sword_status__;
 extern thread_local std::vector<TraceItem> *accesses;
 extern thread_local std::vector<TraceItem> *accesses1;
 extern thread_local std::vector<TraceItem> *accesses2;
 //thread_local std::unordered_set<uint64_t> set(NUM_OF_ACCESSES);
-thread_local google::dense_hash_set<uint64_t> set(NUM_OF_ACCESSES);
 //extern thread_local TraceItem *accesses;
 //extern thread_local TraceItem *accesses1;
 //extern thread_local TraceItem *accesses2;
@@ -196,8 +195,11 @@ extern thread_local char *buffer;
 // extern thread_local size_t stacksize;
 extern thread_local size_t offset;
 extern thread_local FILE *datafile;
-thread_local std::future<bool> fut;
 extern thread_local ParallelData *pdata;
+
+thread_local google::dense_hash_set<uint64_t> set(NUM_OF_ACCESSES);
+thread_local unsigned char *out;
+thread_local std::future<bool> fut;
 // thread_local int __sword_ignore_access = 0;
 
 #endif  // SWORD_RTL_H
