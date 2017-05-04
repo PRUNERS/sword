@@ -16,8 +16,9 @@
 #include "sword_common.h"
 
 // #include <boost/unordered_set.hpp>
-//#include "lazy/memory/buffer_allocator.h"
-//#include "alb/stack_allocator.hpp"
+// #include "lazy/memory/buffer_allocator.h"
+// #include <alb/stack_allocator.hpp>
+//#include "plalloc.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -184,7 +185,6 @@ extern thread_local int __sword_status__;
 extern thread_local std::vector<TraceItem> *accesses;
 extern thread_local std::vector<TraceItem> *accesses1;
 extern thread_local std::vector<TraceItem> *accesses2;
-//thread_local std::unordered_set<uint64_t> set(NUM_OF_ACCESSES);
 //extern thread_local TraceItem *accesses;
 //extern thread_local TraceItem *accesses1;
 //extern thread_local TraceItem *accesses2;
@@ -197,7 +197,14 @@ extern thread_local size_t offset;
 extern thread_local FILE *datafile;
 extern thread_local ParallelData *pdata;
 
-thread_local google::dense_hash_set<uint64_t> set(NUM_OF_ACCESSES);
+// thread_local google::dense_hash_set<uint64_t> set(NUM_OF_ACCESSES);
+//thread_local plalloc<uint64_t, NUM_OF_ACCESSES> allocator;
+//thread_local std::unordered_set<uint64_t, std::hash<uint64_t>, std::equal_to<uint64_t>, allocator> set(NUM_OF_ACCESSES);
+//typedef std::unordered_set<uint64_t, std::hash<uint64_t>, std::equal_to<uint64_t>, plalloc<uint64_t, NUM_OF_ACCESSES>> fast_set;
+//typedef std::unordered_set<uint64_t> fast_set;
+typedef google::dense_hash_set<uint64_t> fast_set;
+thread_local fast_set set(25000);
+
 thread_local unsigned char *out;
 thread_local std::future<bool> fut;
 // thread_local int __sword_ignore_access = 0;
