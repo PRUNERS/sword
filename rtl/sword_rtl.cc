@@ -186,6 +186,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 	accesses1 = new std::vector<TraceItem>(NUM_OF_ACCESSES);
 	accesses2 = new std::vector<TraceItem>(NUM_OF_ACCESSES);
 	//set.set_empty_key(0);
+	set.reserve(NUM_OF_ACCESSES);
 	accesses = accesses1;
     out = (unsigned char *) malloc(OUT_LEN);
     pdata = new ParallelData();
