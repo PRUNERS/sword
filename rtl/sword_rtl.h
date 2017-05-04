@@ -13,6 +13,7 @@
 #ifndef SWORD_RTL_H
 #define SWORD_RTL_H
 
+#include "hash_set.hpp"
 #include "sword_common.h"
 
 // #include <boost/unordered_set.hpp>
@@ -28,6 +29,7 @@
 #include <vector>
 
 #include <sparsehash/dense_hash_set>
+
 
 #define ALWAYS_INLINE			__attribute__((always_inline))
 #define CALLERPC 				((size_t) __builtin_return_address(0))
@@ -202,8 +204,9 @@ extern thread_local ParallelData *pdata;
 //thread_local std::unordered_set<uint64_t, std::hash<uint64_t>, std::equal_to<uint64_t>, allocator> set(NUM_OF_ACCESSES);
 //typedef std::unordered_set<uint64_t, std::hash<uint64_t>, std::equal_to<uint64_t>, plalloc<uint64_t, NUM_OF_ACCESSES>> fast_set;
 //typedef std::unordered_set<uint64_t> fast_set;
-typedef google::dense_hash_set<uint64_t> fast_set;
-thread_local fast_set set(25000);
+//typedef google::dense_hash_set<uint64_t> fast_set;
+typedef emilib::HashSet<uint64_t> fast_set;
+thread_local fast_set set;
 
 thread_local unsigned char *out;
 thread_local std::future<bool> fut;

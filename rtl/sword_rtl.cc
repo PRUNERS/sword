@@ -161,7 +161,7 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 				idx++;														\
 		} \
 				if(idx == NUM_OF_ACCESSES)	{								\
-					set.clear_no_resize(); \
+					set.clear(); 			\
 					fut.wait();												\
 					fut = std::async(dump_to_file, accesses,				\
 							sizeof(TraceItem), NUM_OF_ACCESSES, datafile, 	\
@@ -185,7 +185,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 //	accesses2 = (TraceItem *) malloc(BLOCK_SIZE);
 	accesses1 = new std::vector<TraceItem>(NUM_OF_ACCESSES);
 	accesses2 = new std::vector<TraceItem>(NUM_OF_ACCESSES);
-	set.set_empty_key(0);
+	//set.set_empty_key(0);
 	accesses = accesses1;
     out = (unsigned char *) malloc(OUT_LEN);
     pdata = new ParallelData();
