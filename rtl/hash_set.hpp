@@ -38,11 +38,11 @@ struct HashSetEqualTo
 };
 
 /// A cache-friendly hash set with open addressing, linear probing and power-of-two capacity
-template <typename KeyT, typename HashT = std::hash<KeyT>, typename EqT = HashSetEqualTo<KeyT>>
+template <typename KeyT, size_t N, typename HashT = std::hash<KeyT>, typename EqT = HashSetEqualTo<KeyT>>
 		class HashSet
 		{
 		private:
-	using MyType = HashSet<KeyT, HashT, EqT>;
+	using MyType = HashSet<KeyT, N, HashT, EqT>;
 
 		public:
 	using size_type       = size_t;
@@ -416,6 +416,60 @@ template <typename KeyT, typename HashT = std::hash<KeyT>, typename EqT = HashSe
 		}
 		_num_filled = 0;
 		_max_probe_length = -1;
+	}
+
+	void reserve()
+	{
+		size_t required_buckets = N + N/2 + 1;
+		if (required_buckets <= _num_buckets) {
+			return;
+		}
+		size_t num_buckets = 4;
+		while (num_buckets < required_buckets) { num_buckets *= 2; }
+
+		auto new_states = (State*)malloc(num_buckets * sizeof(State));
+		auto new_keys  = (KeyT*)malloc(num_buckets * sizeof(KeyT));
+
+		if (!new_states || !new_keys) {
+			free(new_states);
+			free(new_keys);
+			throw std::bad_alloc();
+		}
+
+		// auto old_num_filled  = _num_filled;
+		auto old_num_buckets = _num_buckets;
+		auto old_states      = _states;
+		auto old_keys        = _keys;
+
+		_num_filled  = 0;
+		_num_buckets = num_buckets;
+		_mask        = _num_buckets - 1;
+		_states      = new_states;
+		_keys        = new_keys;
+
+		std::fill_n(_states, num_buckets, State::INACTIVE);
+
+		_max_probe_length = -1;
+
+		for (size_t src_bucket=0; src_bucket<old_num_buckets; src_bucket++) {
+			if (old_states[src_bucket] == State::FILLED) {
+				auto& src = old_keys[src_bucket];
+
+				auto dst_bucket = find_empty_bucket(src);
+				DCHECK_NE_F(dst_bucket, (size_t)-1);
+				DCHECK_NE_F(_states[dst_bucket], State::FILLED);
+				_states[dst_bucket] = State::FILLED;
+				new(_keys + dst_bucket) KeyT(std::move(src));
+				_num_filled += 1;
+
+				src.~KeyT();
+			}
+		}
+
+		// DCHECK_EQ_F(old_num_filled, _num_filled);
+
+		free(old_states);
+		free(old_keys);
 	}
 
 	/// Make room for this many elements
