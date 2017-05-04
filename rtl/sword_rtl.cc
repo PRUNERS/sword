@@ -153,15 +153,13 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 #define SAVE_ACCESS(asize, atype)											\
 		TraceItem item = TraceItem(data_access, Access(asize, atype,		\
 				(size_t) addr, CALLERPC));									\
-		size_t hash = hash_value(item);		\
-		fast_set::const_iterator it = set.find(hash); \
-		if(it == set.end()) { \
-			(*accesses)[idx] = item;										\
-			set.insert(hash); \
-				idx++;														\
-		} \
+				size_t hash = hash_value(item);								\
+				if(set.insert(hash).second) { 								\
+					(*accesses)[idx] = item;								\
+					idx++;													\
+				} 															\
 				if(idx == NUM_OF_ACCESSES)	{								\
-					set.clear(); 			\
+					set.clear(); 											\
 					fut.wait();												\
 					fut = std::async(dump_to_file, accesses,				\
 							sizeof(TraceItem), NUM_OF_ACCESSES, datafile, 	\
