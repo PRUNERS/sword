@@ -8,6 +8,7 @@
 #define PRIME 2654435761U
 
 #include "xxh64.hpp"
+#include "xxhash64.h"
 
 #include <omp.h>
 #include <ompt.h>
@@ -457,7 +458,8 @@ std::size_t hash_value2(TraceItem const& a) {
 }
 
 std::size_t hash_value(TraceItem const& a) {
-	return xxh64::hash (reinterpret_cast<const char*>(&a), sizeof(a), PRIME);
+	// return xxh64::hash (reinterpret_cast<const char*>(&a), sizeof(a), PRIME);
+	return XXHash64::hash(reinterpret_cast<const char*>(&a), sizeof(a), PRIME);
 }
 
 #endif  // SWORD_COMMON_H
