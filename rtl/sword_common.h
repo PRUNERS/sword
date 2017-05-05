@@ -7,9 +7,6 @@
 
 #define PRIME 2654435761U
 
-#include "xxh64.hpp"
-#include "xxhash64.h"
-
 #include <omp.h>
 #include <ompt.h>
 #include <stdint.h>
@@ -440,7 +437,7 @@ bool operator==(TraceItem const& a, TraceItem const& b) {
 	}
 }
 
-std::size_t hash_value2(TraceItem const& a) {
+std::size_t hash_value(TraceItem const& a) {
 	std::size_t val { 0 };
 	boost::hash_combine(val,a.getType());
 	switch(a.getType()) {
@@ -455,11 +452,6 @@ std::size_t hash_value2(TraceItem const& a) {
 		break;
 	}
 	return val;
-}
-
-std::size_t hash_value(TraceItem const& a) {
-	// return xxh64::hash (reinterpret_cast<const char*>(&a), sizeof(a), PRIME);
-	return XXHash64::hash(reinterpret_cast<const char*>(&a), sizeof(a), PRIME);
 }
 
 #endif  // SWORD_COMMON_H
