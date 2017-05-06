@@ -318,7 +318,7 @@ template <typename KeyT, size_t N, typename HashT = std::hash<KeyT>, typename Eq
 	/// and a bool denoting whether the insertion took place.
 	std::pair<iterator, bool> insert(const KeyT& key)
 			{
-		check_expand_need();
+		//check_expand_need();
 
 		auto bucket = find_or_allocate(key);
 
@@ -338,7 +338,7 @@ template <typename KeyT, size_t N, typename HashT = std::hash<KeyT>, typename Eq
 	/// and a bool denoting whether the insertion took place.
 	std::pair<iterator, bool> insert(KeyT&& key)
 			{
-		check_expand_need();
+		//check_expand_need();
 
 		auto bucket = find_or_allocate(key);
 
@@ -369,7 +369,7 @@ template <typename KeyT, size_t N, typename HashT = std::hash<KeyT>, typename Eq
 	void insert_unique(KeyT key)
 	{
 		DCHECK_F(!contains(key));
-		check_expand_need();
+		//check_expand_need();
 		auto bucket = find_empty_bucket(key);
 		_states[bucket] = State::FILLED;
 		new(_keys + bucket) KeyT(std::move(key));
