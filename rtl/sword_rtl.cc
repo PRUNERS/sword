@@ -152,19 +152,18 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 
 #define SAVE_ACCESS(asize, atype)											\
 	TraceItem item = TraceItem(data_access, Access(asize,					\
-	atype, (size_t) addr, CALLERPC));										\
-	if(set.check_insert(hash_value(item))) {		 									\
-		(*accesses)[idx] = item;											\
-		idx++;																\
+							   atype, (size_t) addr, CALLERPC));			\
+	if(set.check_insert(hash_value(item)).second) { 						\
+		(*accesses)[idx++] = item;											\
 	} 																		\
 	if(idx == NUM_OF_ACCESSES)	{											\
 		set.clear(); 														\
 		fut.wait();															\
 		fut = std::async(dump_to_file, accesses,							\
-				sizeof(TraceItem), NUM_OF_ACCESSES, datafile, 				\
-				out, &offset);	  											\
-				idx = 0;													\
-				SWAP_BUFFER													\
+						 sizeof(TraceItem), NUM_OF_ACCESSES, datafile, 		\
+						 out, &offset);	  									\
+		idx = 0;															\
+		SWAP_BUFFER															\
 	}
 
 extern "C" {
