@@ -313,6 +313,24 @@ template <typename KeyT, size_t N, typename HashT = std::hash<KeyT>, typename Eq
 	// -----------------------------------------------------
 
 	/// Insert an element, unless it already exists.
+	/// Returns a bool denoting whether the insertion took place.
+	bool check_insert(const KeyT& key)
+			{
+		//check_expand_need();
+
+		auto bucket = find_or_allocate(key);
+
+		if (_states[bucket] == State::FILLED) {
+			return false;
+		} else {
+			_states[bucket] = State::FILLED;
+			new(_keys + bucket) KeyT(key);
+			_num_filled++;
+			return true;
+		}
+			}
+
+	/// Insert an element, unless it already exists.
 	/// Returns a pair consisting of an iterator to the inserted element
 	/// (or to the element that prevented the insertion)
 	/// and a bool denoting whether the insertion took place.
@@ -539,7 +557,7 @@ template <typename KeyT, size_t N, typename HashT = std::hash<KeyT>, typename Eq
 	{
 		if (empty()) { return (size_t)-1; } // Optimization
 
-		auto hash_value = _hasher(key);
+		auto hash_value = key; // _hasher(key);
 		for (int offset=0; offset<=_max_probe_length; ++offset) {
 			auto bucket = (hash_value + offset) & _mask;
 			if (_states[bucket] == State::FILLED) {
@@ -557,7 +575,7 @@ template <typename KeyT, size_t N, typename HashT = std::hash<KeyT>, typename Eq
 	// In the latter case, the bucket is expected to be filled.
 	size_t find_or_allocate(const KeyT& key)
 	{
-		auto hash_value = _hasher(key);
+		auto hash_value = key; // _hasher(key);
 		size_t hole = (size_t)-1;
 		int offset=0;
 		for (; offset<=_max_probe_length; ++offset) {
@@ -598,7 +616,7 @@ template <typename KeyT, size_t N, typename HashT = std::hash<KeyT>, typename Eq
 	// key is not in this map. Find a place to put it.
 	size_t find_empty_bucket(const KeyT& key)
 	{
-		auto hash_value = _hasher(key);
+		auto hash_value = key; // _hasher(key);
 		for (int offset=0; ; ++offset) {
 			auto bucket = (hash_value + offset) & _mask;
 			if (_states[bucket] != State::FILLED) {

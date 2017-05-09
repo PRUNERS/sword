@@ -153,8 +153,7 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 #define SAVE_ACCESS(asize, atype)											\
 	TraceItem item = TraceItem(data_access, Access(asize,					\
 	atype, (size_t) addr, CALLERPC));										\
-	size_t hash = hash_value(item);											\
-	if(set.insert(hash).second) { 											\
+	if(set.check_insert(hash_value(item))) {		 									\
 		(*accesses)[idx] = item;											\
 		idx++;																\
 	} 																		\
@@ -185,6 +184,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 	accesses2 = new std::vector<TraceItem>(NUM_OF_ACCESSES);
 	//set.set_empty_key(0);
 	set.reserve(87382);
+	//set.setUniverse(65536);
 	accesses = accesses1;
     out = (unsigned char *) malloc(OUT_LEN);
     pdata = new ParallelData();

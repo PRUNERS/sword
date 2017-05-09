@@ -30,6 +30,8 @@
 
 #include <sparsehash/dense_hash_set>
 
+#include "SparseSet.h"
+
 
 #define ALWAYS_INLINE			__attribute__((always_inline))
 #define CALLERPC 				((size_t) __builtin_return_address(0))
@@ -207,6 +209,21 @@ extern thread_local ParallelData *pdata;
 //typedef google::dense_hash_set<uint64_t> fast_set;
 typedef emilib::HashSet<uint64_t, NUM_OF_ACCESSES,  boost::hash<uint64_t>> fast_set;
 thread_local fast_set set;
+
+//unsigned long long Mask16 = 0xFFFFu;
+//
+//template <typename T>
+//struct hash : std::unary_function<T, uint16_t>
+//{
+//	std::uint16_t operator()(const T& k) const
+//	{
+//		boost::hash<T> new_hash;
+//		return new_hash(k) && Mask16;
+//	}
+//};
+//
+//typedef llvm::SparseSet<uint64_t, hash<uint64_t>, uint32_t> fast_set;
+//thread_local fast_set set;
 
 thread_local unsigned char *out;
 thread_local std::future<bool> fut;
