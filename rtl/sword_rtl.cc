@@ -153,7 +153,7 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 #define SAVE_ACCESS(asize, atype)											\
 	TraceItem item = TraceItem(data_access, Access(asize,					\
 							   atype, (size_t) addr, CALLERPC));			\
-	if(set.check_insert(hash_value(item)).second) { 						\
+	if(set.check_insert(hash_value(item))) {		 						\
 		(*accesses)[idx++] = item;											\
 	} 																		\
 	if(idx == NUM_OF_ACCESSES)	{											\

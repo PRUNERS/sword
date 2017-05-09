@@ -557,9 +557,9 @@ template <typename KeyT, size_t N, typename HashT = std::hash<KeyT>, typename Eq
 	{
 		if (empty()) { return (size_t)-1; } // Optimization
 
-		auto hash_value = key; // _hasher(key);
+		// auto hash_value = _hasher(key);
 		for (int offset=0; offset<=_max_probe_length; ++offset) {
-			auto bucket = (hash_value + offset) & _mask;
+			auto bucket = (key + offset) & _mask;
 			if (_states[bucket] == State::FILLED) {
 				if (_eq(_keys[bucket], key)) {
 					return bucket;
@@ -575,11 +575,11 @@ template <typename KeyT, size_t N, typename HashT = std::hash<KeyT>, typename Eq
 	// In the latter case, the bucket is expected to be filled.
 	size_t find_or_allocate(const KeyT& key)
 	{
-		auto hash_value = key; // _hasher(key);
+		//auto hash_value = _hasher(key);
 		size_t hole = (size_t)-1;
 		int offset=0;
 		for (; offset<=_max_probe_length; ++offset) {
-			auto bucket = (hash_value + offset) & _mask;
+			auto bucket = (key + offset) & _mask;
 
 			if (_states[bucket] == State::FILLED) {
 				if (_eq(_keys[bucket], key)) {
@@ -604,7 +604,7 @@ template <typename KeyT, size_t N, typename HashT = std::hash<KeyT>, typename Eq
 
 		// No hole found within _max_probe_length
 		for (; ; ++offset) {
-			auto bucket = (hash_value + offset) & _mask;
+			auto bucket = (key + offset) & _mask;
 
 			if (_states[bucket] != State::FILLED) {
 				_max_probe_length = offset;
@@ -616,9 +616,9 @@ template <typename KeyT, size_t N, typename HashT = std::hash<KeyT>, typename Eq
 	// key is not in this map. Find a place to put it.
 	size_t find_empty_bucket(const KeyT& key)
 	{
-		auto hash_value = key; // _hasher(key);
+		// auto hash_value = _hasher(key);
 		for (int offset=0; ; ++offset) {
-			auto bucket = (hash_value + offset) & _mask;
+			auto bucket = (key + offset) & _mask;
 			if (_states[bucket] != State::FILLED) {
 				if (offset > _max_probe_length) {
 					_max_probe_length = offset;

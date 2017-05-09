@@ -207,7 +207,7 @@ extern thread_local ParallelData *pdata;
 //typedef std::unordered_set<uint64_t, std::hash<uint64_t>, std::equal_to<uint64_t>, plalloc<uint64_t, NUM_OF_ACCESSES>> fast_set;
 //typedef std::unordered_set<uint64_t> fast_set;
 //typedef google::dense_hash_set<uint64_t> fast_set;
-typedef emilib::HashSet<uint64_t, NUM_OF_ACCESSES,  boost::hash<uint64_t>> fast_set;
+typedef emilib::HashSet<uint64_t, NUM_OF_ACCESSES, llvm::identity<uint64_t>> fast_set;
 thread_local fast_set set;
 
 //unsigned long long Mask16 = 0xFFFFu;
