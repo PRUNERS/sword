@@ -1,4 +1,4 @@
-#include "interval_tree.h"
+#include "sword_intervaltree.h"
 #include "sword-race-analysis.h"
 #include <boost/algorithm/string.hpp>
 

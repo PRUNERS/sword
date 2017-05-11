@@ -13,25 +13,14 @@
 #ifndef SWORD_RTL_H
 #define SWORD_RTL_H
 
-#include "hash_set.hpp"
 #include "sword_common.h"
-
-// #include <boost/unordered_set.hpp>
-// #include "lazy/memory/buffer_allocator.h"
-// #include <alb/stack_allocator.hpp>
-//#include "plalloc.h"
+#include "sword_hashset.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
 
 #include <future>
-#include <unordered_set>
 #include <vector>
-
-#include <sparsehash/dense_hash_set>
-
-#include "SparseSet.h"
-
 
 #define ALWAYS_INLINE			__attribute__((always_inline))
 #define CALLERPC 				((size_t) __builtin_return_address(0))
@@ -207,7 +196,7 @@ extern thread_local ParallelData *pdata;
 //typedef std::unordered_set<uint64_t, std::hash<uint64_t>, std::equal_to<uint64_t>, plalloc<uint64_t, NUM_OF_ACCESSES>> fast_set;
 //typedef std::unordered_set<uint64_t> fast_set;
 //typedef google::dense_hash_set<uint64_t> fast_set;
-typedef emilib::HashSet<uint64_t, NUM_OF_ACCESSES, llvm::identity<uint64_t>> fast_set;
+typedef emilib::HashSet<uint64_t, NUM_OF_ACCESSES> fast_set;
 thread_local fast_set set;
 
 //unsigned long long Mask16 = 0xFFFFu;

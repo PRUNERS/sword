@@ -2,7 +2,7 @@
 #define SWORD_COMMON_H
 
 #ifdef LZO
-#include "minilzo.h"
+#include "lzo/minilzo.h"
 #endif
 
 #define PRIME 2654435761U

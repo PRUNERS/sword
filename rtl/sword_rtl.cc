@@ -15,11 +15,11 @@
 #include "sword_flags.h"
 
 #ifdef SNAPPY
-#include "snappy.h"
+#include "snappy/snappy.h"
 #endif
 
 #ifdef LZ4
-#include "lz4.h"
+#include "lz4/lz4.h"
 #define ACCELERATION 5
 #endif
 
