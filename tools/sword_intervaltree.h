@@ -151,13 +151,10 @@ public:
 	Interval *root;
 
 	Interval *insertNode(Interval *tmp, const Access &item, const std::set<size_t> &mutex) {
-		static int count;
 		size_t end;
 
 		if (tmp == NULL) {
 			tmp = new Interval(item, mutex);
-			count++;
-			printf("Count: %d\n", count);
 			return tmp;
 		}
 

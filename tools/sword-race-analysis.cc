@@ -203,7 +203,7 @@ void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned 
 		}
 	}
 
-	INFO(std::cout, "Total Size: " << uncompressed_size);
+	// INFO(std::cout, "Total Size: " << uncompressed_size);
 
 	free(uncompressed_buffer);
 	fclose(datafile);
@@ -370,7 +370,7 @@ int main(int argc, char **argv) {
 				available_threads--;
 
 				// Create thread
-				INFO(std::cout, "Analyzing pair: " << p->first << "," << p->second);
+				// INFO(std::cout, "Analyzing pair: " << p->first << "," << p->second);
 				thread_list.push_back(std::thread(analyze_traces, it->first, p->first, p->second, std::ref(interval_buffers), std::ref(available_threads)));
 			}
 			for(std::vector<std::thread>::iterator th = thread_list.begin(); th != thread_list.end(); th++) {
