@@ -1,3 +1,4 @@
+#include "interval_tree.h"
 #include "sword-race-analysis.h"
 #include <boost/algorithm/string.hpp>
 
@@ -17,99 +18,6 @@
 #include <algorithm>
 #include <map>
 #include <thread>
-
-struct Interval {
-public:
-	size_t address;
-	unsigned count;
-	uint8_t size_type; // size in first 4 bits, type in last 4 bits
-	size_t diff;
-	Int48 pc;
-
-	Interval() {
-		address = 0;
-		size_type = 0;
-		pc.num = 0;
-		count = 0;
-		diff = 0;
-	}
-
-	Interval(size_t addr, uint8_t st, size_t p) {
-		address = addr;
-		size_type = st;
-		pc.num = p;
-		count = 1;
-		diff = 0;
-	}
-
-	Interval(const Access &item) {
-		address = item.getAddress();
-		count = 1;
-		diff = 0;
-		size_type = item.getAccessSizeType();
-		pc.num = item.getPC();
-	}
-
-	uint8_t getAccessSizeType() const {
-		return size_type;
-	}
-
-	AccessSize getAccessSize() const {
-		return (AccessSize) (size_type >> 4);
-	}
-
-	AccessType getAccessType() const {
-		return (AccessType) (size_type & 0x0F);
-	}
-
-	size_t getAddress() const {
-		return address;
-	}
-
-	size_t getPC() const {
-		return pc.num;
-	}
-};
-
-struct LogItem {
-private:
-	uint8_t item_type;
-
-public:
-	LogItem() = default;
-
-	LogItem(uint8_t type, const Interval &item) {
-		item_type = type;
-		data.interval = item;
-	}
-
-	LogItem(uint8_t type, const MutexRegion &item) {
-		item_type = type;
-		data.mutex_region = item;
-	}
-
-	void setInterval(Interval &item) {
-		data.interval= item;
-	}
-
-	void setMutexRegion(MutexRegion &item) {
-		data.mutex_region = item;
-	}
-
-	void setType(CallbackType t) {
-		item_type = (uint8_t) t;
-	}
-
-	CallbackType getType() const {
-		return (CallbackType) item_type;
-	}
-
-	union D {
-		struct Interval interval;
-		struct MutexRegion mutex_region;
-		D() { new(&interval) Interval(); }
-	} data;
-};
 
 #define PRINT 0
 
@@ -186,131 +94,28 @@ unsigned long long getTotalSystemMemory()
 	return pages * page_size;
 }
 
-bool overlap(const std::set<size_t>& s1, const std::set<size_t>& s2) {
-	for(const auto& i : s1) {
-		if(std::binary_search(s2.begin(), s2.end(), i))
-			return true;
-	}
-	return false;
-}
-
-//#define RACE_CHECK(t1, t2) \
-//		(t1->data.access.getAddress() == t2->data.access.getAddress()) &&		\
-//		((t1->data.access.getAccessType() == unsafe_write) ||					\
-//				(t2->data.access.getAccessType() == unsafe_write) ||					\
-//				((t1->data.access.getAccessType() == atomic_write) &&					\
-//						(t2->data.access.getAccessType() == unsafe_read)) ||					\
-//						((t2->data.access.getAccessType() == atomic_write) &&					\
-//								(t1->data.access.getAccessType() == unsafe_read)))
-
-#define RACE_CHECK(t1, t2) \
-	1
-
-#define UNSAFE() !overlap(mt1, mt2)
-
-void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<std::vector<LogItem>> &interval_buffers, std::atomic<int> &available_threads) {
+void analyze_traces(unsigned bid, unsigned t1, unsigned t2, std::vector<IntervalTree> &interval_buffers, std::atomic<int> &available_threads) {
+	std::vector<std::pair<Interval,Interval>> res;
 	//	INFO(std::cout, "Analyzing pair (" << t1 << "," << t2 << ").");
 
 	if(interval_buffers.size() > 0) {
-		std::set<size_t> mt1;
-		for(std::vector<LogItem>::iterator i = interval_buffers[t1].begin() ; i != interval_buffers[t1].end(); ++i) {
-			std::set<size_t> mt2;
-			switch(i->getType()) {
-			case data_access:
-				for(std::vector<LogItem>::iterator j = interval_buffers[t2].begin(); j != interval_buffers[t2].end(); ++j) {
-					switch(j->getType()) {
-					case data_access:
-						if(RACE_CHECK(i,j) &&
-								UNSAFE()) {
-							ReportRace(i->data.interval.getAddress(),
-									i->data.interval.getAccessType(), j->data.interval.getAccessType(),
-									i->data.interval.getAccessSize(),
-									j->data.interval.getAccessSize(),
-									i->data.interval.getPC() - 1, j->data.interval.getPC() - 1);
-						}
-						break;
-					case mutex_acquired:
-						mt2.insert(j->data.mutex_region.getWaitId());
-						break;
-					case mutex_released:
-						mt2.erase(j->data.mutex_region.getWaitId());
-						break;
-					default:
-						break;
-					}
-				}
-				break;
-			case mutex_acquired:
-				mt1.insert(i->data.mutex_region.getWaitId());
-				break;
-			case mutex_released:
-				mt1.erase(i->data.mutex_region.getWaitId());
-				break;
-			default:
-				break;
-			}
-		}
+		interval_buffers[t1].intersectIntervals(interval_buffers[t1].root, interval_buffers[t2].root, res);
+	}
+
+	for(std::vector<std::pair<Interval, Interval>>::iterator it = res.begin(); it != res.end(); ++it) {
+		Interval i = std::get<0>(*it);
+		Interval j = std::get<1>(*it);
+		ReportRace(i.getAddress(),
+				i.getAccessType(), j.getAccessType(),
+				i.getAccessSize(),
+				j.getAccessSize(),
+				i.getPC() - 1, j.getPC() - 1);
 	}
 
 	available_threads++;
 }
 
-#define INTERVAL_CHECK 														\
-		if((item.data.access.getAccessSizeType() == it->data.interval.getAccessSizeType()) && (item.data.access.getPC() == it->data.interval.getPC())) { \
-			if(it->data.interval.diff != 0) { 											\
-				max = it->data.interval.address + (it->data.interval.diff * (it->data.interval.count - 1)); 			\
-				if(item.data.access.getAddress() == (max + it->data.interval.diff)) { 	\
-					it->data.interval.count++; 											\
-					return;							 						\
-				} 															\
-				if((item.data.access.getAddress() >= it->data.interval.address) && (item.data.access.getAddress() <= max)) \
-					return; 												\
-				if(item.data.access.getAddress() == (it->data.interval.address - it->data.interval.diff)) { \
-					it->data.interval.address = item.data.access.getAddress(); 			\
-					it->data.interval.count++; 											\
-					return; 												\
-				} 															\
-			} else { 														\
-				it->data.interval.diff = item.data.access.getAddress() - it->data.interval.address; 	\
-				max = it->data.interval.address + (it->data.interval.diff * (it->data.interval.count - 1)); 			\
-				if(item.data.access.getAddress() == (max + it->data.interval.diff)) { 	\
-					it->data.interval.count++; 											\
-					return; 												\
-				} 															\
-				if((item.data.access.getAddress() >= it->data.interval.address) && (item.data.access.getAddress() <= max)) \
-					return; 												\
-				if(item.data.access.getAddress() == (it->data.interval.address - it->data.interval.diff)) { \
-					it->data.interval.address = item.data.access.getAddress(); 			\
-					it->data.interval.count++; 											\
-					return; 												\
-				} 															\
-			} 																\
-		}
-
-inline void addToIntervals(std::vector<LogItem> &intervals, const TraceItem &item) {
-	size_t max;
-	if(intervals.size() > 0) {
-		for(std::vector<LogItem>::iterator it = intervals.begin(); it != intervals.end(); ++it) {
-			INTERVAL_CHECK
-			++it;
-			if(it == intervals.end()) break;
-			INTERVAL_CHECK
-			++it;
-			if(it == intervals.end()) break;
-			INTERVAL_CHECK
-			++it;
-			if(it == intervals.end()) break;
-			INTERVAL_CHECK
-		}
-	}
-	intervals.push_back(LogItem(item.getType(), Interval(item.data.access)));
-}
-
-bool interval_sort(const LogItem &item1, const LogItem &item2) {
-	return (item1.data.interval.getAddress() < item2.data.interval.getAddress());
-}
-
-void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned t, std::vector<LogItem> &interval_buffer) {
+void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned t, IntervalTree &interval_buffer) {
 	std::string filename(path.string() + "/threadtrace_" + std::to_string(t) + "_" + std::to_string(bid));
 	uint64_t filesize = boost::filesystem::file_size(filename);
 	uint64_t out_len;
@@ -336,7 +141,8 @@ void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned 
 
 	size_t total_size = sizeof(uint64_t);
 	std::vector<TraceItem> file_buffer;
-	std::vector<LogItem> intervals;
+	IntervalTree intervals;
+	size_t uncompressed_size = 0;
 	while(total_size < filesize) {
 		size_t ret = fread(compressed_buffer, 1, block_size, datafile);
 		total_size += block_size;
@@ -365,19 +171,21 @@ void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned 
 #else
 #endif
 
+        uncompressed_size += new_len;
+
         file_buffer.insert(file_buffer.end(), uncompressed_buffer, uncompressed_buffer + (new_len / sizeof(TraceItem)));
 
+        std::set<size_t> mutex;
     	for(std::vector<TraceItem>::const_iterator it = file_buffer.begin(); it != file_buffer.end(); ++it) {
     		switch(it->getType()) {
     		case data_access:
-    			addToIntervals(intervals, *it);
+    			interval_buffer.root = interval_buffer.insertNode(interval_buffer.root, it->data.access, mutex);
     			break;
     		case mutex_acquired:
+    			mutex.insert(it->data.mutex_region.getWaitId());
+    			break;
     		case mutex_released:
-    			std::sort(intervals.begin(), intervals.end(), interval_sort);
-    			intervals.push_back(LogItem(it->getType(), it->data.mutex_region));
-    			copy(intervals.begin(), intervals.end(), std::back_inserter(interval_buffer));
-    			intervals.clear();
+    			mutex.erase(it->data.mutex_region.getWaitId());
     			break;
     		default:
     			break;
@@ -394,11 +202,8 @@ void load_and_convert_file(boost::filesystem::path path, unsigned bid, unsigned 
 			neof = 0;
 		}
 	}
-	if(intervals.size() > 0) {
-		std::sort(intervals.begin(), intervals.end(), interval_sort);
-		copy(intervals.begin(), intervals.end(), std::back_inserter(interval_buffer));
-		intervals.clear();
-	}
+
+	INFO(std::cout, "Total Size: " << uncompressed_size);
 
 	free(uncompressed_buffer);
 	fclose(datafile);
@@ -537,7 +342,7 @@ int main(int argc, char **argv) {
 			// Struct to load uncompressed data from file
 			std::vector<std::thread> lm_thread;
 			lm_thread.reserve(it->second.thread_id.size());
-			std::vector<std::vector<LogItem>> interval_buffers;
+			std::vector<IntervalTree> interval_buffers;
 			interval_buffers.resize(it->second.thread_id.size());
 			for(std::vector<unsigned>::const_iterator th_id = it->second.thread_id.begin(); th_id != it->second.thread_id.end(); ++th_id) {
 				lm_thread.push_back(std::thread(load_and_convert_file, dir, it->first, *th_id, std::ref(interval_buffers[*th_id])));
@@ -549,6 +354,13 @@ int main(int argc, char **argv) {
 			// Load data into memory of all the threads in given barrier interval, if it fits in memory,
 			// data are compressed so not sure how to check if everything will fit in memory
 
+			// INFO(std::cout, "T0");
+			// interval_buffers[0].printTree(interval_buffers[0].root);
+			// interval_buffers[0].bst_print_dot(interval_buffers[0].root);
+			// INFO(std::cout, "T1");
+			// interval_buffers[1].printTree(interval_buffers[1].root);
+			// interval_buffers[1].bst_print_dot(interval_buffers[1].root);
+
 			// Now we can start analyzing the pairs
 			std::atomic<int> available_threads;
 			std::vector<std::thread> thread_list;
@@ -558,6 +370,7 @@ int main(int argc, char **argv) {
 				available_threads--;
 
 				// Create thread
+				INFO(std::cout, "Analyzing pair: " << p->first << "," << p->second);
 				thread_list.push_back(std::thread(analyze_traces, it->first, p->first, p->second, std::ref(interval_buffers), std::ref(available_threads)));
 			}
 			for(std::vector<std::thread>::iterator th = thread_list.begin(); th != thread_list.end(); th++) {

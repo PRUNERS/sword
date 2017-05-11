@@ -5,6 +5,8 @@
 #include "minilzo.h"
 #endif
 
+#define PRIME 2654435761U
+
 #include <omp.h>
 #include <ompt.h>
 #include <stdint.h>
@@ -17,6 +19,8 @@
 #include <sstream>
 #include <string>
 #include <thread>
+
+#include <boost/functional/hash.hpp>
 
 std::mutex pmtx;
 std::mutex smtx;
@@ -43,10 +47,10 @@ std::mutex smtx;
 #endif
 
 #ifdef LZO
-#define HEAP_ALLOC(var,size) thread_local lzo_align_t __LZO_MMODEL 		\
+#define HEAP_ALLOC(var,size) lzo_align_t __LZO_MMODEL 		\
 	var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t) ]
 
-HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
+// HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
 #endif
 
 #define SWORD_DATA 				"sword_data"
@@ -124,7 +128,27 @@ public:
 	size_t getPC() const {
 		return pc.num;
 	}
+
+//	int operator ==(const Access &a) const {
+//		return ((a.size_type == size_type) &&
+//				(a.address == address) &&
+//				(a.pc.num == pc.num));
+//	}
 };
+
+bool operator ==(const Access &a, const Access &b) {
+	return ((a.getAccessSizeType() == b.getAccessSizeType()) &&
+			(a.getAddress() == b.getAddress()) &&
+			(a.getPC() == b.getPC()));
+}
+
+std::size_t hash_value(Access const& a) {
+	std::size_t val { 0 };
+	boost::hash_combine(val, a.getAddress());
+	boost::hash_combine(val, a.getAccessSizeType());
+	boost::hash_combine(val, a.getPC());
+	return val;
+}
 
 struct __attribute__ ((__packed__)) Parallel {
 private:
@@ -210,10 +234,31 @@ public:
 		wait_id = wid;
 	}
 
-	ompt_wait_id_t getWaitId() {
+	ompt_mutex_kind_t getKind() const {
+		return kind;
+	}
+
+	ompt_wait_id_t getWaitId() const {
 		return wait_id;
 	}
+
+//	int operator ==(const MutexRegion &a) const {
+//		return ((a.kind == kind) &&
+//				(a.wait_id == wait_id));
+//	}
 };
+
+bool operator ==(const MutexRegion &a, const MutexRegion &b) {
+	return ((a.getKind() == b.getKind()) &&
+			(a.getWaitId() == b.getWaitId()));
+}
+
+std::size_t hash_value(MutexRegion const& a) {
+	std::size_t val { 0 };
+	boost::hash_combine(val, a.getKind());
+	boost::hash_combine(val, a.getWaitId());
+	return val;
+}
 
 struct __attribute__ ((__packed__)) TaskCreate {
 private:
@@ -327,6 +372,21 @@ private:
 public:
 	TraceItem() = default;
 
+	TraceItem(uint8_t type, const Access &access) {
+		item_type = type;
+		data.access = access;
+	}
+
+	TraceItem(uint8_t type, const Parallel &parallel) {
+		item_type = type;
+		data.parallel = parallel;
+	}
+
+	TraceItem(uint8_t type, const MutexRegion &mutex_region) {
+		item_type = type;
+		data.mutex_region = mutex_region;
+	}
+
 	void setType(CallbackType t) {
 		item_type = (uint8_t) t;
 	}
@@ -335,7 +395,8 @@ public:
 		return (CallbackType) item_type;
 	}
 
-	union {
+	union Data {
+		Data() {new(&access) Access();}
 		struct Access access;
 		struct Parallel parallel;
 		struct Work work;
@@ -348,6 +409,49 @@ public:
 		struct TaskDependence task_dependence;
 #endif
 	} data;
+
+//	int operator==(TraceItem const& a) {
+//		if(a.item_type != item_type) return 0;
+//		switch(a.item_type) {
+//		case data_access:
+//			return a.data.access == data.access;
+//		case mutex_acquired:
+//		case mutex_released:
+//			return a.data.mutex_region == data.mutex_region;
+//		default:
+//			return 0;
+//		}
+//	}
 };
+
+bool operator==(TraceItem const& a, TraceItem const& b) {
+	if(a.getType() != b.getType()) return false;
+	switch(a.getType()) {
+	case data_access:
+		return a.data.access == b.data.access;
+	case mutex_acquired:
+	case mutex_released:
+		return a.data.mutex_region == b.data.mutex_region;
+	default:
+		return false;
+	}
+}
+
+std::size_t hash_value(TraceItem const& a) {
+	std::size_t val { 0 };
+	boost::hash_combine(val,a.getType());
+	switch(a.getType()) {
+	case data_access:
+		boost::hash_combine(val, a.data.access);
+		break;
+	case mutex_acquired:
+	case mutex_released:
+		boost::hash_combine(val, a.data.mutex_region);
+		break;
+	default:
+		break;
+	}
+	return val;
+}
 
 #endif  // SWORD_COMMON_H

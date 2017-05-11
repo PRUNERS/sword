@@ -444,6 +444,9 @@ int main(int argc, char **argv) {
 //	}
 
 	INFO(std::cout, "Intervals size: " << intervals.size());
+	for(std::vector<LogItem>::const_iterator it = intervals.begin(); it != intervals.end(); it++) {
+		std::cout << "[" << it->data.interval.address << "," << it->data.interval.count << "]" << std::endl;
+	}
 
 	return 0;
 }
