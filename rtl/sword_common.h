@@ -47,10 +47,10 @@ std::mutex smtx;
 #endif
 
 #ifdef LZO
-#define HEAP_ALLOC(var,size) lzo_align_t __LZO_MMODEL 		\
-	var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t) ]
+#define HEAP_ALLOC(var,size) thread_local lzo_align_t __LZO_MMODEL 	    \
+		var [((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t)]
 
-// HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
+HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
 #endif
 
 #define SWORD_DATA 				"sword_data"
@@ -128,12 +128,6 @@ public:
 	size_t getPC() const {
 		return pc.num;
 	}
-
-//	int operator ==(const Access &a) const {
-//		return ((a.size_type == size_type) &&
-//				(a.address == address) &&
-//				(a.pc.num == pc.num));
-//	}
 };
 
 bool operator ==(const Access &a, const Access &b) {
@@ -241,11 +235,6 @@ public:
 	ompt_wait_id_t getWaitId() const {
 		return wait_id;
 	}
-
-//	int operator ==(const MutexRegion &a) const {
-//		return ((a.kind == kind) &&
-//				(a.wait_id == wait_id));
-//	}
 };
 
 bool operator ==(const MutexRegion &a, const MutexRegion &b) {
@@ -409,19 +398,6 @@ public:
 		struct TaskDependence task_dependence;
 #endif
 	} data;
-
-//	int operator==(TraceItem const& a) {
-//		if(a.item_type != item_type) return 0;
-//		switch(a.item_type) {
-//		case data_access:
-//			return a.data.access == data.access;
-//		case mutex_acquired:
-//		case mutex_released:
-//			return a.data.mutex_region == data.mutex_region;
-//		default:
-//			return 0;
-//		}
-//	}
 };
 
 bool operator==(TraceItem const& a, TraceItem const& b) {
