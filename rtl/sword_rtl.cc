@@ -241,17 +241,18 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 		}
 
 		fprintf(metafile, "%u,%lu,%lu\n", par_data->getParallelLevel(), bid, file_offset);
-	} else if(endpoint == ompt_scope_end) {
-		__sword_status__--;
-		ParallelData *par_data = (ParallelData *) task_data->ptr;
-
-		if(par_data) {
-			if(pdata->getParallelID() == par_data->getParallelID()) {
-				DUMPNOCHECK_TO_FILE
-				fut.wait();
-			}
-		}
 	}
+//	} else if(endpoint == ompt_scope_end) {
+//		__sword_status__--;
+//		ParallelData *par_data = (ParallelData *) task_data->ptr;
+//
+//		if(par_data) {
+//			if(pdata->getParallelID() == par_data->getParallelID()) {
+//				DUMPNOCHECK_TO_FILE
+//				fut.wait();
+//			}
+//		}
+//	}
 }
 
 static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
