@@ -124,6 +124,7 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 
 #define DUMPNOCHECK_TO_FILE													\
 		fut.wait();															\
+		INFO(std::cout, "Idx: " << idx);									\
 		fut = std::async(dump_to_file, accesses,							\
 				sizeof(TraceItem), idx, datafile,							\
 				out, &offset);												\
