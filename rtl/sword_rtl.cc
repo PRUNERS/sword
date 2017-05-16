@@ -272,8 +272,8 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 static void on_ompt_callback_mutex_acquired(ompt_mutex_kind_t kind,
 		ompt_wait_id_t wait_id,
 		const void *codeptr_ra) {
-	DUMPNOCHECK_TO_FILE
 	(*accesses)[idx] = TraceItem(mutex_acquired, MutexRegion(kind, wait_id));
+	DUMP_TO_FILE
 }
 
 static void on_ompt_callback_mutex_released(ompt_mutex_kind_t kind,
