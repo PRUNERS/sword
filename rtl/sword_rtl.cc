@@ -32,6 +32,8 @@
 #include <fstream>
 #include <sstream>
 
+thread_local uint64_t sync = 0;
+
 static const char* ompt_thread_type_t_values[] = {
 		NULL,
 		"ompt_thread_initial",
@@ -112,7 +114,6 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 		}
 
 #define DUMP_TO_FILE														\
-		INFO(std::cout, "dump"); \
 		idx++;																\
 		if(idx == NUM_OF_ACCESSES)	{										\
 			fut.wait();														\
@@ -124,7 +125,6 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 		}
 
 #define DUMPNOCHECK_TO_FILE													\
-		INFO(std::cout, "dumpnocheck"); \
 		fut.wait();															\
 		fut = std::async(dump_to_file, accesses,							\
 				sizeof(TraceItem), idx, datafile,							\
@@ -266,6 +266,7 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 		DUMPNOCHECK_TO_FILE
 		bid++;
 		fprintf(metafile, "%u,%lu,%lu\n", par_data->getParallelLevel(), bid, file_offset);
+		sync++;
 	}
 }
 
@@ -355,7 +356,7 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	return 0;
 }
 
-void ompt_finalize(ompt_fns_t* fns) {}
+void ompt_finalize(ompt_fns_t* fns) { INFO(std::cout, sync); }
 
 ompt_fns_t* ompt_start_tool(unsigned int omp_version,
 		const char *runtime_version) {
