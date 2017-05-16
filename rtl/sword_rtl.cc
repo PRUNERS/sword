@@ -124,7 +124,6 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 
 #define DUMPNOCHECK_TO_FILE													\
 		fut.wait();															\
-		INFO(std::cout, "Idx: " << idx);									\
 		fut = std::async(dump_to_file, accesses,							\
 				sizeof(TraceItem), idx, datafile,							\
 				out, &offset);												\
@@ -183,7 +182,6 @@ static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 
 static void on_ompt_callback_thread_end(ompt_data_t *thread_data)
 {
-	DUMPNOCHECK_TO_FILE
 	fclose(datafile);
 	fclose(metafile);
 }
@@ -245,13 +243,12 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 		__sword_status__--;
 		ParallelData *par_data = (ParallelData *) task_data->ptr;
 
-		DUMPNOCHECK_TO_FILE
-//		if(par_data) {
-//			if(pdata->getParallelID() == par_data->getParallelID()) {
-//				DUMPNOCHECK_TO_FILE
-//				fut.wait();
-//			}
-//		}
+		if(par_data) {
+			if(pdata->getParallelID() == par_data->getParallelID()) {
+				DUMPNOCHECK_TO_FILE
+				fut.wait();
+			}
+		}
 	}
 }
 
@@ -302,13 +299,13 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	ompt_get_unique_id = (ompt_get_unique_id_t) lookup("ompt_get_unique_id");
 
 	register_callback(ompt_callback_thread_begin);
-//	register_callback(ompt_callback_thread_end);
-//	register_callback(ompt_callback_parallel_begin);
-//	register_callback(ompt_callback_parallel_end);
-//	register_callback(ompt_callback_implicit_task);
-//	register_callback(ompt_callback_sync_region);
-//	register_callback(ompt_callback_mutex_acquired);
-//	register_callback(ompt_callback_mutex_released);
+	register_callback(ompt_callback_thread_end);
+	register_callback(ompt_callback_parallel_begin);
+	register_callback(ompt_callback_parallel_end);
+	register_callback(ompt_callback_implicit_task);
+	register_callback(ompt_callback_sync_region);
+	register_callback(ompt_callback_mutex_acquired);
+	register_callback(ompt_callback_mutex_released);
 
 	std::string str = sword_flags->traces_path;
 	if(sword_flags->traces_path.empty()) {
