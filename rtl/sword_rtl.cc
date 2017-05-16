@@ -266,7 +266,7 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 		DUMPNOCHECK_TO_FILE
 		bid++;
 		fprintf(metafile, "%u,%lu,%lu\n", par_data->getParallelLevel(), bid, file_offset);
-		sync++;
+		nsync++;
 	}
 }
 
