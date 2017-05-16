@@ -182,6 +182,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 
 static void on_ompt_callback_thread_end(ompt_data_t *thread_data)
 {
+	DUMPNOCHECK_TO_FILE
 	fclose(datafile);
 	fclose(metafile);
 }
