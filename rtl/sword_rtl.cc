@@ -125,12 +125,14 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 		}
 
 #define DUMPNOCHECK_TO_FILE													\
-		fut.wait();															\
-		fut = std::async(dump_to_file, accesses,							\
-				sizeof(TraceItem), idx, datafile,							\
-				out, &offset);												\
-		idx = 0;															\
-		SWAP_BUFFER
+		if(idx > 0) {														\
+			fut.wait();														\
+			fut = std::async(dump_to_file, accesses,						\
+					sizeof(TraceItem), idx, datafile,						\
+					out, &offset);											\
+					idx = 0;												\
+					SWAP_BUFFER 											\
+		}
 
 #define SAVE_ACCESS(asize, atype)											\
 	TraceItem item = TraceItem(data_access, Access(asize,					\
