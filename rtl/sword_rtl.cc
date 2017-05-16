@@ -116,23 +116,23 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 #define DUMP_TO_FILE														\
 		idx++;																\
 		if(idx == NUM_OF_ACCESSES)	{										\
+			set.clear();													\
 			fut.wait();														\
 			fut = std::async(dump_to_file, accesses,						\
 					sizeof(TraceItem), NUM_OF_ACCESSES, datafile,			\
 					out, &offset);											\
 			idx = 0;														\
-			set.clear();													\
 			SWAP_BUFFER														\
 		}
 
 #define DUMPNOCHECK_TO_FILE													\
 		if(idx > 0) {														\
+			set.clear();													\
 			fut.wait();														\
 			fut = std::async(dump_to_file, accesses,						\
 					sizeof(TraceItem), idx, datafile,						\
 					out, &offset);											\
 					idx = 0;												\
-					set.clear();											\
 					SWAP_BUFFER 											\
 		}
 
