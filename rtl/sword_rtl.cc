@@ -32,7 +32,7 @@
 #include <fstream>
 #include <sstream>
 
-thread_local uint64_t sync = 0;
+thread_local uint64_t nsync = 0;
 
 static const char* ompt_thread_type_t_values[] = {
 		NULL,
@@ -356,7 +356,7 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	return 0;
 }
 
-void ompt_finalize(ompt_fns_t* fns) { INFO(std::cout, sync); }
+void ompt_finalize(ompt_fns_t* fns) { INFO(std::cout, nsync); }
 
 ompt_fns_t* ompt_start_tool(unsigned int omp_version,
 		const char *runtime_version) {
