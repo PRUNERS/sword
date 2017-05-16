@@ -121,6 +121,7 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 					sizeof(TraceItem), NUM_OF_ACCESSES, datafile,			\
 					out, &offset);											\
 			idx = 0;														\
+			set.clear();													\
 			SWAP_BUFFER														\
 		}
 
@@ -131,6 +132,7 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 					sizeof(TraceItem), idx, datafile,						\
 					out, &offset);											\
 					idx = 0;												\
+					set.clear();											\
 					SWAP_BUFFER 											\
 		}
 
