@@ -243,12 +243,13 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 		__sword_status__--;
 		ParallelData *par_data = (ParallelData *) task_data->ptr;
 
-		if(par_data) {
-			if(pdata->getParallelID() == par_data->getParallelID()) {
-				DUMPNOCHECK_TO_FILE
-				fut.wait();
-			}
-		}
+		DUMPNOCHECK_TO_FILE
+//		if(par_data) {
+//			if(pdata->getParallelID() == par_data->getParallelID()) {
+//				DUMPNOCHECK_TO_FILE
+//				fut.wait();
+//			}
+//		}
 	}
 }
 
