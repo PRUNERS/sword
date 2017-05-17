@@ -137,24 +137,64 @@ if __name__ == '__main__':
         # Common MOAB Configuration values
         shell = find_executable("bash")
         partition = os.environ['LCSCHEDCLUSTER']
-
+        
+    # Create list of parallel regions and potential nested parallel regions
+    # dict(pid) = { pid, bid, file_offset_begin, file_offset_end, [ nested_regions] }
+    pregions = {}  
     for subdir, dirs, files in os.walk(args.traces_path, False):
-        if subdir == args.traces_path:
-            continue
-        if(args.cluster_run):
-            # Use MOAB
-            # MOAB Configuration values
-            config_file = MOAB_DIR + "/moab_config_" + sanitizeFileName(subdir)
-            output = MOAB_DIR + "/moab_output_" + sanitizeFileName(subdir)
-            cmd = "%s --executable %s --traces-path %s --report-path %s" % (analysis_tool, executable, subdir, args.report_path)
-            createMOABConfig(config_file , shell, partition, output, cmd)
-            # Run on cluster
-            command = "msub " +  config_file
-            ret = executeCommand(command, False)
-            if(ret):
-                print "A problem occurred while analyzing the traces in folder '" + subdir + "'.\n\nPlease run the analysis again with the command: '" + command + "'."
-        else:
-            command = "%s --executable %s --traces-path %s --report-path %s" % (analysis_tool, executable, subdir, args.report_path)
-            ret = executeCommand(command)
-            if(ret):
-                print "A problem occurred while analyzing the traces in folder '" + subdir + "'.\n\nPlease run the analysis again with the command: '" + command + "'."
+        for file in files:
+            if "metafile" in file:
+                lines = [line.rstrip('\n') for line in open(args.traces_path + "/" + file)]
+                for line in lines:
+                    (pid, ppid, bid, file_offset_begin, file_offset_end) = [t(s) for t,s in zip((int,int,int,int,int),line.split(","))]
+                    # print(pid, ppid, bid, file_offset_begin, file_offset_end)
+                    # print line
+                    if pid not in pregions:
+                        pregions[pid] = {}  
+                        pregions[pid][bid] = { 'nested': [] }
+                    else:
+                        if bid not in pregions[pid]:
+                            pregions[pid][bid] = { 'nested': [] }
+                    if ppid in pregions:
+                        pregions[ppid][bid]['nested'].append(pid)
+                        
+#     pregions = {}  
+#     for subdir, dirs, files in os.walk(args.traces_path, False):
+#         for file in files:
+#             if "metafile" in file:
+#                 lines = [line.rstrip('\n') for line in open(args.traces_path + "/" + file)]
+#                 tid = file.split(_)[1]
+#                 for line in lines:
+#                     (pid, ppid, bid, file_offset_begin, file_offset_end) = [t(s) for t,s in zip((int,int,int,int,int),line.split(","))]
+#                     # print(pid, ppid, bid, file_offset_begin, file_offset_end)
+#                     print line
+#                     if pid not in pregions:  
+#                         pregions[tid][pid] = { 'bid': [ (bid, file_offset_begin, file_offset_end) ], 'nested': [] }
+#                     else:
+#                         pregions[tid][pid]['bid'].append((bid, file_offset_begin, file_offset_end));
+#                     if ppid in pregions:
+#                         pregions[tid][ppid]['nested'].append(pid)
+
+    for key,value in pregions.iteritems():
+        for bid, nested in value.iteritems():
+            if(args.cluster_run):
+                # Use MOAB
+                # MOAB Configuration values
+                config_file = MOAB_DIR + "/moab_config_" + sanitizeFileName(subdir)
+                output = MOAB_DIR + "/moab_output_" + sanitizeFileName(subdir)
+                cmd = "%s --executable %s --traces-path %s --report-path %s --pregions %s" % (analysis_tool, executable, args.traces_path, args.report_path, key)
+                createMOABConfig(config_file , shell, partition, output, cmd)
+                # Run on cluster
+                command = "msub " +  config_file
+                ret = executeCommand(command, False)
+                if(ret):
+                    print "A problem occurred while analyzing the traces in folder '" + subdir + "'.\n\nPlease run the analysis again with the command: '" + command + "'."
+            else:
+                nested_str = ''.join(nested['nested'])
+                if(not nested_str):
+                    command = "%s --executable %s --traces-path %s --report-path %s --pregion %s --bid %s" % (analysis_tool, executable, args.traces_path, args.report_path, key, bid)
+                else:
+                    command = "%s --executable %s --traces-path %s --report-path %s --pregion %s --bid %s --nested %s" % (analysis_tool, executable, args.traces_path, args.report_path, key, bid, nested_str)
+                ret = executeCommand(command)
+                if(ret):
+                    print "A problem occurred while analyzing the traces in folder '" + subdir + "'.\n\nPlease run the analysis again with the command: '" + command + "'."

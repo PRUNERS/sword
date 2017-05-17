@@ -559,7 +559,8 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   // llvm::GlobalVariable *ompStack = NULL;
   // llvm::GlobalVariable *ompStackSize = NULL;
   llvm::GlobalVariable *ompOffset = NULL;
-  llvm::GlobalVariable *ompFileOffset = NULL;
+  llvm::GlobalVariable *ompFileOffsetBegin = NULL;
+  llvm::GlobalVariable *ompFileOffsetEnd = NULL;
   llvm::GlobalVariable *ompDatafile = NULL;
   llvm::GlobalVariable *ompMetafile = NULL;
   llvm::GlobalVariable *ompPdata = NULL;
@@ -585,7 +586,8 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   // ompStack = M->getNamedGlobal("stack");
   // ompStackSize = M->getNamedGlobal("stacksize");
   ompOffset = M->getNamedGlobal("offset");
-  ompFileOffset = M->getNamedGlobal("file_offset");
+  ompFileOffsetBegin = M->getNamedGlobal("file_offset_begin");
+  ompFileOffsetEnd = M->getNamedGlobal("file_offset_end");
   ompDatafile = M->getNamedGlobal("datafile");
   ompMetafile = M->getNamedGlobal("metafile");
   ompPdata = M->getNamedGlobal("pdata");
@@ -605,7 +607,8 @@ bool InstrumentParallel::runOnFunction(Function &F) {
     // TLS_DECLARE(ompStack, IRB.getInt8PtrTy(), "stack"); // size_t *
     // TLS_DECLARE(ompStackSize, IRB.getInt64Ty(), "stacksize"); // size_t
     TLS_DECLARE(ompOffset, IRB.getInt64Ty(), "offset"); // size_t
-    TLS_DECLARE(ompFileOffset, IRB.getInt64Ty(), "file_offset"); // size_t
+    TLS_DECLARE(ompFileOffsetBegin, IRB.getInt64Ty(), "file_offset_begin"); // size_t
+    TLS_DECLARE(ompFileOffsetEnd, IRB.getInt64Ty(), "file_offset_end"); // size_t
     TLS_DECLARE(ompDatafile, IRB.getInt8PtrTy(), "datafile"); // FILE *
     TLS_DECLARE(ompMetafile, IRB.getInt8PtrTy(), "metafile"); // FILE *
     // TLS_DECLARE(ompWrkmem, llvm::Type::getInt64PtrTy(M->getContext()), "wrkmem"); // wrkmem *
@@ -637,7 +640,8 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   // TLS_DECLARE_EXTERN(ompStack, IRB.getInt8PtrTy(), "stack"); // size_t *
   // TLS_DECLARE_EXTERN(ompStackSize, IRB.getInt64Ty(), "stacksize"); // size_t
   TLS_DECLARE_EXTERN(ompOffset, IRB.getInt64Ty(), "offset"); // size_t
-  TLS_DECLARE_EXTERN(ompFileOffset, IRB.getInt64Ty(), "file_offset"); // size_t
+  TLS_DECLARE_EXTERN(ompFileOffsetBegin, IRB.getInt64Ty(), "file_offset_begin"); // size_t
+  TLS_DECLARE_EXTERN(ompFileOffsetEnd, IRB.getInt64Ty(), "file_offset_end"); // size_t
   TLS_DECLARE_EXTERN(ompDatafile, IRB.getInt8PtrTy(), "datafile"); // FILE *
   TLS_DECLARE_EXTERN(ompMetafile, IRB.getInt8PtrTy(), "metafile"); // FILE *
   // TLS_DECLARE_EXTERN(ompWrkmem, llvm::Type::getInt64PtrTy(M->getContext()), "wrkmem"); // wrkmem *

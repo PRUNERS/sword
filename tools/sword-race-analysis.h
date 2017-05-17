@@ -5,15 +5,18 @@
 #include <unordered_map>
 
 struct TraceInfo {
-	uint64_t trace_size;
-	std::vector<unsigned> thread_id;
+public:
+	uint64_t file_offset_begin;
+	uint64_t file_offset_end;
 
-	TraceInfo() {
-		trace_size = 0;
+	TraceInfo() = default;
+
+	TraceInfo(uint64_t fob, uint64_t foe) {
+		file_offset_begin = fob;
+		file_offset_end = foe;
 	}
 };
 
 boost::filesystem::path traces_data;
 std::mutex rmtx;
 
-bool overlap(const std::set<size_t>& s1, const std::set<size_t>& s2);

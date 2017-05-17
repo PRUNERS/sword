@@ -47,6 +47,7 @@ struct ParallelData {
 private:
 	unsigned state;
 	ompt_id_t parallel_id;
+	ompt_id_t parent_parallel_id;
 	unsigned level;
 	unsigned offset;
 	unsigned span;
@@ -55,14 +56,16 @@ public:
 	ParallelData() {
 		state = 0;
 		parallel_id = 0;
+		parent_parallel_id = 0;
 		level = 0;
 		offset = 0;
 		span = 0;
 	}
 
-	ParallelData(ompt_id_t pid, unsigned l, unsigned o, unsigned s) {
+	ParallelData(ompt_id_t pid, ompt_id_t ppid, unsigned l, unsigned o, unsigned s) {
 		state = 0;
 		parallel_id = pid;
+		parent_parallel_id = ppid;
 		level = l;
 		offset = o;
 		span = s;
@@ -71,6 +74,7 @@ public:
 	ParallelData(ParallelData *pd) {
 		state = pd->getState();
 		parallel_id = pd->getParallelID();
+		parent_parallel_id = pd->getParentParallelID();
 		level = pd->getParallelLevel();
 		offset = pd->getOffset();
 		span = pd->getSpan();
@@ -79,14 +83,16 @@ public:
 	void setData(ParallelData *pd) {
 		state = pd->getState();
 		parallel_id = pd->getParallelID();
+		parent_parallel_id = pd->getParentParallelID();
 		level = pd->getParallelLevel();
 		offset = pd->getOffset();
 		span = pd->getSpan();
 	}
 
-	void setData(ompt_id_t pid, unsigned l, unsigned o, unsigned s) {
+	void setData(ompt_id_t pid, ompt_id_t ppid, unsigned l, unsigned o, unsigned s) {
 		state = 0;
 		parallel_id = pid;
+		parent_parallel_id = ppid;
 		level = l;
 		offset = o;
 		span = s;
@@ -98,6 +104,10 @@ public:
 
 	void setParallelID(ompt_id_t pid) {
 		parallel_id = pid;
+	}
+
+	void setParentParallelID(ompt_id_t ppid) {
+		parent_parallel_id = ppid;
 	}
 
 	void setParallelLevel(unsigned l) {
@@ -118,6 +128,10 @@ public:
 
 	ompt_id_t getParallelID() {
 		return parallel_id;
+	}
+
+	ompt_id_t getParentParallelID() {
+		return parent_parallel_id;
 	}
 
 	unsigned getParallelLevel() {
@@ -142,7 +156,8 @@ extern thread_local uint64_t idx;
 extern thread_local uint64_t bid;
 extern thread_local char *buffer;
 extern thread_local size_t offset;
-extern thread_local size_t file_offset;
+extern thread_local size_t file_offset_begin;
+extern thread_local size_t file_offset_end;
 extern thread_local FILE *datafile;
 extern thread_local FILE *metafile;
 extern thread_local ParallelData *pdata;

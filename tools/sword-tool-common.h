@@ -48,6 +48,9 @@ struct RaceInfo {
 };
 
 std::string executable;
+uint64_t pregion;
+uint64_t barrier_id;
+std::string nested;
 std::string shell_path;
 std::string symbolizer_path;
 std::unordered_set<size_t> hash_races;

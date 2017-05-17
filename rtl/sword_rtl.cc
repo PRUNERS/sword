@@ -32,6 +32,8 @@
 #include <fstream>
 #include <sstream>
 
+#define SET_SIZE 87382
+
 static const char* ompt_thread_type_t_values[] = {
 		NULL,
 		"ompt_thread_initial",
@@ -77,7 +79,7 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 
     size_t tsize = *out_len + sizeof(lzo_uint);
     fwrite((char *) buffer, tsize, 1, file);
-    file_offset += tsize;
+    file_offset_end += tsize;
 	// LZO
 #elif defined(SNAPPY)
         size_t *out_len = (size_t *) buffer;
@@ -114,40 +116,32 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 #define DUMP_TO_FILE														\
 		idx++;																\
 		if(idx == NUM_OF_ACCESSES)	{										\
-			set.clear();													\
 			fut.wait();														\
 			fut = std::async(dump_to_file, accesses,						\
 					sizeof(TraceItem), NUM_OF_ACCESSES, datafile,			\
 					out, &offset);											\
 			idx = 0;														\
+			set.clear();													\
 			SWAP_BUFFER														\
 		}
 
 #define DUMPNOCHECK_TO_FILE													\
 		if(idx > 0) {														\
-			set.clear();													\
 			fut.wait();														\
 			fut = std::async(dump_to_file, accesses,						\
 					sizeof(TraceItem), idx, datafile,						\
 					out, &offset);											\
-					idx = 0;												\
-					SWAP_BUFFER 											\
+			idx = 0;														\
+			set.clear();													\
+			SWAP_BUFFER 													\
 		}
 
 #define SAVE_ACCESS(asize, atype)											\
 	TraceItem item = TraceItem(data_access, Access(asize,					\
 							   atype, (size_t) addr, CALLERPC));			\
 	if(set.check_insert(hash_value(item))) {		 						\
-		(*accesses)[idx++] = item;											\
-	} 																		\
-	if(idx == NUM_OF_ACCESSES)	{											\
-		set.clear(); 														\
-		fut.wait();															\
-		fut = std::async(dump_to_file, accesses,							\
-						 sizeof(TraceItem), NUM_OF_ACCESSES, datafile, 		\
-						 out, &offset);	  									\
-		idx = 0;															\
-		SWAP_BUFFER															\
+		(*accesses)[idx] = item;											\
+		DUMP_TO_FILE														\
 	}
 
 extern "C" {
@@ -160,7 +154,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 
 	accesses1 = new std::vector<TraceItem>(NUM_OF_ACCESSES);
 	accesses2 = new std::vector<TraceItem>(NUM_OF_ACCESSES);
-	set.reserve(87382);
+	set.reserve(SET_SIZE);
 	accesses = accesses1;
     out = (unsigned char *) malloc(OUT_LEN);
     pdata = new ParallelData();
@@ -201,14 +195,14 @@ static void on_ompt_callback_parallel_begin(ompt_task_data_t parent_task_data,
 
 	if(__sword_status__ == 1) {
 		ompt_id_t pid = ompt_get_unique_id();
-		parallel_data->ptr = new ParallelData(pid, __sword_status__, 0, 1);
+		parallel_data->ptr = new ParallelData(pid, 0, __sword_status__, 0, 1);
 	} else {
 		ompt_id_t pid = ompt_get_unique_id();
 		ParallelData *par_data;
 		if(pdata->getState()) {
-			par_data = new ParallelData(pid, __sword_status__, pdata->getOffset(), pdata->getSpan());
+			par_data = new ParallelData(pid, pdata->getParallelID(), __sword_status__, pdata->getOffset(), pdata->getSpan());
 		} else {
-			par_data = new ParallelData(pid, __sword_status__, omp_get_thread_num(), omp_get_num_threads());
+			par_data = new ParallelData(pid, pdata->getParallelID(), __sword_status__, omp_get_thread_num(), omp_get_num_threads());
 		}
 		parallel_data->ptr = par_data;
 		pdata->setData(par_data);
@@ -220,8 +214,10 @@ static void on_ompt_callback_parallel_end(ompt_data_t *parallel_data,
 		ompt_invoker_t invoker,
 		const void *codeptr_ra) {
 	if(__sword_status__ >= 1) {
-		pdata->setData(pdata->getParallelID(), __sword_status__, pdata->getOffset() + pdata->getSpan(), pdata->getSpan());
+		pdata->setData(pdata->getParallelID(), pdata->getParentParallelID(), __sword_status__, pdata->getOffset() + pdata->getSpan(), pdata->getSpan());
 		pdata->setState(1);
+	} else {
+		delete ((ParallelData *) parallel_data->ptr);
 	}
 }
 
@@ -242,19 +238,10 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 			bid = 0;
 		}
 
-		fprintf(metafile, "%u,%lu,%lu\n", par_data->getParallelLevel(), bid, file_offset);
+		// fprintf(metafile, "%lu,%lu,%lu,%lu\n", par_data->getParallelID(), par_data->getParentParallelID(), bid, file_offset);
+	} else {
+		__sword_status__--;
 	}
-//	} else if(endpoint == ompt_scope_end) {
-//		__sword_status__--;
-//		ParallelData *par_data = (ParallelData *) task_data->ptr;
-//
-//		if(par_data) {
-//			if(pdata->getParallelID() == par_data->getParallelID()) {
-//				DUMPNOCHECK_TO_FILE
-//				fut.wait();
-//			}
-//		}
-//	}
 }
 
 static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
@@ -264,10 +251,12 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 		const void *codeptr_ra) {
 	ParallelData *par_data = (ParallelData *) task_data->ptr;
 
-	if(endpoint == ompt_scope_end) {
+	if(endpoint == ompt_scope_begin) {
 		DUMPNOCHECK_TO_FILE
+		fut.wait();
+		fprintf(metafile, "%lu,%lu,%lu,%lu,%lu\n", par_data->getParallelID(), par_data->getParentParallelID(), bid, file_offset_begin, file_offset_end);
+		file_offset_begin = file_offset_end;
 		bid++;
-		fprintf(metafile, "%u,%lu,%lu\n", par_data->getParallelLevel(), bid, file_offset);
 	}
 }
 
