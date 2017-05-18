@@ -156,7 +156,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 	accesses2 = new std::vector<TraceItem>(NUM_OF_ACCESSES);
 	set.reserve(SET_SIZE);
 	accesses = accesses1;
-    // out = (unsigned char *) malloc(OUT_LEN);
+    out = (unsigned char *) malloc(OUT_LEN);
     pdata = new ParallelData();
 
     // Create datafile
@@ -180,7 +180,6 @@ static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 
 static void on_ompt_callback_thread_end(ompt_data_t *thread_data)
 {
-	free(out);
 	fclose(datafile);
 	fclose(metafile);
 }
@@ -217,11 +216,8 @@ static void on_ompt_callback_parallel_end(ompt_data_t *parallel_data,
 	if(__sword_status__ >= 1) {
 		pdata->setData(pdata->getParallelID(), pdata->getParentParallelID(), __sword_status__, pdata->getOffset() + pdata->getSpan(), pdata->getSpan());
 		pdata->setState(1);
-//		if(parallel_data->ptr)
-//			delete ((ParallelData *) parallel_data->ptr);
 	} else {
-//		if(parallel_data->ptr)
-//			delete ((ParallelData *) parallel_data->ptr);
+		delete ((ParallelData *) parallel_data->ptr);
 	}
 }
 
@@ -245,7 +241,6 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 		// fprintf(metafile, "%lu,%lu,%lu,%lu\n", par_data->getParallelID(), par_data->getParentParallelID(), bid, file_offset);
 	} else {
 		__sword_status__--;
-		delete ((ParallelData *) parallel_data->ptr);
 	}
 }
 
