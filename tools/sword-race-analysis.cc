@@ -129,7 +129,8 @@ void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fo
 		}
 
 		unsigned char compressed_buffer[OUT_LEN];
-		TraceItem *uncompressed_buffer = (TraceItem *) malloc(BLOCK_SIZE);
+//		TraceItem *uncompressed_buffer = (TraceItem *) malloc(BLOCK_SIZE);
+		TraceItem uncompressed_buffer[NUM_OF_ACCESSES];
 
 		uint64_t block_size;
 		fseek(datafile, fob, SEEK_SET);
@@ -207,7 +208,7 @@ void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fo
 
 		// INFO(std::cout, "Total Size: " << uncompressed_size);
 
-		free(uncompressed_buffer);
+		// free(uncompressed_buffer);
 		fclose(datafile);
 	}
 }
