@@ -217,9 +217,11 @@ static void on_ompt_callback_parallel_end(ompt_data_t *parallel_data,
 	if(__sword_status__ >= 1) {
 		pdata->setData(pdata->getParallelID(), pdata->getParentParallelID(), __sword_status__, pdata->getOffset() + pdata->getSpan(), pdata->getSpan());
 		pdata->setState(1);
-		delete ((ParallelData *) parallel_data->ptr);
+		if(parallel_data->ptr)
+			delete ((ParallelData *) parallel_data->ptr);
 	} else {
-		delete ((ParallelData *) parallel_data->ptr);
+		if(parallel_data->ptr)
+			delete ((ParallelData *) parallel_data->ptr);
 	}
 }
 
@@ -243,7 +245,8 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 		// fprintf(metafile, "%lu,%lu,%lu,%lu\n", par_data->getParallelID(), par_data->getParentParallelID(), bid, file_offset);
 	} else {
 		__sword_status__--;
-		delete ((ParallelData *) parallel_data->ptr);
+		if(parallel_data->ptr)
+			delete ((ParallelData *) parallel_data->ptr);
 	}
 }
 
