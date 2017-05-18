@@ -199,12 +199,20 @@ static void on_ompt_callback_parallel_begin(ompt_task_data_t parent_task_data,
 	} else {
 		ompt_id_t pid = ompt_get_unique_id();
 		ParallelData *par_data;
-		if(parallel_data->ptr)
-			INFO(std::cout, "Not null");
 		if(pdata->getState()) {
-			par_data = new ParallelData(pid, pdata->getParallelID(), __sword_status__, pdata->getOffset(), pdata->getSpan());
+			if(parallel_data->ptr) {
+				par_data = (ParallelData *) parallel_data->ptr;
+				par_data->setData(pid, pdata->getParallelID(), __sword_status__, pdata->getOffset(), pdata->getSpan());
+			} else {
+				par_data = new ParallelData(pid, pdata->getParallelID(), __sword_status__, pdata->getOffset(), pdata->getSpan());
+			}
 		} else {
-			par_data = new ParallelData(pid, pdata->getParallelID(), __sword_status__, omp_get_thread_num(), omp_get_num_threads());
+			if(parallel_data->ptr) {
+				par_data = (ParallelData *) parallel_data->ptr;
+				par_data->setData(pid, pdata->getParallelID(), __sword_status__, omp_get_thread_num(), omp_get_num_threads());
+			} else {
+				par_data = new ParallelData(pid, pdata->getParallelID(), __sword_status__, omp_get_thread_num(), omp_get_num_threads());
+			}
 		}
 		parallel_data->ptr = par_data;
 		pdata->setData(par_data);
