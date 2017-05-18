@@ -165,7 +165,8 @@ extern thread_local ParallelData *pdata;
 typedef emilib::HashSet<uint64_t, NUM_OF_ACCESSES> fast_set;
 thread_local fast_set set;
 
-thread_local unsigned char *out;
+//thread_local unsigned char *out;
+thread_local unsigned char out[OUT_LEN];
 thread_local std::future<bool> fut;
 
 #endif  // SWORD_RTL_H
