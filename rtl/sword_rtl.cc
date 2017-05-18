@@ -217,6 +217,7 @@ static void on_ompt_callback_parallel_end(ompt_data_t *parallel_data,
 	if(__sword_status__ >= 1) {
 		pdata->setData(pdata->getParallelID(), pdata->getParentParallelID(), __sword_status__, pdata->getOffset() + pdata->getSpan(), pdata->getSpan());
 		pdata->setState(1);
+		delete ((ParallelData *) parallel_data->ptr);
 	} else {
 		delete ((ParallelData *) parallel_data->ptr);
 	}
