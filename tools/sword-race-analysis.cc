@@ -122,15 +122,16 @@ void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fo
 	uint64_t new_len;
 
 	if(filesize > 0) {
-		FILE *datafile = fopen(filename.c_str(), "rb");
+		FILE *datafile = fopen(filename.c_str(), "r");
 		if (!datafile) {
 			INFO(std::cerr, "SWORD: Error opening file: " << filename << " - " << strerror(errno) << ".");
 			exit(-1);
 		}
+
 		unsigned char compressed_buffer[OUT_LEN];
 		TraceItem *uncompressed_buffer = (TraceItem *) malloc(BLOCK_SIZE);
 
-		unsigned int block_size;
+		uint64_t block_size;
 		fseek(datafile, fob, SEEK_SET);
 		size_t size = fread(&block_size, sizeof(uint64_t), 1, datafile);
 		unsigned neof = 0;
@@ -177,11 +178,9 @@ void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fo
 			file_buffer.insert(file_buffer.end(), uncompressed_buffer, uncompressed_buffer + (new_len / sizeof(TraceItem)));
 
 			std::set<size_t> mutex;
-			INFO(std::cout, "Starting interval tree construction");
 			for(std::vector<TraceItem>::const_iterator it = file_buffer.begin(); it != file_buffer.end(); ++it) {
 				switch(it->getType()) {
 				case data_access:
-					INFO(std::cout, "Insert node");
 					interval_buffer.root = interval_buffer.insertNode(interval_buffer.root, it->data.access, mutex);
 					break;
 				case mutex_acquired:
@@ -300,18 +299,6 @@ int main(int argc, char **argv) {
 	// Initialize decompressor
 #endif
 
-	// Get list of folders (parallel region) inside traces folder
-	//	std::vector<boost::filesystem::path> dir_list;
-	//	copy(boost::filesystem::directory_iterator(traces_data), boost::filesystem::directory_iterator(), std::back_inserter(dir_list));
-	// Sort folder
-	//	std::sort(dir_list.begin(), dir_list.end());
-	// Reverse order
-	// std::sort(dir_list.rbegin(), dir_list.rend());
-	// Sort folder
-	// Get list of folders (parallel region) inside traces folder
-
-	// Ready to iterate folders (outer parallel regions) in traces folder
-	//    for(auto& dir : dir_list) {
 	std::string dir = traces_data.string();
 	std::map<unsigned, TraceInfo> traces;
 
@@ -325,6 +312,8 @@ int main(int argc, char **argv) {
 	boost::filesystem::directory_iterator end_it;
 	boost::filesystem::directory_iterator begin_it(dir);
 	if(boost::filesystem::is_directory(dir) && (begin_it != end_it)) {
+		if ("." != boost::filesystem::path(dir).filename())
+		   dir += boost::filesystem::path::preferred_separator;
 		for(auto& entry : boost::make_iterator_range(boost::filesystem::directory_iterator(dir), {})) {
 			if (entry.path().filename().string().find("metafile_") != std::string::npos) {
 				unsigned tid;
@@ -355,7 +344,7 @@ int main(int argc, char **argv) {
 		std::vector<std::thread> lm_thread;
 		lm_thread.reserve(traces.size());
 		std::vector<IntervalTree> interval_buffers;
-		interval_buffers.reserve(traces.size());
+		interval_buffers.resize(traces.size());
 		for (std::map<unsigned, TraceInfo>::iterator th = traces.begin(); th != traces.end(); ++th) {
 			lm_thread.push_back(std::thread(load_and_convert_file, dir, th->first, th->second.file_offset_begin, th->second.file_offset_end, std::ref(interval_buffers[th->first])));
 		}
@@ -391,9 +380,7 @@ int main(int argc, char **argv) {
 		}
 		thread_list.clear();
 		if(races.size() > 0) {
-			std::vector<std::string> strings;
-			boost::split(strings, dir, boost::is_any_of("/"));
-			std::string filename = report_data.string() + "/" + "race_report_" + strings.back();
+			std::string filename = report_data.string() + "/" + "race_report_" + std::to_string(pregion);
 			SaveReport(filename);
 		}
 	} else {
