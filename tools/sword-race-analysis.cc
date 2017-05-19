@@ -319,12 +319,15 @@ int main(int argc, char **argv) {
 			if (entry.path().filename().string().find("metafile_") != std::string::npos) {
 				unsigned tid;
 				sscanf(entry.path().filename().string().c_str(), "metafile_%d", &tid);
+				INFO(std::cout, entry.path().filename().string());
 				std::string filename(dir + entry.path().filename().string());
 				std::ifstream file(filename);
 				std::string str;
 				while (std::getline(file, str))	{
 					uint64_t pid, ppid, bid, obegin, oend;
-					sscanf(str.c_str(), "%lu,%lu,%lu,%lu,%lu\n", &pid, &ppid, &bid, &obegin, &oend);
+					int level;
+					unsigned span, offset;
+					sscanf(str.c_str(), "%lu,%lu,%lu,%u,%u,%d,%lu,%lu\n", &pid, &ppid, &bid, &offset, &span, &level, &obegin, &oend);
 					if((pregion == pid) && (barrier_id == bid)) {
 						traces[tid] = TraceInfo(obegin, oend);
 					}

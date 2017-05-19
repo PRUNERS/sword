@@ -27,16 +27,14 @@
 
 struct ParallelData {
 	unsigned freed;
-	unsigned state;
 	ompt_id_t parallel_id;
 	ompt_id_t parent_parallel_id;
-	unsigned level;
+	int level;
 	unsigned offset;
 	unsigned span;
 
 	ParallelData() {
 		freed = 0;
-		state = 0;
 		parallel_id = 0;
 		parent_parallel_id = 0;
 		level = 0;
@@ -46,7 +44,6 @@ struct ParallelData {
 
 	ParallelData(ompt_id_t pid, ompt_id_t ppid, unsigned l, unsigned o, unsigned s) {
 		freed = 0;
-		state = 0;
 		parallel_id = pid;
 		parent_parallel_id = ppid;
 		level = l;
@@ -56,7 +53,6 @@ struct ParallelData {
 
 	ParallelData(ParallelData *pd) {
 		freed = pd->freed;
-		state = pd->state;
 		parallel_id = pd->parallel_id;
 		parent_parallel_id = pd->parent_parallel_id;
 		level = pd->level;
@@ -66,7 +62,6 @@ struct ParallelData {
 
 	void setData(ParallelData *pd) {
 		freed = pd->freed;
-		state = pd->state;
 		parallel_id = pd->parallel_id;
 		parent_parallel_id = pd->parent_parallel_id;
 		level = pd->level;
@@ -76,7 +71,6 @@ struct ParallelData {
 
 	void setData(ompt_id_t pid, ompt_id_t ppid, unsigned l, unsigned o, unsigned s) {
 		freed = 0;
-		state = 0;
 		parallel_id = pid;
 		parent_parallel_id = ppid;
 		level = l;
@@ -93,7 +87,8 @@ extern thread_local std::vector<TraceItem> *accesses2;
 extern thread_local uint64_t idx;
 extern thread_local uint64_t bid;
 extern thread_local char *buffer;
-extern thread_local size_t offset;
+extern thread_local unsigned offset;
+extern thread_local unsigned span;
 extern thread_local size_t file_offset_begin;
 extern thread_local size_t file_offset_end;
 extern thread_local FILE *datafile;

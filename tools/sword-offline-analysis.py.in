@@ -146,7 +146,7 @@ if __name__ == '__main__':
             if "metafile" in file:
                 lines = [line.rstrip('\n') for line in open(args.traces_path + "/" + file)]
                 for line in lines:
-                    (pid, ppid, bid, file_offset_begin, file_offset_end) = [t(s) for t,s in zip((int,int,int,int,int),line.split(","))]
+                    (pid, ppid, bid, offset, span, level, file_offset_begin, file_offset_end) = [t(s) for t,s in zip((int,int,int,int,int,int,int,int),line.split(","))]
                     # print(pid, ppid, bid, file_offset_begin, file_offset_end)
                     # print line
                     if pid not in pregions:
@@ -190,11 +190,12 @@ if __name__ == '__main__':
                 if(ret):
                     print "A problem occurred while analyzing the traces in folder '" + subdir + "'.\n\nPlease run the analysis again with the command: '" + command + "'."
             else:
-                nested_str = ''.join(nested['nested'])
+                nested_str = ','.join(map(str, nested['nested']))
                 if(not nested_str):
                     command = "%s --executable %s --traces-path %s --report-path %s --pregion %s --bid %s" % (analysis_tool, executable, args.traces_path, args.report_path, key, bid)
                 else:
                     command = "%s --executable %s --traces-path %s --report-path %s --pregion %s --bid %s --nested %s" % (analysis_tool, executable, args.traces_path, args.report_path, key, bid, nested_str)
+                print command
                 ret = executeCommand(command)
                 if(ret):
                     print "A problem occurred while analyzing the traces in folder '" + subdir + "'.\n\nPlease run the analysis again with the command: '" + command + "'."

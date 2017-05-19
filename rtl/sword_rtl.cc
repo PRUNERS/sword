@@ -70,7 +70,7 @@ bool dummy() {
 }
 
 bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
-		FILE *file, unsigned char *buffer, size_t *offset) {
+		FILE *file, unsigned char *buffer) {
 
 #ifdef LZO
 	// LZO
@@ -119,7 +119,7 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 			fut.wait();														\
 			fut = std::async(dump_to_file, accesses,						\
 					sizeof(TraceItem), NUM_OF_ACCESSES, datafile,			\
-					out, &offset);											\
+					out);													\
 			idx = 0;														\
 			set.clear();													\
 			SWAP_BUFFER														\
@@ -130,7 +130,7 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 			fut.wait();														\
 			fut = std::async(dump_to_file, accesses,						\
 					sizeof(TraceItem), idx, datafile,						\
-					out, &offset);											\
+					out);													\
 			idx = 0;														\
 			set.clear();													\
 			SWAP_BUFFER 													\
@@ -177,6 +177,9 @@ static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 		INFO(std::cerr, "SWORD: Error opening metafile: " << filename << " - " << strerror(errno) << ".");
 		exit(-1);
 	}
+	// fprintf(metafile, "#parallel_id,parent_parallel_id,bid,offset,span,level,file_offset_begin,file_offset_end\n");
+	offset = 0;
+	span = 0;
 
 	fut = std::async(dummy);
 }
@@ -203,11 +206,7 @@ static void on_ompt_callback_parallel_begin(ompt_data_t *parent_task_data,
 		ompt_id_t pid = ompt_get_unique_id();
 		ParallelData *task_data = ToParallelData(parent_task_data);
 		ParallelData *par_data;
-		if(task_data->state) {
-			par_data = new ParallelData(pid, task_data->parallel_id, __sword_status__, task_data->offset, task_data->span);
-		} else {
-			par_data = new ParallelData(pid, task_data->parallel_id, __sword_status__, omp_get_thread_num(), omp_get_num_threads());
-		}
+		par_data = new ParallelData(pid, task_data->parallel_id, __sword_status__, offset, span);
 		parallel_data->ptr = par_data;
 	}
 }
@@ -227,10 +226,16 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 	    unsigned int thread_num) {
 
 	if(endpoint == ompt_scope_begin) {
+		offset = omp_get_thread_num();
+		span = team_size;
 		task_data->ptr = new ParallelData(ToParallelData(parallel_data));
-
 		ParallelData *par_data = ToParallelData(task_data);
-		__sword_status__ = par_data->parallel_id;
+		__sword_status__ = par_data->level;
+
+		DUMPNOCHECK_TO_FILE
+		fut.wait();
+		fprintf(metafile, "%lu,%lu,%lu,%u,%u,%d,%lu,%lu\n", par_data->parallel_id, par_data->parent_parallel_id, bid, omp_get_thread_num(), span, par_data->level, file_offset_begin, file_offset_end);
+		file_offset_begin = file_offset_end;
 
 		if(__sword_status__ == 1) {
 			bid = 0;
@@ -249,12 +254,12 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 		ompt_data_t *parallel_data,
 		ompt_data_t *task_data,
 		const void *codeptr_ra) {
-	ParallelData *par_data = (ParallelData *) task_data->ptr;
-
 	if(endpoint == ompt_scope_begin) {
+		ParallelData *par_data = (ParallelData *) task_data->ptr;
+		offset += span;
 		DUMPNOCHECK_TO_FILE
 		fut.wait();
-		fprintf(metafile, "%lu,%lu,%lu,%lu,%lu\n", par_data->parallel_id, par_data->parent_parallel_id, bid, file_offset_begin, file_offset_end);
+		fprintf(metafile, "%lu,%lu,%lu,%u,%u,%d,%lu,%lu\n", par_data->parallel_id, par_data->parent_parallel_id, bid, offset, span, par_data->level, file_offset_begin, file_offset_end);
 		file_offset_begin = file_offset_end;
 		bid++;
 	}
