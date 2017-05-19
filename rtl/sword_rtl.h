@@ -45,6 +45,7 @@ public:
 
 struct ParallelData {
 private:
+	unsigned freed;
 	unsigned state;
 	ompt_id_t parallel_id;
 	ompt_id_t parent_parallel_id;
@@ -54,6 +55,7 @@ private:
 
 public:
 	ParallelData() {
+		freed = 0;
 		state = 0;
 		parallel_id = 0;
 		parent_parallel_id = 0;
@@ -63,6 +65,7 @@ public:
 	}
 
 	ParallelData(ompt_id_t pid, ompt_id_t ppid, unsigned l, unsigned o, unsigned s) {
+		freed = 0;
 		state = 0;
 		parallel_id = pid;
 		parent_parallel_id = ppid;
@@ -72,6 +75,7 @@ public:
 	}
 
 	ParallelData(ParallelData *pd) {
+		freed = 0;
 		state = pd->getState();
 		parallel_id = pd->getParallelID();
 		parent_parallel_id = pd->getParentParallelID();
@@ -81,6 +85,7 @@ public:
 	}
 
 	void setData(ParallelData *pd) {
+		freed = pd->getFreed();
 		state = pd->getState();
 		parallel_id = pd->getParallelID();
 		parent_parallel_id = pd->getParentParallelID();
@@ -90,12 +95,17 @@ public:
 	}
 
 	void setData(ompt_id_t pid, ompt_id_t ppid, unsigned l, unsigned o, unsigned s) {
+		freed = 0;
 		state = 0;
 		parallel_id = pid;
 		parent_parallel_id = ppid;
 		level = l;
 		offset = o;
 		span = s;
+	}
+
+	void setFreed(unsigned f) {
+		freed = f;
 	}
 
 	void setState(unsigned v) {
@@ -120,6 +130,10 @@ public:
 
 	void setSpan(unsigned s) {
 		span = s;
+	}
+
+	unsigned getFreed() {
+		return freed;
 	}
 
 	unsigned getState() {

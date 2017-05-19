@@ -148,6 +148,10 @@ extern "C" {
 
 #include "sword_interface.inl"
 
+static inline ParallelData *ToParallelData(ompt_data_t *parallel_data) {
+  return reinterpret_cast<ParallelData*>(parallel_data->ptr);
+}
+
 static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
 		ompt_thread_data_t *thread_data) {
 	tid = my_next_id();
@@ -184,9 +188,9 @@ static void on_ompt_callback_thread_end(ompt_data_t *thread_data)
 	fclose(metafile);
 }
 
-static void on_ompt_callback_parallel_begin(ompt_task_data_t parent_task_data,
+static void on_ompt_callback_parallel_begin(ompt_data_t *parent_task_data,
 		ompt_frame_t *parent_task_frame,
-		ompt_parallel_data_t *parallel_data,
+		ompt_data_t *parallel_data,
 		uint32_t requested_team_size,
 		void *parallel_function,
 		ompt_invoker_t invoker) {
@@ -198,14 +202,14 @@ static void on_ompt_callback_parallel_begin(ompt_task_data_t parent_task_data,
 		parallel_data->ptr = new ParallelData(pid, 0, __sword_status__, 0, 1);
 	} else {
 		ompt_id_t pid = ompt_get_unique_id();
+		ParallelData *task_data = ToParallelData(parent_task_data);
 		ParallelData *par_data;
 		if(pdata->getState()) {
-			par_data = new ParallelData(pid, pdata->getParallelID(), __sword_status__, pdata->getOffset(), pdata->getSpan());
+			par_data = new ParallelData(pid, task_data->getParallelID(), __sword_status__, task_data->getOffset(), task_data->getSpan());
 		} else {
-			par_data = new ParallelData(pid, pdata->getParallelID(), __sword_status__, omp_get_thread_num(), omp_get_num_threads());
+			par_data = new ParallelData(pid, task_data->getParallelID(), __sword_status__, omp_get_thread_num(), omp_get_num_threads());
 		}
 		parallel_data->ptr = par_data;
-		pdata->setData(par_data);
 	}
 }
 
@@ -213,12 +217,8 @@ static void on_ompt_callback_parallel_end(ompt_data_t *parallel_data,
 		ompt_data_t *task_data,
 		ompt_invoker_t invoker,
 		const void *codeptr_ra) {
-	if(__sword_status__ >= 1) {
-		pdata->setData(pdata->getParallelID(), pdata->getParentParallelID(), __sword_status__, pdata->getOffset() + pdata->getSpan(), pdata->getSpan());
-		pdata->setState(1);
-	} else {
-		delete ((ParallelData *) parallel_data->ptr);
-	}
+	ParallelData *par_data = ToParallelData(parallel_data);
+	delete par_data;
 }
 
 static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
@@ -228,18 +228,19 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 	    unsigned int thread_num) {
 
 	if(endpoint == ompt_scope_begin) {
-		ParallelData *par_data = (ParallelData *) parallel_data->ptr;
-		pdata->setData((ParallelData *) parallel_data->ptr);
-		task_data->ptr = par_data;
+		task_data->ptr = new ParallelData(ToParallelData(parallel_data));
 
+		ParallelData *par_data = ToParallelData(task_data);
 		__sword_status__ = par_data->getParallelLevel();
 
 		if(__sword_status__ == 1) {
 			bid = 0;
 		}
-
-		// fprintf(metafile, "%lu,%lu,%lu,%lu\n", par_data->getParallelID(), par_data->getParentParallelID(), bid, file_offset);
-	} else {
+	} else { // ompt_scope_end
+		ParallelData *tsk_data = ToParallelData(task_data);
+		assert(tsk_data->getFreed() == 0 && "Implicit task end should only be called once!");
+		tsk_data->setFreed(1);
+		delete tsk_data;
 		__sword_status__--;
 	}
 }
