@@ -25,26 +25,7 @@
 #define ALWAYS_INLINE			__attribute__((always_inline))
 #define CALLERPC 				((size_t) __builtin_return_address(0))
 
-struct TaskData {
-private:
-	ompt_id_t task_id;
-
-public:
-	TaskData() {
-		task_id = 0;
-	}
-
-	TaskData(ompt_id_t id) {
-		task_id = id;
-	}
-
-	ompt_id_t getTaskID() {
-		return task_id;
-	}
-};
-
 struct ParallelData {
-private:
 	unsigned freed;
 	unsigned state;
 	ompt_id_t parallel_id;
@@ -53,7 +34,6 @@ private:
 	unsigned offset;
 	unsigned span;
 
-public:
 	ParallelData() {
 		freed = 0;
 		state = 0;
@@ -75,23 +55,23 @@ public:
 	}
 
 	ParallelData(ParallelData *pd) {
-		freed = 0;
-		state = pd->getState();
-		parallel_id = pd->getParallelID();
-		parent_parallel_id = pd->getParentParallelID();
-		level = pd->getParallelLevel();
-		offset = pd->getOffset();
-		span = pd->getSpan();
+		freed = pd->freed;
+		state = pd->state;
+		parallel_id = pd->parallel_id;
+		parent_parallel_id = pd->parent_parallel_id;
+		level = pd->level;
+		offset = pd->offset;
+		span = pd->span;
 	}
 
 	void setData(ParallelData *pd) {
-		freed = pd->getFreed();
-		state = pd->getState();
-		parallel_id = pd->getParallelID();
-		parent_parallel_id = pd->getParentParallelID();
-		level = pd->getParallelLevel();
-		offset = pd->getOffset();
-		span = pd->getSpan();
+		freed = pd->freed;
+		state = pd->state;
+		parallel_id = pd->parallel_id;
+		parent_parallel_id = pd->parent_parallel_id;
+		level = pd->level;
+		offset = pd->offset;
+		span = pd->span;
 	}
 
 	void setData(ompt_id_t pid, ompt_id_t ppid, unsigned l, unsigned o, unsigned s) {
@@ -102,62 +82,6 @@ public:
 		level = l;
 		offset = o;
 		span = s;
-	}
-
-	void setFreed(unsigned f) {
-		freed = f;
-	}
-
-	void setState(unsigned v) {
-		state = v;
-	}
-
-	void setParallelID(ompt_id_t pid) {
-		parallel_id = pid;
-	}
-
-	void setParentParallelID(ompt_id_t ppid) {
-		parent_parallel_id = ppid;
-	}
-
-	void setParallelLevel(unsigned l) {
-		level = l;
-	}
-
-	void setOffset(unsigned o) {
-		offset = o;
-	}
-
-	void setSpan(unsigned s) {
-		span = s;
-	}
-
-	unsigned getFreed() {
-		return freed;
-	}
-
-	unsigned getState() {
-		return state;
-	}
-
-	ompt_id_t getParallelID() {
-		return parallel_id;
-	}
-
-	ompt_id_t getParentParallelID() {
-		return parent_parallel_id;
-	}
-
-	unsigned getParallelLevel() {
-		return level;
-	}
-
-	unsigned getOffset() {
-		return offset;
-	}
-
-	unsigned getSpan() {
-		return span;
 	}
 };
 
@@ -174,7 +98,6 @@ extern thread_local size_t file_offset_begin;
 extern thread_local size_t file_offset_end;
 extern thread_local FILE *datafile;
 extern thread_local FILE *metafile;
-extern thread_local ParallelData *pdata;
 
 typedef emilib::HashSet<uint64_t, NUM_OF_ACCESSES> fast_set;
 thread_local fast_set set;
