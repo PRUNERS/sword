@@ -201,12 +201,18 @@ static void on_ompt_callback_parallel_begin(ompt_data_t *parent_task_data,
 
 	if(__sword_status__ == 1) {
 		ompt_id_t pid = ompt_get_unique_id();
-		parallel_data->ptr = new ParallelData(pid, 0, __sword_status__, 0, 1);
+		parallel_data->ptr = new ParallelData(pid, 0, __sword_status__, omp_get_thread_num(), requested_team_size);
 	} else {
 		ompt_id_t pid = ompt_get_unique_id();
 		ParallelData *task_data = ToParallelData(parent_task_data);
-		ParallelData *par_data;
-		par_data = new ParallelData(pid, task_data->parallel_id, __sword_status__, offset, span);
+		ParallelData *par_data = new ParallelData(pid, task_data->parallel_id, __sword_status__, omp_get_thread_num(), requested_team_size);
+		if(span != 0) {
+			offset += span;
+			span = requested_team_size;
+		} else {
+			offset = omp_get_thread_num() + requested_team_size;
+			span = requested_team_size;
+		}
 		parallel_data->ptr = par_data;
 	}
 }
@@ -226,15 +232,18 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 	    unsigned int thread_num) {
 
 	if(endpoint == ompt_scope_begin) {
-		offset = omp_get_thread_num();
-		span = team_size;
 		task_data->ptr = new ParallelData(ToParallelData(parallel_data));
 		ParallelData *par_data = ToParallelData(task_data);
 		__sword_status__ = par_data->level;
 
 		DUMPNOCHECK_TO_FILE
 		fut.wait();
-		fprintf(metafile, "%lu,%lu,%lu,%u,%u,%d,%lu,%lu\n", par_data->parallel_id, par_data->parent_parallel_id, bid, omp_get_thread_num(), span, par_data->level, file_offset_begin, file_offset_end);
+		fprintf(metafile, "%lu,%lu,%lu,%u,%u,%d,%lu,%lu\n", par_data->parallel_id, par_data->parent_parallel_id, bid, omp_get_thread_num(), team_size, par_data->level, file_offset_begin, file_offset_end);
+		if(span == 0) {
+			offset = omp_get_thread_num();
+			span = team_size;
+		}
+
 		file_offset_begin = file_offset_end;
 
 		if(__sword_status__ == 1) {
@@ -256,7 +265,6 @@ static void on_ompt_callback_sync_region(ompt_sync_region_kind_t kind,
 		const void *codeptr_ra) {
 	if(endpoint == ompt_scope_begin) {
 		ParallelData *par_data = (ParallelData *) task_data->ptr;
-		offset += span;
 		DUMPNOCHECK_TO_FILE
 		fut.wait();
 		fprintf(metafile, "%lu,%lu,%lu,%u,%u,%d,%lu,%lu\n", par_data->parallel_id, par_data->parent_parallel_id, bid, offset, span, par_data->level, file_offset_begin, file_offset_end);
