@@ -12,6 +12,7 @@ void PrintReport() {
 		if(filesize > 0) {
 			std::ifstream file(entry.path().string(), std::ios::in | std::ios::binary);
 			size_t size;
+                        // std::cout << "File: " << entry.path().string() << std::endl;
 			file.read((char*) &size, sizeof(size));
 			races.resize(current_size + size);
 			file.read(reinterpret_cast<char*>(races.data() + current_size), size * sizeof(RaceInfo));
@@ -22,8 +23,13 @@ void PrintReport() {
 
 	for(std::vector<RaceInfo>::const_iterator race = races.cbegin() ; race != races.cend(); ++race) {
 		std::size_t hash = 0;
-		boost::hash_combine(hash, race->pc1);
-		boost::hash_combine(hash, race->pc2);
+                if(race->pc1 < race->pc2) {
+                  boost::hash_combine(hash, race->pc1);
+                  boost::hash_combine(hash, race->pc2);
+                } else {
+                   boost::hash_combine(hash, race->pc2);
+                   boost::hash_combine(hash, race->pc1);
+                }
 		const bool reported = hash_races.find(hash) != hash_races.end();
 		if(!reported) {
 			hash_races.insert(hash);

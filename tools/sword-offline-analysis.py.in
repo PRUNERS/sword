@@ -18,26 +18,19 @@ TOOL_NAME = 'SWORD'
 # Working Dirs
 USER_HOME = expanduser("~")
 WORKING_DIR = os.getcwd()
-MOAB_DIR = WORKING_DIR + "/sword_moab"
+SLURM_DIR = WORKING_DIR + "/sword_slurm"
 SWORD_TRACE = 'sword_data'
 SWORD_REPORT = 'sword_report'
 args = ""
 executable = ""
 analysis_tool = ""
+shell = find_executable("bash")
+walltime = "24:00:00"
+partition = "pbatch"
 
-def createMOABConfig(config_file , shell, partition, output, cmd):
+def createSLURMConfig(config_file, walltime, output, cmd):
     f = open(config_file, 'w')
-    s = """#!%s
-            ##### These lines are for Moab
-            #MSUB -l nodes=1
-            #MSUB -l partition=%s
-            #MSUB -l walltime=86400
-            #MSUB -q pbatch
-            #MSUB -o %s
-            #MSUB -V
-            ##### These are shell commands
-            ##### Launch parallel job using srun
-            %s""" % (shell, partition, output, cmd)
+    s = "#!%s\n#SBATCH --nodes=1\n#SBATCH --time=%s\n#SBATCH --partition=%s\n#SBATCH --output %s\n%s\n\n" % (shell, walltime, partition, output, cmd)
     f.write(s)
     f.close()
 
@@ -91,7 +84,8 @@ def argumentsParser():
     parser.add_argument('--report-path', nargs=1, default=["./" + SWORD_REPORT], help='Specify the path to the ' + TOOL_NAME + ' report folder.')
     parser.add_argument('--traces-path', nargs=1, default=["./" + SWORD_TRACE], help='Specify the path to the ' + TOOL_NAME + ' traces folder.')
     parser.add_argument('--analysis-tool', nargs=1, default=[ "sword-race-analysis" ], help='Specify the path to ' + TOOL_NAME + ' custom analysis tool.')
-    parser.add_argument('--cluster-run', action='store_true', help='Run offline analysis across a cluster using MOAB and SLURM.')
+    parser.add_argument('--cluster-run', action='store_true', help='Run offline analysis across a cluster using SLURM.')
+    parser.add_argument('--dry-run', '-dr', action='store_true', help='Make a dry run without actually execute the experiments (for debug purposes).')
 
     return parser
 
@@ -132,15 +126,15 @@ if __name__ == '__main__':
     mkdir_p(args.report_path)
 
     if(args.cluster_run):
-        # Create MOAB dir
-        mkdir_p(MOAB_DIR)
-        # Common MOAB Configuration values
-        shell = find_executable("bash")
-        partition = os.environ['LCSCHEDCLUSTER']
-        
+        # Create SLURM dir
+        mkdir_p(SLURM_DIR)
+        # Common SLURM Configuration values
+        # shell = find_executable("bash")
+        # partition = os.environ['LCSCHEDCLUSTER']
+
     # Create list of parallel regions and potential nested parallel regions
     # dict(pid) = { pid, bid, file_offset_begin, file_offset_end, [ nested_regions] }
-    pregions = {}  
+    pregions = {}
     for subdir, dirs, files in os.walk(args.traces_path, False):
         for file in files:
             if "metafile" in file:
@@ -150,15 +144,15 @@ if __name__ == '__main__':
                     # print(pid, ppid, bid, file_offset_begin, file_offset_end)
                     # print line
                     if pid not in pregions:
-                        pregions[pid] = {}  
+                        pregions[pid] = {}
                         pregions[pid][bid] = { 'nested': [] }
                     else:
                         if bid not in pregions[pid]:
                             pregions[pid][bid] = { 'nested': [] }
                     if ppid in pregions:
                         pregions[ppid][bid]['nested'].append(pid)
-                        
-#     pregions = {}  
+
+#     pregions = {}
 #     for subdir, dirs, files in os.walk(args.traces_path, False):
 #         for file in files:
 #             if "metafile" in file:
@@ -168,7 +162,7 @@ if __name__ == '__main__':
 #                     (pid, ppid, bid, file_offset_begin, file_offset_end) = [t(s) for t,s in zip((int,int,int,int,int),line.split(","))]
 #                     # print(pid, ppid, bid, file_offset_begin, file_offset_end)
 #                     print line
-#                     if pid not in pregions:  
+#                     if pid not in pregions:
 #                         pregions[tid][pid] = { 'bid': [ (bid, file_offset_begin, file_offset_end) ], 'nested': [] }
 #                     else:
 #                         pregions[tid][pid]['bid'].append((bid, file_offset_begin, file_offset_end));
@@ -178,15 +172,19 @@ if __name__ == '__main__':
     for key,value in pregions.iteritems():
         for bid, nested in value.iteritems():
             if(args.cluster_run):
-                # Use MOAB
-                # MOAB Configuration values
-                config_file = MOAB_DIR + "/moab_config_" + sanitizeFileName(subdir)
-                output = MOAB_DIR + "/moab_output_" + sanitizeFileName(subdir)
-                cmd = "%s --executable %s --traces-path %s --report-path %s --pregions %s" % (analysis_tool, executable, args.traces_path, args.report_path, key)
-                createMOABConfig(config_file , shell, partition, output, cmd)
+                # Use SLURM
+                # SLURM Configuration values
+                config_file = SLURM_DIR + "/slurm_config_" + sanitizeFileName(subdir) + "_" + str(key)
+                output = SLURM_DIR + "/slurm_output_" + sanitizeFileName(subdir)
+                cmd = "stantime \"%s --executable %s --traces-path %s --report-path %s --pregion %s\" tmp_%s" % (analysis_tool, executable, args.traces_path, args.report_path, key, key)
+                createSLURMConfig(config_file, walltime, output, cmd)
                 # Run on cluster
-                command = "msub " +  config_file
-                ret = executeCommand(command, False)
+                # sbatch_output_file = "%s/%s.%s.%s" % (benchmark_paths[val["path"]]["sbatch_output_path"], app["executable"], mode, t)
+                # command = "sbatch --output=" + sbatch_output_file + " " + config_file
+                command = "sbatch " + config_file
+                ret = None
+                if(not args.dry_run):
+                    ret = executeCommand(command, False)
                 if(ret):
                     print "A problem occurred while analyzing the traces in folder '" + subdir + "'.\n\nPlease run the analysis again with the command: '" + command + "'."
             else:
@@ -196,6 +194,8 @@ if __name__ == '__main__':
                 else:
                     command = "%s --executable %s --traces-path %s --report-path %s --pregion %s --bid %s --nested %s" % (analysis_tool, executable, args.traces_path, args.report_path, key, bid, nested_str)
                 print command
-                ret = executeCommand(command)
+                ret = None
+                if(not args.dry_run):
+                    ret = executeCommand(command)
                 if(ret):
                     print "A problem occurred while analyzing the traces in folder '" + subdir + "'.\n\nPlease run the analysis again with the command: '" + command + "'."

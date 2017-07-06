@@ -98,19 +98,21 @@ void analyze_traces(unsigned t1, unsigned t2, std::vector<IntervalTree> &interva
 	std::vector<std::pair<Interval,Interval>> res;
 	//	INFO(std::cout, "Analyzing pair (" << t1 << "," << t2 << ").");
 
-	if(interval_buffers.size() > 0) {
-		interval_buffers[t1].intersectIntervals(interval_buffers[t1].root, interval_buffers[t2].root, res);
-	}
+        if(t1 != t2) {
+          if(interval_buffers.size() > 0) {
+            IntervalTree::intersectIntervals(interval_buffers[t1].root, interval_buffers[t2].root, res);
+          }
 
-	for(std::vector<std::pair<Interval, Interval>>::iterator it = res.begin(); it != res.end(); ++it) {
-		Interval i = std::get<0>(*it);
-		Interval j = std::get<1>(*it);
-		ReportRace(i.getAddress(),
-				i.getAccessType(), j.getAccessType(),
-				i.getAccessSize(),
-				j.getAccessSize(),
-				i.getPC() - 1, j.getPC() - 1);
-	}
+          for(std::vector<std::pair<Interval, Interval>>::iterator it = res.begin(); it != res.end(); ++it) {
+            Interval i = std::get<0>(*it);
+            Interval j = std::get<1>(*it);
+            ReportRace(i.getAddress(),
+                       i.getAccessType(), j.getAccessType(),
+                       i.getAccessSize(),
+                       j.getAccessSize(),
+                       i.getPC() - 1, j.getPC() - 1);
+          }
+        }
 
 	available_threads++;
 }
@@ -309,6 +311,7 @@ int main(int argc, char **argv) {
 	hash_races.clear();
 	races.clear();
 
+
 	// Iterate files within folder and create map of barriers intervals and list of threads within the barrier interval
 	boost::filesystem::directory_iterator end_it;
 	boost::filesystem::directory_iterator begin_it(dir);
@@ -319,7 +322,7 @@ int main(int argc, char **argv) {
 			if (entry.path().filename().string().find("metafile_") != std::string::npos) {
 				unsigned tid;
 				sscanf(entry.path().filename().string().c_str(), "metafile_%d", &tid);
-				INFO(std::cout, entry.path().filename().string());
+				// INFO(std::cout, entry.path().filename().string());
 				std::string filename(dir + entry.path().filename().string());
 				std::ifstream file(filename);
 				std::string str;
@@ -329,7 +332,7 @@ int main(int argc, char **argv) {
 					unsigned span, offset;
 					sscanf(str.c_str(), "%lu,%lu,%lu,%u,%u,%d,%lu,%lu\n", &pid, &ppid, &bid, &offset, &span, &level, &obegin, &oend);
 					if((pregion == pid) && (barrier_id == bid)) {
-						traces[tid] = TraceInfo(obegin, oend);
+                                          traces[tid] = TraceInfo(obegin, oend);
 					}
 				}
 			}

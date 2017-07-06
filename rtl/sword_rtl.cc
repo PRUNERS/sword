@@ -138,7 +138,8 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 
 #define SAVE_ACCESS(asize, atype)											\
 	TraceItem item = TraceItem(data_access, Access(asize,					\
-							   atype, (size_t) addr, CALLERPC));			\
+                                                       atype, (size_t) addr, CALLERPC)); \
+        INFO(std::cout, tid << ": " << addr << " - " << atype);      \
 	if(set.check_insert(hash_value(item))) {		 						\
 		(*accesses)[idx] = item;											\
 		DUMP_TO_FILE														\
@@ -236,6 +237,9 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 		ParallelData *par_data = ToParallelData(task_data);
 		__sword_status__ = par_data->level;
 
+                if(__sword_status__ == 1) {
+                  bid = 0;
+
 		DUMPNOCHECK_TO_FILE
 		fut.wait();
 		fprintf(metafile, "%lu,%lu,%lu,%u,%u,%d,%lu,%lu\n", par_data->parallel_id, par_data->parent_parallel_id, bid, omp_get_thread_num(), team_size, par_data->level, file_offset_begin, file_offset_end);
@@ -245,9 +249,6 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 		}
 
 		file_offset_begin = file_offset_end;
-
-		if(__sword_status__ == 1) {
-			bid = 0;
 		}
 	} else { // ompt_scope_end
 		ParallelData *tsk_data = ToParallelData(task_data);
