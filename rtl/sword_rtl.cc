@@ -139,7 +139,6 @@ bool dump_to_file(std::vector<TraceItem> *accesses, size_t size, size_t nmemb,
 #define SAVE_ACCESS(asize, atype)											\
 	TraceItem item = TraceItem(data_access, Access(asize,					\
                                                        atype, (size_t) addr, CALLERPC)); \
-        INFO(std::cout, tid << ": " << addr << " - " << atype);      \
 	if(set.check_insert(hash_value(item))) {		 						\
 		(*accesses)[idx] = item;											\
 		DUMP_TO_FILE														\
@@ -360,7 +359,9 @@ int ompt_initialize(ompt_function_lookup_t lookup,
 	return 0;
 }
 
-void ompt_finalize(ompt_fns_t* fns) {}
+void ompt_finalize(ompt_fns_t* fns) {
+  fflush(NULL);
+}
 
 ompt_fns_t* ompt_start_tool(unsigned int omp_version,
 		const char *runtime_version) {

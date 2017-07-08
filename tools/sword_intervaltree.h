@@ -150,6 +150,8 @@ class IntervalTree {
  public:
   Interval *root;
 
+ IntervalTree() : root(NULL) {}
+
   Interval *insertNode(Interval *tmp, const Access &item, const std::set<size_t> &mutex) {
     size_t end;
 
@@ -158,70 +160,76 @@ class IntervalTree {
       return tmp;
     }
 
-    if (item.getAddress() > tmp->getMax()) {
-      tmp->setMax(item.getAddress());
-    }
+    Interval *ptr = tmp;
 
-    if((item.getAccessSizeType() == tmp->size_type) && (item.getPC() == tmp->getPC()) && (mutex == tmp->mutex)) {
-      if(tmp->diff != 0) {
-        end = tmp->getEnd();
-        if(item.getAddress() == (end + tmp->diff)) {
-          tmp->count++;
-          if(tmp->getEnd() > tmp->max)
-            tmp->max = tmp->getEnd();
-          return tmp;
-        }
-        if((item.getAddress() >= tmp->address) && (item.getAddress() <= end))
-          return tmp;
-        if(item.getAddress() == (tmp->address - tmp->diff)) {
-          tmp->address = item.getAddress();
-          tmp->count++;
-          if(tmp->getEnd() > tmp->max)
-            tmp->max = tmp->getEnd();
-          return tmp;
-        }
-      } else {
-        size_t diff = item.getAddress() - tmp->address;
-        // tmp->diff = item.getAddress() - tmp->address;
-        // if(tmp->diff != 0) {
-        if(diff != 0 && diff < 64) {
-          end = tmp->getEnd();
-          tmp->diff = item.getAddress() - tmp->address;
-          if(item.getAddress() == (end + diff)) {
-            tmp->count++;
-            if(tmp->getEnd() > tmp->max)
-              tmp->max = tmp->getEnd();
+    while(ptr != NULL) {
+      if (item.getAddress() > ptr->getMax()) {
+        ptr->setMax(item.getAddress());
+      }
 
+      if((item.getAccessSizeType() == ptr->size_type) && (item.getPC() == ptr->getPC()) && (mutex == ptr->mutex)) {
+        if(ptr->diff != 0) {
+          end = ptr->getEnd();
+          if(item.getAddress() == (end + ptr->diff)) {
+            ptr->count++;
+            if(ptr->getEnd() > ptr->max)
+              ptr->max = ptr->getEnd();
             return tmp;
           }
-          if((item.getAddress() >= tmp->address) && (item.getAddress() <= end))
+          if((item.getAddress() >= ptr->address) && (item.getAddress() <= end))
             return tmp;
-          if(item.getAddress() == (tmp->address - tmp->diff)) {
-            tmp->address = item.getAddress();
-            tmp->count++;
-            if(tmp->getEnd() > tmp->max)
-              tmp->max = tmp->getEnd();
+          if(item.getAddress() == (ptr->address - ptr->diff)) {
+            ptr->address = item.getAddress();
+            ptr->count++;
+            if(ptr->getEnd() > ptr->max)
+              ptr->max = ptr->getEnd();
             return tmp;
           }
         } else {
+          size_t diff = item.getAddress() - ptr->address;
+          // ptr->diff = item.getAddress() - ptr->address;
+          // if(ptr->diff != 0) {
+          if(diff != 0 && diff < 64) {
+            end = ptr->getEnd();
+            ptr->diff = item.getAddress() - ptr->address;
+            if(item.getAddress() == (end + diff)) {
+              ptr->count++;
+              if(ptr->getEnd() > ptr->max)
+                ptr->max = ptr->getEnd();
+              return tmp;
+            }
+            if((item.getAddress() >= ptr->address) && (item.getAddress() <= end))
+              return tmp;
+            if(item.getAddress() == (ptr->address - ptr->diff)) {
+              ptr->address = item.getAddress();
+              ptr->count++;
+              if(ptr->getEnd() > ptr->max)
+                ptr->max = ptr->getEnd();
+              return tmp;
+            }
+          } else {
+            return tmp;
+          }
+        }
+      }
+
+      if (ptr->compareTo(item) <= 0) {
+        if (ptr->getRight() == NULL) {
+          ptr->setRight(new Interval(item, mutex));
           return tmp;
+        } else {
+          ptr = ptr->getRight();
+        }
+      } else {
+        if (ptr->getLeft() == NULL) {
+          ptr->setLeft(new Interval(item, mutex));
+          return tmp;
+        } else {
+          ptr = ptr->getLeft();
         }
       }
     }
 
-    if (tmp->compareTo(item) <= 0) {
-      if (tmp->getRight() == NULL) {
-        tmp->setRight(new Interval(item, mutex));
-      } else {
-        insertNode(tmp->getRight(), item, mutex);
-      }
-    } else {
-      if (tmp->getLeft() == NULL) {
-        tmp->setLeft(new Interval(item, mutex));
-      } else {
-        insertNode(tmp->getLeft(), item, mutex);
-      }
-    }
     return tmp;
   }
 
@@ -270,16 +278,26 @@ class IntervalTree {
       return;
     }
 
-    // Search current interval of tree2 in tree1
-    intersectInterval(tree1, tree2, res);
+#pragma omp parallel
+    {
+#pragma omp single nowait
+      {
+        // Search current interval of tree2 in tree1
+#pragma omp task
+        intersectInterval(tree1, tree2, res);
 
-    // Call recursively on left and right tree
-    if (tree2->getLeft() != NULL) {
-      intersectIntervals(tree1, tree2->getLeft(), res);
-    }
+        // Call recursively on left and right tree
+        if (tree2->getLeft() != NULL) {
+#pragma omp task
+        intersectIntervals(tree1, tree2->getLeft(), res);
+        }
 
-    if (tree2->getRight() != NULL) {
-      intersectIntervals(tree1, tree2->getRight(), res);
+        if (tree2->getRight() != NULL) {
+#pragma omp task
+          intersectIntervals(tree1, tree2->getRight(), res);
+        }
+#pragma omp taskwait
+      }
     }
   }
 

@@ -9,6 +9,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 from distutils.spawn import find_executable
 from os.path import expanduser
 
@@ -149,8 +150,8 @@ if __name__ == '__main__':
                     else:
                         if bid not in pregions[pid]:
                             pregions[pid][bid] = { 'nested': [] }
-                    if ppid in pregions:
-                        pregions[ppid][bid]['nested'].append(pid)
+                    # if ppid in pregions:
+                    #     pregions[ppid][bid]['nested'].append(pid)
 
 #     pregions = {}
 #     for subdir, dirs, files in os.walk(args.traces_path, False):
@@ -176,13 +177,21 @@ if __name__ == '__main__':
                 # SLURM Configuration values
                 config_file = SLURM_DIR + "/slurm_config_" + sanitizeFileName(subdir) + "_" + str(key)
                 output = SLURM_DIR + "/slurm_output_" + sanitizeFileName(subdir)
-                cmd = "stantime \"%s --executable %s --traces-path %s --report-path %s --pregion %s\" tmp_%s" % (analysis_tool, executable, args.traces_path, args.report_path, key, key)
+                cmd = "ulimit -c unlimited\nstantime \"%s --executable %s --traces-path %s --report-path %s --pregion %s\" tmp_%s" % (analysis_tool, executable, args.traces_path, args.report_path, key, key)
                 createSLURMConfig(config_file, walltime, output, cmd)
                 # Run on cluster
                 # sbatch_output_file = "%s/%s.%s.%s" % (benchmark_paths[val["path"]]["sbatch_output_path"], app["executable"], mode, t)
                 # command = "sbatch --output=" + sbatch_output_file + " " + config_file
                 command = "sbatch " + config_file
                 ret = None
+                bashCommand = "squeue | grep atzeni1 | wc -l"
+                bash_process = subprocess.Popen(bashCommand, stdout=subprocess.PIPE, shell=True)
+                bash_out, bash_err = bash_process.communicate()
+                while(int(bash_out) >= 500):
+                    bash_process = subprocess.Popen(bashCommand, stdout=subprocess.PIPE, shell=True)
+                    bash_out, bash_err = bash_process.communicate()
+                    print bash_out
+                    time.sleep(5)
                 if(not args.dry_run):
                     ret = executeCommand(command, False)
                 if(ret):
