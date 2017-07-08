@@ -5,6 +5,7 @@
 #include <list>
 #include <string>
 #include <set>
+#include <stack>
 #include <vector>
 
 #define RACE(node1, node2)                                              \
@@ -255,21 +256,29 @@ class IntervalTree {
       return;
     }
 
-    bool overlapping = false;
-    if((node1->mutex.size() != 0) && (node2->mutex.size() != 0))
-      overlapping = overlap(node1->mutex, node2->mutex);
-    if(RACE(node1,node2) && !overlapping) {
-      if((node1->getAddress() <= node2->getEnd()) && (node2->getAddress() <= node1->getEnd())) {
-        // INFO(std::cout, std::hex << "[" << node1->getAddress() << "," << node1->getEnd() << "][" << node2->getAddress() << "," << node2->getEnd() << "]");
-        res.emplace_back(*node1, *node2);
+    std::stack<Interval *> stack;
+    stack.push(node1);
+
+    while (stack.empty() == false) {
+      Interval *node = stack.top();
+      bool overlapping = false;
+      if((node->mutex.size() != 0) && (node2->mutex.size() != 0))
+        overlapping = overlap(node->mutex, node2->mutex);
+      if(RACE(node,node2) && !overlapping) {
+        if((node->getAddress() <= node2->getEnd()) && (node2->getAddress() <= node->getEnd())) {
+          // INFO(std::cout, std::hex << "[" << node->getAddress() << "," << node->getEnd() << "][" << node2->getAddress() << "," << node2->getEnd() << "]");
+          res.emplace_back(*node, *node2);
+        }
       }
-    }
+      stack.pop();
 
-    if ((node1->getLeft() != NULL) && (node1->getLeft()->getMax() >= node2->getAddress())) {
-      intersectInterval(node1->getLeft(), node2, res);
-    }
+      if ((node->getLeft() != NULL) && (node->getLeft()->getMax() >= node2->getAddress())) {
+        stack.push(node->getLeft());
+      }
 
-    intersectInterval(node1->getRight(), node2, res);
+      if (node->getRight())
+        stack.push(node->getRight());
+    }
   }
 
   static void intersectIntervals(Interval *tree1, Interval *tree2, std::vector<std::pair<Interval,Interval>> &res) {
@@ -278,26 +287,18 @@ class IntervalTree {
       return;
     }
 
-#pragma omp parallel
-    {
-#pragma omp single nowait
-      {
-        // Search current interval of tree2 in tree1
-#pragma omp task
-        intersectInterval(tree1, tree2, res);
+    std::stack<Interval *> stack;
+    stack.push(tree2);
 
-        // Call recursively on left and right tree
-        if (tree2->getLeft() != NULL) {
-#pragma omp task
-        intersectIntervals(tree1, tree2->getLeft(), res);
-        }
+    while (stack.empty() == false) {
+      Interval *node = stack.top();
+      intersectInterval(tree1, node, res);
+      stack.pop();
 
-        if (tree2->getRight() != NULL) {
-#pragma omp task
-          intersectIntervals(tree1, tree2->getRight(), res);
-        }
-#pragma omp taskwait
-      }
+      if (node->getRight())
+        stack.push(node->getRight());
+      if (node->getLeft())
+        stack.push(node->getLeft());
     }
   }
 
