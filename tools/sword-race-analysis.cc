@@ -289,7 +289,8 @@ int main(int argc, char **argv) {
 #endif
 
   // Get cores info
-  unsigned num_threads = sysconf(_SC_NPROCESSORS_ONLN);
+  // unsigned num_threads = sysconf(_SC_NPROCESSORS_ONLN);
+  unsigned num_threads = std::thread::hardware_concurrency();
   // Get cores info
 
 #ifdef LZO
