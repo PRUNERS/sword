@@ -125,6 +125,7 @@ if __name__ == '__main__':
         sys.exit(-1)
 
     mkdir_p(args.report_path)
+    mkdir_p(args.report_path + "/overhead")
 
     if(args.cluster_run):
         # Create SLURM dir
@@ -177,7 +178,7 @@ if __name__ == '__main__':
                 # SLURM Configuration values
                 config_file = SLURM_DIR + "/slurm_config_" + sanitizeFileName(subdir) + "_" + str(key)
                 output = SLURM_DIR + "/slurm_output_" + sanitizeFileName(subdir)
-                cmd = "ulimit -c unlimited\nstantime \"%s --executable %s --traces-path %s --report-path %s --pregion %s\" tmp_%s" % (analysis_tool, executable, args.traces_path, args.report_path, key, key)
+                cmd = "ulimit -c unlimited\nstantime \"%s --executable %s --traces-path %s --report-path %s --pregion %s\" %s/overhead/%s.dat" % (analysis_tool, executable, args.traces_path, args.report_path, key, args.report_path, key)
                 createSLURMConfig(config_file, walltime, output, cmd)
                 # Run on cluster
                 # sbatch_output_file = "%s/%s.%s.%s" % (benchmark_paths[val["path"]]["sbatch_output_path"], app["executable"], mode, t)
