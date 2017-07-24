@@ -106,11 +106,11 @@ void analyze_traces(unsigned t1, unsigned t2, std::vector<IntervalTree*> &interv
     for(std::vector<std::pair<Interval, Interval>>::iterator it = res.begin(); it != res.end(); ++it) {
       Interval i = std::get<0>(*it);
       Interval j = std::get<1>(*it);
-      ReportRace(i.getAddress(),
+      ReportRace(i.address,
                  i.getAccessType(), j.getAccessType(),
                  i.getAccessSize(),
                  j.getAccessSize(),
-                 i.getPC() - 1, j.getPC() - 1);
+                 i.pc.num - 1, j.pc.num - 1);
     }
   }
 

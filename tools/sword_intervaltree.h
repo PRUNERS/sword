@@ -22,7 +22,7 @@ static int global_key = 0;
 
 class Interval {
   friend class IntervalTree;
- private:
+ public:
 #if PRINT
   int key;
 #endif
@@ -36,7 +36,6 @@ class Interval {
   Interval *right;
   std::set<size_t> mutex;
 
- public:
   Interval(size_t addr, uint8_t st, size_t p) {
 #if PRINT
     key = ++global_key;
@@ -55,19 +54,15 @@ class Interval {
 #if PRINT
     key = ++global_key;
 #endif
-    address = item.getAddress();
+    address = item.address;
     count = 1;
     diff = 0;
     size_type = item.getAccessSizeType();
-    pc.num = item.getPC();
-    max = item.getAddress();;
+    pc.num = item.pc.num;
+    max = item.address;;
     left = NULL;
     right = NULL;
     mutex.insert(mtx.begin(), mtx.end());
-  }
-
-  uint8_t getAccessSizeType() const {
-    return size_type;
   }
 
   AccessSize getAccessSize() const {
@@ -78,59 +73,19 @@ class Interval {
     return (AccessType) (size_type & 0x0F);
   }
 
-  size_t getAddress() const {
-    return address;
-  }
-
-  size_t getPC() const {
-    return pc.num;
-  }
-
   size_t getEnd() {
     return address + (diff * (count - 1));
   }
 
-  size_t getMax() {
-    return max;
-  }
-
-  size_t getDiff() {
-    return diff;
-  }
-
-  unsigned getCount() {
-    return count;
-  }
-
-  void setMax(size_t max) {
-    this->max = max;
-  }
-
-  Interval *getLeft() {
-    return left;
-  }
-
-  void setLeft(Interval *left) {
-    this->left = left;
-  }
-
-  Interval *getRight() {
-    return right;
-  }
-
-  void setRight(Interval *right) {
-    this->right = right;
-  }
-
   std::string tostring() {
     std::stringstream ss;
-    ss << "[" << address << "," << getEnd() << "," << getMax() << "," << std::dec << count << "," << diff << "]";
+    ss << "[" << address << "," << getEnd() << "," << max << "," << std::dec << count << "," << diff << "]";
     ss << std::endl;
     return ss.str();
   }
 
   int compareTo(const Access &item) {
-    if (address < item.getAddress()) {
+    if (address < item.address) {
       return -1;
     } else {
       return 1;
@@ -164,45 +119,45 @@ class IntervalTree {
     Interval *ptr = tmp;
 
     while(ptr != NULL) {
-      if (item.getAddress() > ptr->getMax()) {
-        ptr->setMax(item.getAddress());
+      if (item.address > ptr->max) {
+        ptr->max = item.address;
       }
 
-      if((item.getAccessSizeType() == ptr->size_type) && (item.getPC() == ptr->getPC()) && (mutex == ptr->mutex)) {
+      if((item.getAccessSizeType() == ptr->size_type) && (item.pc.num == ptr->pc.num) && (mutex == ptr->mutex)) {
         if(ptr->diff != 0) {
           end = ptr->getEnd();
-          if(item.getAddress() == (end + ptr->diff)) {
+          if(item.address == (end + ptr->diff)) {
             ptr->count++;
             if(ptr->getEnd() > ptr->max)
               ptr->max = ptr->getEnd();
             return tmp;
           }
-          if((item.getAddress() >= ptr->address) && (item.getAddress() <= end))
+          if((item.address >= ptr->address) && (item.address <= end))
             return tmp;
-          if(item.getAddress() == (ptr->address - ptr->diff)) {
-            ptr->address = item.getAddress();
+          if(item.address == (ptr->address - ptr->diff)) {
+            ptr->address = item.address;
             ptr->count++;
             if(ptr->getEnd() > ptr->max)
               ptr->max = ptr->getEnd();
             return tmp;
           }
         } else {
-          size_t diff = item.getAddress() - ptr->address;
-          // ptr->diff = item.getAddress() - ptr->address;
+          size_t diff = item.address - ptr->address;
+          // ptr->diff = item.address - ptr->address;
           // if(ptr->diff != 0) {
           if(diff != 0 && diff < 64) {
             end = ptr->getEnd();
-            ptr->diff = item.getAddress() - ptr->address;
-            if(item.getAddress() == (end + diff)) {
+            ptr->diff = item.address - ptr->address;
+            if(item.address == (end + diff)) {
               ptr->count++;
               if(ptr->getEnd() > ptr->max)
                 ptr->max = ptr->getEnd();
               return tmp;
             }
-            if((item.getAddress() >= ptr->address) && (item.getAddress() <= end))
+            if((item.address >= ptr->address) && (item.address <= end))
               return tmp;
-            if(item.getAddress() == (ptr->address - ptr->diff)) {
-              ptr->address = item.getAddress();
+            if(item.address == (ptr->address - ptr->diff)) {
+              ptr->address = item.address;
               ptr->count++;
               if(ptr->getEnd() > ptr->max)
                 ptr->max = ptr->getEnd();
@@ -215,18 +170,18 @@ class IntervalTree {
       }
 
       if (ptr->compareTo(item) <= 0) {
-        if (ptr->getRight() == NULL) {
-          ptr->setRight(new Interval(item, mutex));
+        if (ptr->right == NULL) {
+          ptr->right = new Interval(item, mutex);
           return tmp;
         } else {
-          ptr = ptr->getRight();
+          ptr = ptr->right;
         }
       } else {
-        if (ptr->getLeft() == NULL) {
-          ptr->setLeft(new Interval(item, mutex));
+        if (ptr->left == NULL) {
+          ptr->left = new Interval(item, mutex);
           return tmp;
         } else {
-          ptr = ptr->getLeft();
+          ptr = ptr->left;
         }
       }
     }
@@ -239,14 +194,14 @@ class IntervalTree {
       return;
     }
 
-    if (tmp->getLeft() != NULL) {
-      printTree(tmp->getLeft());
+    if (tmp->left != NULL) {
+      printTree(tmp->left);
     }
 
     std::cout << tmp->tostring();
 
-    if (tmp->getRight() != NULL) {
-      printTree(tmp->getRight());
+    if (tmp->right != NULL) {
+      printTree(tmp->right);
     }
   }
 
@@ -265,19 +220,19 @@ class IntervalTree {
       if((node->mutex.size() != 0) && (node2->mutex.size() != 0))
         overlapping = overlap(node->mutex, node2->mutex);
       if(RACE(node,node2) && !overlapping) {
-        if((node->getAddress() <= node2->getEnd()) && (node2->getAddress() <= node->getEnd())) {
-          // INFO(std::cout, std::hex << "[" << node->getAddress() << "," << node->getEnd() << "][" << node2->getAddress() << "," << node2->getEnd() << "]");
+        if((node->address <= node2->getEnd()) && (node2->address <= node->getEnd())) {
+          // INFO(std::cout, std::hex << "[" << node->address << "," << node->getEnd() << "][" << node2->address << "," << node2->getEnd() << "]");
           res.emplace_back(*node, *node2);
         }
       }
       stack.pop();
 
-      if ((node->getLeft() != NULL) && (node->getLeft()->getMax() >= node2->getAddress())) {
-        stack.push(node->getLeft());
+      if ((node->left != NULL) && (node->left->max >= node2->address)) {
+        stack.push(node->left);
       }
 
-      if (node->getRight())
-        stack.push(node->getRight());
+      if (node->right)
+        stack.push(node->right);
     }
   }
 
@@ -295,10 +250,10 @@ class IntervalTree {
       intersectInterval(tree1, node, res);
       stack.pop();
 
-      if (node->getRight())
-        stack.push(node->getRight());
-      if (node->getLeft())
-        stack.push(node->getLeft());
+      if (node->right)
+        stack.push(node->right);
+      if (node->left)
+        stack.push(node->left);
     }
   }
 
@@ -313,22 +268,22 @@ class IntervalTree {
   {
     static int nullcount = 0;
 
-    if (node->getLeft())
+    if (node->left)
       {
         printf("    %d -> %d;\n", node->key, node->left->key);
-        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->key, node->address, node->getEnd(), node->getMax(), node->count);
-        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->left->key, node->left->address, node->left->getEnd(), node->left->getMax(), node->count);
-        bst_print_dot_aux(node->getLeft());
+        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->key, node->address, node->getEnd(), node->max, node->count);
+        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->left->key, node->left->address, node->left->getEnd(), node->left->max, node->count);
+        bst_print_dot_aux(node->left);
       }
     else
       bst_print_dot_null(node->key, nullcount++);
 
-    if (node->getRight())
+    if (node->right)
       {
         printf("    %d -> %d;\n", node->key, node->right->key);
-        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->key, node->address, node->getEnd(), node->getMax(), node->count);
-        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->right->key, node->right->address, node->right->getEnd(), node->right->getMax(), node->count);
-        bst_print_dot_aux(node->getRight());
+        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->key, node->address, node->getEnd(), node->max, node->count);
+        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->right->key, node->right->address, node->right->getEnd(), node->right->max, node->count);
+        bst_print_dot_aux(node->right);
       }
     else
       bst_print_dot_null(node->key, nullcount++);
