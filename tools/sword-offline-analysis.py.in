@@ -188,7 +188,7 @@ if __name__ == '__main__':
                 bashCommand = "squeue | grep atzeni1 | wc -l"
                 bash_process = subprocess.Popen(bashCommand, stdout=subprocess.PIPE, shell=True)
                 bash_out, bash_err = bash_process.communicate()
-                while(int(bash_out) >= 500):
+                while(int(bash_out) >= 30):
                     bash_process = subprocess.Popen(bashCommand, stdout=subprocess.PIPE, shell=True)
                     bash_out, bash_err = bash_process.communicate()
                     print bash_out
