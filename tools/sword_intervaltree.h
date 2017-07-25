@@ -97,13 +97,12 @@ class IntervalTree {
  IntervalTree() : root(NULL) {}
 
   Interval *insertNode(Interval *tmp, const Access &item, const std::set<size_t> &mutex) {
-    size_t end;
-
     if (tmp == NULL) {
       tmp = new Interval(item, mutex);
       return tmp;
     }
 
+    size_t end;
     Interval *ptr = tmp;
 
     while(ptr != NULL) {
