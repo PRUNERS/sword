@@ -107,7 +107,7 @@ void analyze_traces(unsigned t1, unsigned t2, std::vector<IntervalTree*> &interv
       Interval i = std::get<0>(*it);
       Interval j = std::get<1>(*it);
       ReportRace(i.address,
-                 i.getAccessType(), j.getAccessType(),
+                 ((AccessType) (i.size_type & 0x0F)), ((AccessType) (j.size_type & 0x0F)),
                  i.getAccessSize(),
                  j.getAccessSize(),
                  i.pc.num - 1, j.pc.num - 1);
