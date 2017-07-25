@@ -8,7 +8,7 @@
 void PrintReport() {
   size_t current_size = 0;
   for(auto& entry : boost::make_iterator_range(boost::filesystem::directory_iterator(report_data), {})) {
-    if(entry.path().string().find("race_report_") != std::string::npos) {
+    if(entry.path().string().find("overhead") == std::string::npos && entry.path().string().find("time_cluster") == std::string::npos) {
       size_t filesize = boost::filesystem::file_size(entry.path());
       if(filesize > 0) {
         std::ifstream file(entry.path().string(), std::ios::in | std::ios::binary);
@@ -21,6 +21,11 @@ void PrintReport() {
         file.close();
       }
     }
+  }
+
+  if(races.size() == 0){
+    INFO(std::cerr, "SWORD did not find any race on '" << executable << "'.");
+    exit(0);
   }
 
   for(std::vector<RaceInfo>::const_iterator race = races.cbegin() ; race != races.cend(); ++race) {
@@ -128,11 +133,11 @@ int main(int argc, char **argv) {
   execute_command(GET_SYMBOLIZER, &symbolizer_path);
   // Look for llvm-symbolizer
 
-  boost::filesystem::recursive_directory_iterator dir(report_data), end;
-  if(dir == end) {
-    INFO(std::cerr, "SWORD did not find any race on '" << executable << "'.");
-    exit(0);
-  }
+  // boost::filesystem::recursive_directory_iterator dir(report_data), end;
+  // if(dir == end) {
+  //   INFO(std::cerr, "SWORD did not find any race on '" << executable << "'.");
+  //   exit(0);
+  // }
 
   PrintReport();
 }

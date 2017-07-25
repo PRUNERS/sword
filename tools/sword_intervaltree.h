@@ -83,14 +83,6 @@ class Interval {
     ss << std::endl;
     return ss.str();
   }
-
-  int compareTo(const Access &item) {
-    if (address < item.address) {
-      return -1;
-    } else {
-      return 1;
-    }
-  }
 };
 
 class IntervalTree {
@@ -169,7 +161,7 @@ class IntervalTree {
         }
       }
 
-      if (ptr->compareTo(item) <= 0) {
+      if (ptr->address < item.address) {
         if (ptr->right == NULL) {
           ptr->right = new Interval(item, mutex);
           return tmp;
