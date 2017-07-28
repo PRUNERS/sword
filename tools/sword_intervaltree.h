@@ -8,6 +8,10 @@
 #include <stack>
 #include <vector>
 
+#define PRINT 1
+
+static const char * AccessTypeValue[] = { "R", "W", "AR", "AW" };
+
 #define GET_ACCESS_TYPE(node) ((AccessType) (node->size_type & 0x0F))
 
 #define RACE(node1, node2)                                              \
@@ -247,8 +251,8 @@ class IntervalTree {
 #if PRINT
   void bst_print_dot_null(int key, int nullcount)
   {
-    printf("    null%d [shape=point];\n", nullcount);
-    printf("    %d -> null%d;\n", key, nullcount);
+    INFO(std::cout, "    null" << nullcount << " [shape=point];");
+    INFO(std::cout, "    " << key << " -> null" << nullcount << ";");
   }
 
   void bst_print_dot_aux(Interval *node)
@@ -257,9 +261,9 @@ class IntervalTree {
 
     if (node->left)
       {
-        printf("    %d -> %d;\n", node->key, node->left->key);
-        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->key, node->address, GET_END(node), node->max, node->count);
-        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->left->key, node->left->address, GET_END(node), node->left->max, node->count);
+        INFO(std::cout, "    " << node->key << " -> " << node->left->key << ";");
+        INFO(std::cout, node->key << " [label=\"[" << node->address << "," << GET_END(node) << "]," << node->count << "\n" << node->max << "\n" << AccessTypeValue[(AccessType) (node->size_type & 0x0F)] << "," << (AccessSize) (node->size_type >> 4)  << "," << node->pc.num << "\"]");
+        INFO(std::cout, node->left->key << " [label=\"[" << node->left->address << "," << GET_END(node->left) << "]," << node->left->count << "\n" << node->left->max << "\n" << AccessTypeValue[(AccessType) (node->left->size_type & 0x0F)] << "," << (AccessSize) (node->left->size_type >> 4) << "," << node->left->pc.num << "\"]");
         bst_print_dot_aux(node->left);
       }
     else
@@ -267,9 +271,9 @@ class IntervalTree {
 
     if (node->right)
       {
-        printf("    %d -> %d;\n", node->key, node->right->key);
-        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->key, node->address, GET_END(node), node->max, node->count);
-        printf("%d [label=\"%zu,%zu\n%zu,%u\"]", node->right->key, node->right->address, GET_END(node->right), node->right->max, node->count);
+        INFO(std::cout, "    " << node->key << " -> " << node->right->key << ";");
+        INFO(std::cout, node->key << " [label=\"[" << node->address << "," << GET_END(node) << "]," << node->count << "\n" << node->max << "\n" << AccessTypeValue[(AccessType) (node->size_type & 0x0F)] << "," << (AccessSize) (node->size_type >> 4)  << "," << node->pc.num << "\"]");
+        INFO(std::cout, node->right->key << " [label=\"[" << node->right->address << "," << GET_END(node->right) << "]," << node->right->count << "\n" << node->right->max << "\n" << AccessTypeValue[(AccessType) (node->right->size_type & 0x0F)] << "," << (AccessSize) (node->right->size_type >> 4)  << "," << node->right->pc.num << "\"]");
         bst_print_dot_aux(node->right);
       }
     else
@@ -278,17 +282,17 @@ class IntervalTree {
 
   void bst_print_dot(Interval *tree)
   {
-    printf("digraph BST {\n");
-    printf("    node [fontname=\"Arial\"];\n");
+    INFO(std::cout, "digraph BST {\n");
+    INFO(std::cout, "    node [fontname=\"Arial\"];\n");
 
     if (!tree)
-      printf("\n");
+      INFO(std::cout, "\n");
     else if (!tree->right && !tree->left)
-      printf("    %d;\n", tree->key);
+      INFO(std::cout, "    " << tree->key << ";");
     else
       bst_print_dot_aux(tree);
 
-    printf("}\n");
+    INFO(std::cout, "}");
   }
 #endif
 };

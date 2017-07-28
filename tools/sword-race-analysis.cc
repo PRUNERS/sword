@@ -2,6 +2,8 @@
 #include "sword-race-analysis.h"
 #include <boost/algorithm/string.hpp>
 
+#define PRINT_RACE 0
+
 #ifdef SNAPPY
 #include "../rtl/snappy.h"
 #endif
@@ -18,8 +20,6 @@
 #include <algorithm>
 #include <map>
 #include <thread>
-
-#define PRINT 0
 
 void SaveReport(std::string filename) {
   std::ofstream file(filename, std::ios::out | std::ios::binary);
@@ -63,7 +63,7 @@ void ReportRace(uint64_t address, uint8_t rw1, uint8_t rw2, uint8_t size1, uint8
     rmtx.unlock();
     races.push_back(RaceInfo(address, rw1, size1, pc1, rw2, size2, pc2));
 
-#if PRINT
+#if PRINT_RACE
     std::string race1 = "";
     std::string race2 = "";
 
@@ -217,6 +217,7 @@ void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fo
 
 int main(int argc, char **argv) {
   std::string unknown_option = "";
+  bool print = false;
 
   //	if(argc < 7)
   //		INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --traces-path <path-to-traces-folder> --report-path <path-to-report-folder>\n\n");
@@ -268,6 +269,8 @@ int main(int argc, char **argv) {
         INFO(std::cerr, "--nested option requires one argument.");
         return -1;
       }
+    } else if (std::string(argv[i]) == "--print") {
+      print = true;
     } else {
       unknown_option = argv[i++];
     }
@@ -278,7 +281,7 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-#if PRINT
+#if PRINT_RACE
   // Look for shell
   execute_command(GET_SHELL, &shell_path);
   // Look for shell
@@ -364,12 +367,22 @@ int main(int argc, char **argv) {
     // Load data into memory of all the threads in given barrier interval, if it fits in memory,
     // data are compressed so not sure how to check if everything will fit in memory
 
-    // INFO(std::cout, "T0");
-    // interval_buffers[0]->printTree(interval_buffers[0]->root);
-    // interval_buffers[0]->bst_print_dot(interval_buffers[0]->root);
-    // INFO(std::cout, "T1");
-    // interval_buffers[1]->printTree(interval_buffers[1]->root);
-    // interval_buffers[1]->bst_print_dot(interval_buffers[1]->root);
+    if(print) {
+      // INFO(std::cout, "T0");
+      // interval_buffers[0]->printTree(interval_buffers[0]->root);
+      std::ofstream out0("thread0.dot");
+      std::streambuf *coutbuf0 = std::cout.rdbuf(); //save old buf
+      std::cout.rdbuf(out0.rdbuf());
+      interval_buffers[0]->bst_print_dot(interval_buffers[0]->root);
+      std::cout.rdbuf(coutbuf0);
+      // INFO(std::cout, "T1");
+      // interval_buffers[1]->printTree(interval_buffers[1]->root);
+      std::ofstream out1("thread1.dot");
+      std::streambuf *coutbuf1 = std::cout.rdbuf(); //save old buf
+      std::cout.rdbuf(out1.rdbuf());
+      interval_buffers[1]->bst_print_dot(interval_buffers[1]->root);
+      std::cout.rdbuf(coutbuf1);
+    }
 
     // Now we can start analyzing the pairs
     std::atomic<int> available_threads;
