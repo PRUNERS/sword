@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <iostream>
 #include <list>
+#include <queue>
 #include <string>
 #include <set>
 #include <stack>
@@ -193,6 +194,29 @@ class IntervalTree {
 
     if (tmp->right != NULL) {
       printTree(tmp->right);
+    }
+  }
+
+  int findHeight(Interval *tmp) {
+    if (tmp == NULL) {
+      return -1;
+    }
+
+    int lefth = findHeight(tmp->left);
+    int righth = findHeight(tmp->right);
+
+    if (lefth > righth) {
+      return lefth + 1;
+    } else {
+      return righth + 1;
+    }
+  }
+
+  unsigned int getfullCount(Interval *tmp) {
+    if(tmp == NULL) {
+      return 0;
+    } else {
+      return getfullCount(tmp->left) + getfullCount(tmp->right) + 1;
     }
   }
 

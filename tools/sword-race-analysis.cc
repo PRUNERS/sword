@@ -368,6 +368,10 @@ int main(int argc, char **argv) {
     // data are compressed so not sure how to check if everything will fit in memory
 
     if(print) {
+      std::cout << "Height T0: " << interval_buffers[0]->findHeight(interval_buffers[0]->root) << std::endl;
+      std::cout << "Height T1: " << interval_buffers[1]->findHeight(interval_buffers[1]->root) << std::endl;
+      std::cout << "Count T0: " << interval_buffers[0]->getfullCount(interval_buffers[0]->root) << std::endl;
+      std::cout << "Count T1: " << interval_buffers[1]->getfullCount(interval_buffers[1]->root) << std::endl;
       // INFO(std::cout, "T0");
       // interval_buffers[0]->printTree(interval_buffers[0]->root);
       std::ofstream out0("thread0.dot");
