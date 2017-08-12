@@ -1,4 +1,5 @@
-#include "sword_intervaltree.h"
+#include "rtl/sword_common.h"
+#include "interval_tree.h"
 #include "sword-race-analysis.h"
 #include <boost/algorithm/string.hpp>
 
@@ -19,6 +20,7 @@
 #include <atomic>
 #include <algorithm>
 #include <map>
+#include <queue>
 #include <thread>
 
 void SaveReport(std::string filename) {
@@ -27,41 +29,24 @@ void SaveReport(std::string filename) {
   file.write((char*) &size, sizeof(size));
   file.write(reinterpret_cast<char*>(races.data()), races.size() * sizeof(RaceInfo));
   file.close();
-
-  //	std::string race1 = "";
-  //	std::string race2 = "";
-  //
-  //	{
-  //		std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(race.pc1) + "\")'";
-  //		execute_command(command.c_str(), &race1, 2);
-  //	}
-  //
-  //	{
-  //		std::string command = shell_path + " -c '" + symbolizer_path + " -pretty-print" + " < <(echo \"" + executable + " " + std::to_string(race.pc2) + "\")'";
-  //		execute_command(command.c_str(), &race2, 2);
-  //	}
-  //
-  //	INFO(std::cerr, "--------------------------------------------------");
-  //	INFO(std::cerr, "WARNING: SWORD: data race (program=" << executable << ")");
-  //	INFO(std::cerr, "Two different threads made the following accesses:");
-  //	INFO(std::cerr, AccessTypeStrings[race.rw1] << " of size " << std::dec << (1 << race.size1) << " at 0x" << std::hex << race.address << " in " << race1);
-  //	INFO(std::cerr, AccessTypeStrings[race.rw2] << " of size " << std::dec << (1 << race.size2) << " at 0x" << std::hex << race.address << " in " << race2);
-  //	INFO(std::cerr, "--------------------------------------------------");
-  //	INFO(std::cerr, "");
 }
 
 void ReportRace(uint64_t address, uint8_t rw1, uint8_t rw2, uint8_t size1, uint8_t size2, uint64_t pc1, uint64_t pc2) {
-  std::size_t hash = 0;
-  boost::hash_combine(hash, pc1);
-  boost::hash_combine(hash, pc2);
+  std::size_t hash1 = 0;
+  boost::hash_combine(hash1, pc1);
+  boost::hash_combine(hash1, pc2);
+  std::size_t hash2 = 0;
+  boost::hash_combine(hash2, pc2);
+  boost::hash_combine(hash2, pc1);
   rmtx.lock();
-  const bool reported = hash_races.find(hash) != hash_races.end();
+  const bool reported = (hash_races.find(hash1) != hash_races.end()) || (hash_races.find(hash2) != hash_races.end());
   rmtx.unlock();
   if(!reported) {
     rmtx.lock();
-    hash_races.insert(hash);
-    rmtx.unlock();
+    hash_races.insert(hash1);
+    hash_races.insert(hash2);
     races.push_back(RaceInfo(address, rw1, size1, pc1, rw2, size2, pc2));
+    rmtx.unlock();
 
 #if PRINT_RACE
     std::string race1 = "";
@@ -94,30 +79,29 @@ unsigned long long getTotalSystemMemory()
   return pages * page_size;
 }
 
-void analyze_traces(unsigned t1, unsigned t2, std::vector<IntervalTree*> &interval_buffers, std::atomic<int> &available_threads) {
-  std::vector<std::pair<Interval,Interval>> res;
-  //	INFO(std::cout, "Analyzing pair (" << t1 << "," << t2 << ").");
+void analyze_trees(rb_root *tree1, rb_root *tree2, std::queue<rb_root*> &reduction) {
+  std::vector<std::pair<interval_tree_node,interval_tree_node>> res;
 
-  if(t1 != t2) {
-    if(interval_buffers.size() > 0) {
-      IntervalTree::intersectIntervals(interval_buffers[t1]->root, interval_buffers[t2]->root, res);
-    }
+  if(!tree1 && !tree2) {
+    // Intersect Intervals
 
-    for(std::vector<std::pair<Interval, Interval>>::iterator it = res.begin(); it != res.end(); ++it) {
-      Interval i = std::get<0>(*it);
-      Interval j = std::get<1>(*it);
-      ReportRace(i.address,
-                 ((AccessType) (i.size_type & 0x0F)), ((AccessType) (j.size_type & 0x0F)),
-                 i.getAccessSize(),
-                 j.getAccessSize(),
-                 i.pc.num - 1, j.pc.num - 1);
-    }
+    // IntervalTree::intersectIntervals(interval_buffers[t1]->root, interval_buffers[t2]->root, res);
   }
 
-  available_threads++;
+  for(std::vector<std::pair<interval_tree_node,interval_tree_node>>::iterator it = res.begin(); it != res.end(); ++it) {
+    interval_tree_node i = std::get<0>(*it);
+    interval_tree_node j = std::get<1>(*it);
+    ReportRace(i.start,
+               ((AccessType) (i.size_type & 0x0F)), ((AccessType) (j.size_type & 0x0F)),
+               i.size_type >> 4,
+               j.size_type >> 4,
+               i.pc - 1, j.pc - 1);
+  }
+
+  reduction.push(tree1);
 }
 
-void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fob, uint64_t foe, IntervalTree *interval_buffer) {
+void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fob, uint64_t foe, rb_root *interval_tree_root, std::queue<rb_root*> &reduction) {
   std::string filename(path.string() + "/datafile_" + std::to_string(t));
   uint64_t filesize = foe - fob;
   uint64_t out_len;
@@ -146,7 +130,6 @@ void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fo
 
     size_t total_size = sizeof(uint64_t);
     std::vector<TraceItem> file_buffer;
-    IntervalTree intervals;
     // size_t uncompressed_size = 0;
     while(total_size < filesize) {
       size_t ret = fread(compressed_buffer, 1, block_size, datafile);
@@ -184,7 +167,7 @@ void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fo
       for(std::vector<TraceItem>::const_iterator it = file_buffer.begin(); it != file_buffer.end(); ++it) {
         switch(it->getType()) {
         case data_access:
-          interval_buffer->root = interval_buffer->insertNode(interval_buffer->root, it->data.access, mutex);
+          interval_tree_insert_data(interval_tree_node(it->data.access.address, it->data.access.address, it->data.access.size_type, (size_t) it->data.access.pc.num, mutex), interval_tree_root);
           break;
         case mutex_acquired:
           mutex.insert(it->data.mutex_region.getWaitId());
@@ -209,9 +192,10 @@ void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fo
     }
 
     // INFO(std::cout, "Total Size: " << uncompressed_size);
-
     // free(uncompressed_buffer);
+
     fclose(datafile);
+    reduction.push(interval_tree_root);
   }
 }
 
@@ -219,9 +203,8 @@ int main(int argc, char **argv) {
   std::string unknown_option = "";
   bool print = false;
 
-  //	if(argc < 7)
-  //		INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --traces-path <path-to-traces-folder> --report-path <path-to-report-folder>\n\n");
-  //		INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --report-path <path-to-report-folder> --traces-path <path-to-traces-folder>\n\n");
+  if(argc < 7)
+    INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --traces-path <path-to-traces-folder> --report-path <path-to-report-folder>\n\n");
 
   for(int i = 1; i < argc; ++i) {
     if (std::string(argv[i]) == "--help") {
@@ -341,69 +324,43 @@ int main(int argc, char **argv) {
       }
     }
 
-    // Create thread pairs for comparisons
-    std::set<std::pair<unsigned,unsigned>> thread_pairs;
-    for (std::map<unsigned, TraceInfo>::iterator it = traces.begin(); it != traces.end(); ++it) {
-      for (std::map<unsigned, TraceInfo>::iterator it2 = std::next(it, 1); it2 != traces.end(); ++it2) {
-        thread_pairs.insert(std::make_pair(it->first, it2->first));
-      }
-    }
-    // Create thread pairs for comparisons
-
     // Struct to load uncompressed data from file
     std::vector<std::thread> lm_thread;
-    lm_thread.reserve(traces.size());
-    std::vector<IntervalTree*> interval_buffers;
-    interval_buffers.resize(traces.size());
+    // lm_thread.reserve(traces.size());
+    std::vector<rb_root> interval_trees;
+    std::queue<rb_root*> reduction;
+    interval_trees.resize(traces.size());
     for (std::map<unsigned, TraceInfo>::iterator th = traces.begin(); th != traces.end(); ++th) {
-      interval_buffers[th->first] = new IntervalTree();
-      lm_thread.push_back(std::thread(load_and_convert_file, dir, th->first, th->second.file_offset_begin, th->second.file_offset_end, interval_buffers[th->first]));
+      lm_thread.push_back(std::thread(load_and_convert_file, dir, th->first, th->second.file_offset_begin, th->second.file_offset_end, &interval_trees[th->first], std::ref(reduction)));
+    }
+
+    // if(print) {
+    //   std::ofstream out0("thread0.dot");
+    //   std::streambuf *coutbuf0 = std::cout.rdbuf(); //save old buf
+    //   std::cout.rdbuf(out0.rdbuf());
+    //   interval_tree_print(interval_trees[0]);
+    //   std::cout.rdbuf(coutbuf0);
+    //   std::ofstream out1("thread1.dot");
+    //   std::streambuf *coutbuf1 = std::cout.rdbuf(); //save old buf
+    //   std::cout.rdbuf(out1.rdbuf());
+    //   interval_tree_print(interval_trees[1]);
+    //   std::cout.rdbuf(coutbuf1);
+    // }
+
+    while(!reduction.empty()) {
+      if(reduction.size() >= 2) {
+        rb_root *tree1 = reduction.front();
+        reduction.pop();
+        rb_root *tree2 = reduction.front();
+        reduction.pop();
+        lm_thread.push_back(std::thread(analyze_trees, tree1, tree2, std::ref(reduction)));
+      }
     }
     for(int k = 0; k < lm_thread.size(); k++) {
       lm_thread[k].join();
     }
     lm_thread.clear();
 
-    // Load data into memory of all the threads in given barrier interval, if it fits in memory,
-    // data are compressed so not sure how to check if everything will fit in memory
-
-    if(print) {
-      std::cout << "Height T0: " << interval_buffers[0]->findHeight(interval_buffers[0]->root) << std::endl;
-      std::cout << "Height T1: " << interval_buffers[1]->findHeight(interval_buffers[1]->root) << std::endl;
-      std::cout << "Count T0: " << interval_buffers[0]->getfullCount(interval_buffers[0]->root) << std::endl;
-      std::cout << "Count T1: " << interval_buffers[1]->getfullCount(interval_buffers[1]->root) << std::endl;
-      // INFO(std::cout, "T0");
-      // interval_buffers[0]->printTree(interval_buffers[0]->root);
-      std::ofstream out0("thread0.dot");
-      std::streambuf *coutbuf0 = std::cout.rdbuf(); //save old buf
-      std::cout.rdbuf(out0.rdbuf());
-      interval_buffers[0]->bst_print_dot(interval_buffers[0]->root);
-      std::cout.rdbuf(coutbuf0);
-      // INFO(std::cout, "T1");
-      // interval_buffers[1]->printTree(interval_buffers[1]->root);
-      std::ofstream out1("thread1.dot");
-      std::streambuf *coutbuf1 = std::cout.rdbuf(); //save old buf
-      std::cout.rdbuf(out1.rdbuf());
-      interval_buffers[1]->bst_print_dot(interval_buffers[1]->root);
-      std::cout.rdbuf(coutbuf1);
-    }
-
-    // Now we can start analyzing the pairs
-    std::atomic<int> available_threads;
-    std::vector<std::thread> thread_list;
-    available_threads = num_threads;
-    for(std::set<std::pair<unsigned,unsigned>>::const_iterator p = thread_pairs.begin(); p != thread_pairs.end(); ++p) {
-      while(!available_threads) { } // { usleep(1000); }
-      available_threads--;
-
-      // Create thread
-      // INFO(std::cout, "Analyzing pair: " << p->first << "," << p->second);
-      thread_list.push_back(std::thread(analyze_traces, p->first, p->second, std::ref(interval_buffers), std::ref(available_threads)));
-    }
-    for(std::vector<std::thread>::iterator th = thread_list.begin(); th != thread_list.end(); th++) {
-      th->join();
-    }
-    thread_list.clear();
     if(races.size() > 0) {
       std::string filename = report_data.string() + "/" + "race_report_" + std::to_string(pregion);
       SaveReport(filename);
@@ -411,7 +368,6 @@ int main(int argc, char **argv) {
   } else {
     INFO(std::cout, "Folder '" << dir << "' does not exists or it's empty. Exiting...");
   }
-  //    }
 
   return 0;
 }

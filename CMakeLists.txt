@@ -35,7 +35,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 # Standalone build or part of LLVM?
 set(SWORD_STANDALONE_BUILD FALSE)
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
-    project(sword C CXX)
+    project(sword)
 
   set(SWORD_STANDALONE_BUILD TRUE)
 endif()
