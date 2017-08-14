@@ -21,6 +21,10 @@
 
 #include <stdbool.h>
 
+#include <algorithm>
+#include <mutex>
+#include <set>
+
 extern "C" {
 #include "rbtree_augmented.h"
 
@@ -39,6 +43,31 @@ extern "C" {
  * Note - before using this, please consider if non-generic version
  * (interval_tree.h) would work for you...
  */
+
+ static inline bool overlap(const std::set<size_t>& s1, const std::set<size_t>& s2) {
+   for(const auto& i : s1) {
+     if(std::binary_search(s2.begin(), s2.end(), i))
+       return true;
+   }
+   return false;
+ }
+
+enum AccessType {
+  unsafe_read = 0,
+  unsafe_write,
+  atomic_read,
+  atomic_write,
+};
+
+#define GET_ACCESS_TYPE(node) (node->size_type & 0x0F)
+
+#define RACE(node1, node2)                                                    \
+  ((GET_ACCESS_TYPE(node1) == unsafe_write) ||                                \
+   (GET_ACCESS_TYPE(node2) == unsafe_write) ||                                \
+   ((GET_ACCESS_TYPE(node1) == atomic_write) &&				      \
+    (GET_ACCESS_TYPE(node2) == unsafe_read)) ||                               \
+   ((GET_ACCESS_TYPE(node2) == atomic_write) &&                               \
+    (GET_ACCESS_TYPE(node1) == unsafe_read)))
 
 #define INTERVAL_TREE_DEFINE(ITSTRUCT, ITRB, ITTYPE, ITSUBTREE,		      \
 			     ITSTART, ITLAST, ITSTATIC, ITPREFIX)	      \
@@ -84,6 +113,7 @@ ITSTATIC void ITPREFIX ## _insert_data(ITSTRUCT node, struct rb_root *root)   \
                     end = END(parent);                                        \
                     if(node.start == (end + parent->diff)) {                  \
                       parent->count++;                                        \
+                      parent->last = END(parent);                             \
                       return;                                                 \
                     }                                                         \
                     if((node.start >= parent->start) &&                       \
@@ -101,6 +131,7 @@ ITSTATIC void ITPREFIX ## _insert_data(ITSTRUCT node, struct rb_root *root)   \
                       parent->diff = node.start - parent->start;              \
                       if(node.start == (end + diff)) {                        \
                         parent->count++;                                      \
+                        parent->last = END(parent);                           \
                         return;                                               \
                       }                                                       \
                       if((node.start >= parent->start) &&                     \
@@ -206,57 +237,72 @@ ITPREFIX ## _subtree_search(ITSTRUCT *node, ITTYPE start, ITTYPE last)	      \
 	}								      \
 }									      \
 									      \
-ITSTATIC void ITPREFIX ## _merge(struct rb_root *tree1, struct rb_root *tree2,\
-std::vector<std::pair<ITSTRUCT,ITSTRUCT>> &races)                             \
+ITSTATIC void ITPREFIX ## _overlap(std::mutex &mtx, struct rb_root *tree1,    \
+ struct rb_root *tree2, std::vector<std::pair<ITSTRUCT,ITSTRUCT>> &races)     \
 {									      \
-  struct rb_node **link = &tree1->rb_node, *rb_parent = NULL;                 \
+  struct rb_node **link, *rb_parent;                                          \
   ITSTRUCT *parent;                                                           \
   struct rb_node *node2;                                                      \
                                                                               \
   for (node2 = rb_first(tree2); node2; node2 = rb_next(node2)) {              \
     ITSTRUCT *node = rb_entry(node2, ITSTRUCT, ITRB);                         \
-    ITTYPE start = node->start, last = node->last, end = 0;                   \
+    ITTYPE start = node->start, last = node->last;                            \
+    link = &tree1->rb_node;                                                   \
+                                                                              \
+    while (*link) {                                                           \
+      rb_parent = *link;                                                      \
+      parent = rb_entry(rb_parent, ITSTRUCT, ITRB);                           \
+                                                                              \
+      bool overlapping = false;                                               \
+      if((node->mutex.size() != 0) && (parent->mutex.size() != 0))            \
+        overlapping = overlap(node->mutex, parent->mutex);                    \
+      if(RACE(node,parent) && !overlapping) {                                 \
+        if((start <= parent->last) &&                                         \
+           (parent->start <= last)) {                                         \
+          mtx.lock();                                                         \
+          races.emplace_back(*node, *parent);                                 \
+          mtx.unlock();                                                       \
+        }                                                                     \
+      }                                                                       \
+                                                                              \
+      if (parent->ITSUBTREE < last)                                           \
+        parent->ITSUBTREE = last;                                             \
+      if (start < ITSTART(parent))                                            \
+        link = &parent->ITRB.rb_left;                                         \
+      else                                                                    \
+        link = &parent->ITRB.rb_right;                                        \
+    }                                                                         \
+  }                                                                           \
+}			      				                      \
+			      				                      \
+ITSTATIC void ITPREFIX ## _merge(struct rb_root *tree1, struct rb_root *tree2)\
+{									      \
+  struct rb_node **link, *rb_parent;                                          \
+  ITSTRUCT *parent;                                                           \
+  struct rb_node *node2;                                                      \
+                                                                              \
+  for (node2 = rb_first(tree2); node2; node2 = rb_next(node2)) {              \
+    ITSTRUCT *node = rb_entry(node2, ITSTRUCT, ITRB);                         \
+    ITTYPE start = node->start, last = node->last;                            \
+    bool merged = false;                                                      \
+    link = &tree1->rb_node;                                                   \
                                                                               \
     while (*link) {                                                           \
       rb_parent = *link;                                                      \
       parent = rb_entry(rb_parent, ITSTRUCT, ITRB);                           \
                                                                               \
       if((node->size_type == parent->size_type) &&                            \
-         (node->pc == parent->pc) && (node->mutex == parent->mutex)) {        \
-        if(parent->diff != 0) {                                               \
-          end = END(parent);                                                  \
-          if(node->start == (end + parent->diff)) {                           \
-            parent->count++;                                                  \
-            return;                                                           \
-          }                                                                   \
-          if((node->start >= parent->start) &&                                \
-             (node->start <= end))                                            \
-            return;                                                           \
-          if(node->start == (parent->start - parent->diff)) {                 \
-            parent->start = node->start;                                      \
-            parent->count++;                                                  \
-            return;                                                           \
-          }                                                                   \
-        } else {                                                              \
-          size_t diff = node->start - parent->start;                          \
-          if(diff != 0 && diff < 64) {                                        \
-            end = END(parent);                                                \
-            parent->diff = node->start - parent->start;                       \
-            if(node->start == (end + diff)) {                                 \
-              parent->count++;                                                \
-              return;                                                         \
-            }                                                                 \
-            if((node->start >= parent->start) &&                              \
-               (node->start <= end))                                          \
-              return;                                                         \
-            if(node->start == (parent->start - parent->diff)) {               \
-              parent->start = node->start;                                    \
-              parent->count++;                                                \
-              return;                                                         \
-            }                                                                 \
-          } else {                                                            \
-            return;                                                           \
-          }                                                                   \
+         (node->pc == parent->pc) && (node->mutex == parent->mutex) &&        \
+         (node->diff == parent->diff)) {                                      \
+        if(!((node->count == parent->count) && parent->count == 1)) {         \
+          merged = true;                                                      \
+          parent->start = parent->start < start ? parent->start : start;      \
+          parent->last = parent->last < last ? last : parent->last;           \
+          if(parent->diff !=0)                                                \
+            parent->count = ((parent->last - parent->start) / parent->diff) + 1; \
+          else                                                                \
+            parent->count = 1;                                                \
+          break;                                                              \
         }                                                                     \
       }                                                                       \
                                                                               \
@@ -268,11 +314,13 @@ std::vector<std::pair<ITSTRUCT,ITSTRUCT>> &races)                             \
         link = &parent->ITRB.rb_right;                                        \
     }                                                                         \
                                                                               \
-    interval_tree_node *new_node = new interval_tree_node(                    \
-           node->start, node->last, node->size_type, node->pc, node->mutex);  \
-    new_node->ITSUBTREE = last;                                               \
-    rb_link_node(&new_node->ITRB, rb_parent, link);                           \
-    rb_insert_augmented(&new_node->ITRB, tree1, &ITPREFIX ## _augment);       \
+    if(!merged) {                                                             \
+      interval_tree_node *new_node = new interval_tree_node(                  \
+        node->start, node->last, node->size_type, node->pc, node->mutex);     \
+      new_node->ITSUBTREE = last;                                             \
+      rb_link_node(&new_node->ITRB, rb_parent, link);                         \
+      rb_insert_augmented(&new_node->ITRB, tree1, &ITPREFIX ## _augment);     \
+    }                                                                         \
   }                                                                           \
 }			      				                      \
                                                                               \
@@ -339,8 +387,8 @@ ITPREFIX ## _iter_next(ITSTRUCT *node, ITTYPE start, ITTYPE last)	      \
     if (node->rb.rb_left) {
         interval_tree_node *left = rb_entry(node->rb.rb_left, struct interval_tree_node, rb);
         std::cout << "    " << node->key << " -> " << left->key << ";" << std::endl;
-        std::cout << node->key << " [label=\"[" << node->start << "," << node->last << "]," << node->count << "\n" << node->max << "\n" << TypeValue[(node->size_type & 0x0F)] << "," << (node->size_type >> 4)  << "," << node->pc << "\"]" << std::endl;
-        std::cout << left->key << " [label=\"[" << left->start << "," << left->last << "]," << left->count << "\n" << left->max << "\n" << TypeValue[(left->size_type & 0x0F)] << "," << (left->size_type >> 4) << "," << left->pc << "\"]" << std::endl;
+        std::cout << node->key << " [label=\"[" << node->start << "," << node->last << "]," << node->count << "\n" << TypeValue[(node->size_type & 0x0F)] << "," << (node->size_type >> 4)  << "," << node->pc << "\"]" << std::endl;
+        std::cout << left->key << " [label=\"[" << left->start << "," << left->last << "]," << left->count << "\n" << TypeValue[(left->size_type & 0x0F)] << "," << (left->size_type >> 4) << "," << left->pc << "\"]" << std::endl;
         print_dot_aux(left);
       }
     else
@@ -349,8 +397,8 @@ ITPREFIX ## _iter_next(ITSTRUCT *node, ITTYPE start, ITTYPE last)	      \
     if (node->rb.rb_right) {
         interval_tree_node *right = rb_entry(node->rb.rb_right, struct interval_tree_node, rb);
         std::cout << "    " << node->key << " -> " << right->key << ";" << std::endl;
-        std::cout << node->key << " [label=\"[" << node->start << "," << node->last << "]," << node->count << "\n" << node->max << "\n" << TypeValue[(node->size_type & 0x0F)] << "," << (node->size_type >> 4)  << "," << node->pc << "\"]" << std::endl;
-        std::cout << right->key << " [label=\"[" << right->start << "," << right->last << "]," << right->count << "\n" << right->max << "\n" << TypeValue[(right->size_type & 0x0F)] << "," << (right->size_type >> 4) << "," << right->pc << "\"]" << std::endl;
+        std::cout << node->key << " [label=\"[" << node->start << "," << node->last << "]," << node->count << "\n" << TypeValue[(node->size_type & 0x0F)] << "," << (node->size_type >> 4)  << "," << node->pc << "\"]" << std::endl;
+        std::cout << right->key << " [label=\"[" << right->start << "," << right->last << "]," << right->count << "\n" << TypeValue[(right->size_type & 0x0F)] << "," << (right->size_type >> 4) << "," << right->pc << "\"]" << std::endl;
         print_dot_aux(right);
       }
     else

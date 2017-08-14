@@ -7,6 +7,7 @@ static const char * TypeValue[] = { "R", "W", "AR", "AW" };
 
 #include <cstdint>
 #include <iostream>
+#include <mutex>
 #include <set>
 #include <vector>
 
@@ -25,9 +26,8 @@ struct interval_tree_node {
   size_t __subtree_last;
   unsigned count;
   uint8_t size_type; // size in first 4 bits, type in last 4 bits
-  size_t diff;
+  unsigned diff;
   size_t pc;
-  size_t max;
   std::set<size_t> mutex;
 
   interval_tree_node(unsigned int s, unsigned int l, uint8_t st, size_t p, const std::set<size_t> mtx) {
@@ -49,7 +49,10 @@ extern void
 interval_tree_insert_data(struct interval_tree_node node, struct rb_root *root);
 
 extern void
-interval_tree_merge(struct rb_root *tree1, struct rb_root *tree2,
+interval_tree_merge(struct rb_root *tree1, struct rb_root *tree2);
+
+extern void
+interval_tree_overlap(std::mutex &mtx, struct rb_root *tree1, struct rb_root *tree2,
 std::vector<std::pair<struct interval_tree_node,struct interval_tree_node>> &races);
 
 extern void

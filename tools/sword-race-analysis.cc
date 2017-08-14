@@ -82,15 +82,14 @@ unsigned long long getTotalSystemMemory()
 
 void analyze_trees(rb_root *tree1, rb_root *tree2, boost::lockfree::queue<rb_root*> &reduction,
      std::vector<std::pair<interval_tree_node,interval_tree_node>> &races) {
-  if(!tree1 && !tree2) {
-    // Intersect Intervals
-    interval_tree_merge(tree1, tree2, races);
-    // IntervalTree::intersectIntervals(interval_buffers[t1]->root, interval_buffers[t2]->root, res);
-  }
+  if(tree1 && tree2) {
+    interval_tree_overlap(rmtx, tree1, tree2, races);
+    interval_tree_merge(tree1, tree2);
 
-  reduction.push(tree1);
-  trees_counts++;
-  reduction_steps--;
+    reduction.push(tree1);
+    trees_counts++;
+    reduction_steps--;
+  }
 }
 
 void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fob, uint64_t foe, rb_root *interval_tree_root, boost::lockfree::queue<rb_root*> &reduction) {
