@@ -6,6 +6,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/filesystem.hpp>
 
+#include <mutex>
 #include <unordered_set>
 #include <vector>
 
@@ -54,6 +55,7 @@ std::string nested;
 std::string shell_path;
 std::string symbolizer_path;
 std::unordered_set<size_t> hash_races;
+std::mutex rmtx;
 std::vector<RaceInfo> races;
 
 boost::filesystem::path report_data;

@@ -4,6 +4,8 @@
 #include "interval_tree.h"
 #include "sword-tool-common.h"
 
+#include <boost/atomic.hpp>
+
 #include <set>
 #include <unordered_map>
 
@@ -21,6 +23,7 @@ public:
 };
 
 boost::filesystem::path traces_data;
-std::mutex rmtx;
+boost::atomic<unsigned> reduction_steps;
+boost::atomic<unsigned> trees_counts;
 
 #endif // SWORD_RACE_ANALYSIS_H

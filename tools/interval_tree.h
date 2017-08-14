@@ -8,6 +8,7 @@ static const char * TypeValue[] = { "R", "W", "AR", "AW" };
 #include <cstdint>
 #include <iostream>
 #include <set>
+#include <vector>
 
 extern "C" {
 #include "rbtree.h"
@@ -48,9 +49,11 @@ extern void
 interval_tree_insert_data(struct interval_tree_node node, struct rb_root *root);
 
 extern void
-interval_tree_remove(struct interval_tree_node *node, struct rb_root *root);
+interval_tree_merge(struct rb_root *tree1, struct rb_root *tree2,
+std::vector<std::pair<struct interval_tree_node,struct interval_tree_node>> &races);
 
-static void interval_tree_overlap(struct rb_root *tree1, struct rb_root *tree2);
+extern void
+interval_tree_remove(struct interval_tree_node *node, struct rb_root *root);
 
 extern struct interval_tree_node *
 interval_tree_iter_first(struct rb_root *root,
@@ -60,7 +63,7 @@ extern struct interval_tree_node *
 interval_tree_iter_next(struct interval_tree_node *node,
 			unsigned long start, unsigned long last);
 
-extern void interval_tree_print(struct rb_root root);
+extern void interval_tree_print(struct rb_root *root);
 extern void print_dot_aux(struct interval_tree_node *node);
 extern void print_dot_null(int key, int nullcount);
 }
