@@ -85,11 +85,14 @@ void analyze_trees(rb_root *tree1, rb_root *tree2, boost::lockfree::queue<rb_roo
   if(tree1 && tree2) {
     interval_tree_overlap(rmtx, tree1, tree2, races);
     interval_tree_merge(tree1, tree2);
-
-    reduction.push(tree1);
-    trees_counts++;
-    reduction_steps--;
   }
+
+  if(!tree1)
+    reduction.push(tree2);
+  else
+    reduction.push(tree1);
+  trees_counts++;
+  reduction_steps--;
 }
 
 void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fob, uint64_t foe, rb_root *interval_tree_root, boost::lockfree::queue<rb_root*> &reduction) {
@@ -187,10 +190,10 @@ void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fo
 
     fclose(datafile);
 
+  }
     reduction.push(interval_tree_root);
     trees_counts++;
     reduction_steps++;
-  }
 }
 
 int main(int argc, char **argv) {
