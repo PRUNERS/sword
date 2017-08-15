@@ -191,9 +191,9 @@ void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fo
     fclose(datafile);
 
   }
-    reduction.push(interval_tree_root);
-    trees_counts++;
-    reduction_steps++;
+  reduction.push(interval_tree_root);
+  trees_counts++;
+  reduction_steps++;
 }
 
 int main(int argc, char **argv) {
