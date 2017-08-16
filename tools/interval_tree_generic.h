@@ -298,8 +298,8 @@ ITSTATIC void ITPREFIX ## _merge(struct rb_root *tree1, struct rb_root *tree2)\
           merged = true;                                                      \
           parent->start = parent->start < start ? parent->start : start;      \
           parent->last = parent->last < last ? last : parent->last;           \
-          if(parent->diff !=0)                                                \
-            parent->count = ((parent->last - parent->start) / parent->diff) + 1; \
+          if(parent->diff != 0)                                               \
+            parent->count = ((parent->last - parent->start) / parent->diff) + 1;\
           else                                                                \
             parent->count = 1;                                                \
           break;                                                              \
@@ -387,8 +387,8 @@ ITPREFIX ## _iter_next(ITSTRUCT *node, ITTYPE start, ITTYPE last)	      \
     if (node->rb.rb_left) {
         interval_tree_node *left = rb_entry(node->rb.rb_left, struct interval_tree_node, rb);
         std::cout << "    " << node->key << " -> " << left->key << ";" << std::endl;
-        std::cout << node->key << " [label=\"[" << node->start << "," << node->last << "]," << node->count << "\n" << TypeValue[(node->size_type & 0x0F)] << "," << (node->size_type >> 4)  << "," << node->pc << "\"]" << std::endl;
-        std::cout << left->key << " [label=\"[" << left->start << "," << left->last << "]," << left->count << "\n" << TypeValue[(left->size_type & 0x0F)] << "," << (left->size_type >> 4) << "," << left->pc << "\"]" << std::endl;
+        std::cout << node->key << " [label=\"[" << node->start << "," << node->last << "]," << node->count << "\n" << TypeValue[(node->size_type & 0x0F)] << "," << 1 << (node->size_type >> 4)  << "," << node->pc << "\"]" << std::endl;
+        std::cout << left->key << " [label=\"[" << left->start << "," << left->last << "]," << left->count << "\n" << TypeValue[(left->size_type & 0x0F)] << "," << 1 << (left->size_type >> 4) << "," << left->pc << "\"]" << std::endl;
         print_dot_aux(left);
       }
     else
