@@ -1,11 +1,10 @@
 #ifndef _LINUX_INTERVAL_TREE_H
 #define _LINUX_INTERVAL_TREE_H
 
-static const char * TypeValue[] = { "R", "W", "AR", "AW" };
-
+#include <cstdint>
+#include <glpk.h>
 #include <stdio.h>
 
-#include <cstdint>
 #include <iostream>
 #include <mutex>
 #include <set>
@@ -13,6 +12,8 @@ static const char * TypeValue[] = { "R", "W", "AR", "AW" };
 
 extern "C" {
 #include "rbtree.h"
+
+static const char * TypeValue[] = { "R", "W", "AR", "AW" };
 
 #define END(node) ((node)->start + ((node)->diff * ((node)->count - 1)))
 

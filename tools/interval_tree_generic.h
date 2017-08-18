@@ -259,9 +259,14 @@ ITSTATIC void ITPREFIX ## _overlap(std::mutex &mtx, struct rb_root *tree1,    \
       if(RACE(node,parent) && !overlapping) {                                 \
         if((start <= parent->last) &&                                         \
            (parent->start <= last)) {                                         \
-          mtx.lock();                                                         \
-          races.emplace_back(*node, *parent);                                 \
-          mtx.unlock();                                                       \
+          /* ILP Solution */                                                  \
+          bool has_solution = solve_ilp(node, parent);                        \
+          /* ILP Solution */                                                  \
+          if(has_solution) {                                                  \
+            mtx.lock();                                                       \
+            races.emplace_back(*node, *parent);                               \
+            mtx.unlock();                                                     \
+          }                                                                   \
         }                                                                     \
       }                                                                       \
                                                                               \
@@ -419,6 +424,72 @@ void interval_tree_print(struct rb_root *root) {
     print_dot_aux(parent);
 
   std::cout << "}" << std::endl;
+}
+
+/*
+model = Model("IntervalsOvelap")
+
+x1 = model.addVar(vtype=GRB.INTEGER, lb=0, ub=4, name="x1")
+x2 = model.addVar(vtype=GRB.INTEGER, lb=0, ub=4, name="x2")
+size1 = model.addVar(vtype=GRB.INTEGER, lb=0, ub=4, name="size1")
+size2 = model.addVar(vtype=GRB.INTEGER, lb=0, ub=3, name="size2")
+
+model.addConstr(8*x1 - 8*x2, GRB.EQUAL, 4 + size2 - size1, "c0")
+
+# Set optimization objective
+model.setObjective(x1 + x2, GRB.MINIMIZE)
+
+# Save problem
+model.write('intervals_overlap.lp')
+
+# Optimize
+model.optimize()
+*/
+
+bool solve_ilp(struct interval_tree_node *node1, struct interval_tree_node *node2) {
+  glp_prob *lp;
+  int ia[2], ja[5];
+  double ar[5], z, x1, x2, size1, size2;
+  /* create problem */
+  lp = glp_create_prob();
+  glp_set_prob_name(lp, "overlap");
+  glp_set_obj_dir(lp, GLP_MIN);
+  /* fill problem */
+  glp_add_rows(lp, 1);
+  glp_set_row_name(lp, 1, "c0");
+  glp_set_row_bnds(lp, 1, GLP_DB, 0, node1->start - node2->start);
+  glp_add_cols(lp, 4);
+  glp_set_col_name(lp, 1, "x1");
+  glp_set_col_bnds(lp, 1, GLP_DB, 0.0, node1->count);
+  glp_set_obj_coef(lp, 1, node1->diff);
+  glp_set_col_name(lp, 2, "x2");
+  glp_set_col_bnds(lp, 2, GLP_DB, 0.0, node1->count);
+  glp_set_obj_coef(lp, 2, node1->diff);
+  glp_set_col_name(lp, 3, "size1");
+  glp_set_col_bnds(lp, 3, GLP_DB, 0.0, node2->size);
+  glp_set_col_name(lp, 4, "size2");
+  glp_set_col_bnds(lp, 4, GLP_DB, 0.0, node2->size);
+  ia[1] = 1, ja[1] = 1, ar[1] = node1->diff;
+  ia[2] = 1, ja[2] = 2, ar[2] = -node2->diff;
+  ia[3] = 1, ja[3] = 3, ar[3] = 1;
+  ia[4] = 1, ja[4] = 4, ar[4] = -1;
+  glp_load_matrix(lp, 4, ia, ja, ar);
+  /* solve problem */
+  glp_simplex(lp, NULL);
+  /* recover and display results */
+  /* z = glp_get_obj_val(lp); */
+  x1 = glp_get_col_prim(lp, 1);
+  x2 = glp_get_col_prim(lp, 2);
+  size1 = glp_get_col_prim(lp, 3);
+  size2 = glp_get_col_prim(lp, 4);
+  printf("x1 = %g; x2 = %g, size1 = %g, size2 = %g\n", x1, x2, size1, size2);
+  /* housekeeping */
+  if(glp_write_prob(lp, 0, "ilp_problem.lp") == 0)
+    printf("Problem written!\n");
+  glp_delete_prob(lp);
+  glp_free_env();
+
+  return false;
 }
 
 }
