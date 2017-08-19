@@ -448,8 +448,10 @@ model.optimize()
 
 bool solve_ilp(struct interval_tree_node *node1, struct interval_tree_node *node2) {
   glp_prob *lp;
-  int ia[2], ja[5];
+  int ia[5], ja[5];
   double ar[5], z, x1, x2, size1, size2;
+  bool res = false;
+
   /* create problem */
   lp = glp_create_prob();
   glp_set_prob_name(lp, "overlap");
@@ -466,30 +468,34 @@ bool solve_ilp(struct interval_tree_node *node1, struct interval_tree_node *node
   glp_set_col_bnds(lp, 2, GLP_DB, 0.0, node1->count);
   glp_set_obj_coef(lp, 2, node1->diff);
   glp_set_col_name(lp, 3, "size1");
-  glp_set_col_bnds(lp, 3, GLP_DB, 0.0, node2->size);
+  glp_set_col_bnds(lp, 3, GLP_DB, 0.0, 1 << (node1->size_type >> 4));
   glp_set_col_name(lp, 4, "size2");
-  glp_set_col_bnds(lp, 4, GLP_DB, 0.0, node2->size);
+  glp_set_col_bnds(lp, 4, GLP_DB, 0.0, 1 << (node2->size_type >> 4));
   ia[1] = 1, ja[1] = 1, ar[1] = node1->diff;
   ia[2] = 1, ja[2] = 2, ar[2] = -node2->diff;
   ia[3] = 1, ja[3] = 3, ar[3] = 1;
   ia[4] = 1, ja[4] = 4, ar[4] = -1;
   glp_load_matrix(lp, 4, ia, ja, ar);
-  /* solve problem */
-  glp_simplex(lp, NULL);
-  /* recover and display results */
-  /* z = glp_get_obj_val(lp); */
-  x1 = glp_get_col_prim(lp, 1);
-  x2 = glp_get_col_prim(lp, 2);
-  size1 = glp_get_col_prim(lp, 3);
-  size2 = glp_get_col_prim(lp, 4);
-  printf("x1 = %g; x2 = %g, size1 = %g, size2 = %g\n", x1, x2, size1, size2);
-  /* housekeeping */
-  if(glp_write_prob(lp, 0, "ilp_problem.lp") == 0)
+  if(glp_write_lp(lp, 0, "ilp_problem.lp") == 0)
     printf("Problem written!\n");
+  /* solve problem */
+  int ret = glp_simplex(lp, NULL);
+  /* int ret = glp_exact(lp, NULL); */
+  if(ret == 0) {
+    /* recover and display results */
+    /* z = glp_get_obj_val(lp); */
+    x1 = glp_get_col_prim(lp, 1);
+    x2 = glp_get_col_prim(lp, 2);
+    size1 = glp_get_col_prim(lp, 3);
+    size2 = glp_get_col_prim(lp, 4);
+    printf("x1 = %g; x2 = %g, size1 = %g, size2 = %g\n", x1, x2, size1, size2);
+    res = true;
+  }
+  /* housekeeping */
   glp_delete_prob(lp);
   glp_free_env();
 
-  return false;
+  return res;
 }
 
 }
