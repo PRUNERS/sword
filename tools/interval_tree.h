@@ -41,6 +41,15 @@ struct interval_tree_node {
     pc = p;
     mutex.insert(mtx.begin(), mtx.end());
   }
+
+  void print() {
+    std::cout << "Start: " << start << std::endl
+              << "Last: " << last << std::endl
+              << "Diff: " << diff << std::endl
+              << "Count: " << count << std::endl
+              << "Size: " << (1 << (size_type >> 4)) << std::endl
+              << "PC: " << pc << std::endl;
+  }
 };
 
 extern void

@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <algorithm>
+#include <list>
 #include <map>
 #include <thread>
 
@@ -87,12 +88,14 @@ void analyze_trees(rb_root *tree1, rb_root *tree2, boost::lockfree::queue<rb_roo
     interval_tree_merge(tree1, tree2);
   }
 
-  if(!tree1)
-    reduction.push(tree2);
-  else
-    reduction.push(tree1);
-  trees_counts++;
-  reduction_steps--;
+  // rmtx.lock();
+  // if(!tree1)
+  //   reduction.push(tree2);
+  // else
+  //   reduction.push(tree1);
+  // rmtx.unlock();
+  // trees_counts++;
+  // reduction_steps--;
 }
 
 void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fob, uint64_t foe, rb_root *interval_tree_root, boost::lockfree::queue<rb_root*> &reduction) {
@@ -191,9 +194,9 @@ void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fo
     fclose(datafile);
 
   }
-  reduction.push(interval_tree_root);
-  trees_counts++;
-  reduction_steps++;
+  // reduction.push(interval_tree_root);
+  // trees_counts++;
+  // reduction_steps++;
 }
 
 int main(int argc, char **argv) {
@@ -289,9 +292,6 @@ int main(int argc, char **argv) {
   std::string dir = traces_data.string();
   std::map<unsigned, TraceInfo> traces;
 
-  std::unordered_map<unsigned, std::set<unsigned>> creators_threads;
-  std::unordered_map<unsigned, std::set<unsigned>> schedule_threads;
-
   hash_races.clear();
   races.clear();
 
@@ -321,44 +321,14 @@ int main(int argc, char **argv) {
       }
     }
 
-    reduction_steps = 0;
-    trees_counts = 0;
-
     // Struct to load uncompressed data from file
     std::vector<std::thread> lm_thread;
     // lm_thread.reserve(traces.size());
-    std::vector<rb_root *> interval_trees;
+    std::list<rb_root *> interval_trees;
     boost::lockfree::queue<rb_root*> reduction(traces.size() * 2);
-    interval_trees.resize(traces.size());
-    for (std::map<unsigned, TraceInfo>::iterator th = traces.begin(); th != traces.end(); ++th) {
-      interval_trees[th->first] = new rb_root();
-      lm_thread.push_back(std::thread(load_and_convert_file, dir, th->first, th->second.file_offset_begin, th->second.file_offset_end, interval_trees[th->first], std::ref(reduction)));
-    }
-
-    if(print) {
-      std::ofstream out0("thread0.dot");
-      std::streambuf *coutbuf0 = std::cout.rdbuf(); //save old buf
-      std::cout.rdbuf(out0.rdbuf());
-      interval_tree_print(interval_trees[0]);
-      std::cout.rdbuf(coutbuf0);
-      std::ofstream out1("thread1.dot");
-      std::streambuf *coutbuf1 = std::cout.rdbuf(); //save old buf
-      std::cout.rdbuf(out1.rdbuf());
-      interval_tree_print(interval_trees[1]);
-      std::cout.rdbuf(coutbuf1);
-    }
-
-    std::vector<std::pair<interval_tree_node,interval_tree_node>> rep_races;
-    while(reduction_steps != 1) {
-      while(reduction.empty()) { usleep(500000); }
-      if(trees_counts >= 2) {
-        rb_root *tree1;
-        reduction.pop(tree1);
-        rb_root *tree2;
-        reduction.pop(tree2);
-        trees_counts -= 2;
-        lm_thread.push_back(std::thread(analyze_trees, tree1, tree2, std::ref(reduction), std::ref(rep_races)));
-      }
+    for(std::map<unsigned, TraceInfo>::iterator th = traces.begin(); th != traces.end(); ++th) {
+      interval_trees.push_back(new rb_root());
+      lm_thread.push_back(std::thread(load_and_convert_file, dir, th->first, th->second.file_offset_begin, th->second.file_offset_end, interval_trees.back(), std::ref(reduction)));
     }
     for(int k = 0; k < lm_thread.size(); k++) {
       lm_thread[k].join();
@@ -366,10 +336,47 @@ int main(int argc, char **argv) {
     lm_thread.clear();
 
     if(print) {
+      std::ofstream out0("thread0.dot");
+      std::streambuf *coutbuf0 = std::cout.rdbuf(); //save old buf
+      std::cout.rdbuf(out0.rdbuf());
+      interval_tree_print(interval_trees.front());
+      std::cout.rdbuf(coutbuf0);
+      std::list<rb_root *>::iterator it = interval_trees.begin();
+      std::advance(it, 1);
+      std::ofstream out1("thread1.dot");
+      std::streambuf *coutbuf1 = std::cout.rdbuf(); //save old buf
+      std::cout.rdbuf(out1.rdbuf());
+      interval_tree_print(*it);
+      std::cout.rdbuf(coutbuf1);
+    }
+
+    std::vector<std::pair<interval_tree_node,interval_tree_node>> rep_races;
+    std::list<rb_root *>::iterator it;
+    std::list<rb_root *>::iterator del;
+    while(interval_trees.size() > 1) {
+      int lst_size = interval_trees.size();
+      it = interval_trees.begin();
+      while(lst_size != 1 && it != interval_trees.end()) {
+        rb_root *tree1 = *it;
+        std::advance(it, 1);
+        rb_root *tree2 = *it;
+        del = it;
+        std::advance(it, 1);
+        interval_trees.erase(del);
+        lst_size -= 2;
+        lm_thread.push_back(std::thread(analyze_trees, tree1, tree2, std::ref(reduction), std::ref(rep_races)));
+      }
+      for(int k = 0; k < lm_thread.size(); k++) {
+        lm_thread[k].join();
+      }
+      lm_thread.clear();
+    }
+
+    if(print) {
       std::ofstream out("thread.dot");
       std::streambuf *coutbuf = std::cout.rdbuf(); //save old buf
       std::cout.rdbuf(out.rdbuf());
-      interval_tree_print(interval_trees[0]);
+      interval_tree_print(interval_trees.front());
       std::cout.rdbuf(coutbuf);
     }
 
@@ -391,5 +398,5 @@ int main(int argc, char **argv) {
     INFO(std::cout, "Folder '" << dir << "' does not exists or it's empty. Exiting...");
   }
 
-  return 0;
+  exit(0);
 }

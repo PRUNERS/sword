@@ -259,10 +259,14 @@ ITSTATIC void ITPREFIX ## _overlap(std::mutex &mtx, struct rb_root *tree1,    \
       if(RACE(node,parent) && !overlapping) {                                 \
         if((start <= parent->last) &&                                         \
            (parent->start <= last)) {                                         \
-          /* ILP Solution */                                                  \
-          bool has_solution = solve_ilp(node, parent);                        \
-          /* ILP Solution */                                                  \
-          if(has_solution) {                                                  \
+          bool has_overlapping = (parent->count == 1) && (node->count == 1);  \
+          if(!has_overlapping) {                                              \
+            if(parent->start > start)                                         \
+              has_overlapping = solve_mip(parent, node);                      \
+            else                                                              \
+              has_overlapping = solve_mip(node, parent);                      \
+          }                                                                   \
+          if(has_overlapping) {                                               \
             mtx.lock();                                                       \
             races.emplace_back(*node, *parent);                               \
             mtx.unlock();                                                     \
@@ -286,7 +290,7 @@ ITSTATIC void ITPREFIX ## _merge(struct rb_root *tree1, struct rb_root *tree2)\
   ITSTRUCT *parent;                                                           \
   struct rb_node *node2;                                                      \
                                                                               \
-  for (node2 = rb_first(tree2); node2; node2 = rb_next(node2)) {              \
+  for (node2 = rb_last(tree2); node2; node2 = rb_prev(node2)) {               \
     ITSTRUCT *node = rb_entry(node2, ITSTRUCT, ITRB);                         \
     ITTYPE start = node->start, last = node->last;                            \
     bool merged = false;                                                      \
@@ -300,14 +304,32 @@ ITSTATIC void ITPREFIX ## _merge(struct rb_root *tree1, struct rb_root *tree2)\
          (node->pc == parent->pc) && (node->mutex == parent->mutex) &&        \
          (node->diff == parent->diff)) {                                      \
         if(!((node->count == parent->count) && parent->count == 1)) {         \
-          merged = true;                                                      \
-          parent->start = parent->start < start ? parent->start : start;      \
-          parent->last = parent->last < last ? last : parent->last;           \
-          if(parent->diff != 0)                                               \
-            parent->count = ((parent->last - parent->start) / parent->diff) + 1;\
-          else                                                                \
-            parent->count = 1;                                                \
-          break;                                                              \
+          if(parent->start - last == parent->diff) {                          \
+            merged = true;                                                    \
+            parent->start = start;                                            \
+            if(parent->diff != 0)                                             \
+              parent->count = ((parent->last - parent->start) / parent->diff) + 1; \
+            else                                                              \
+              parent->count = 1;                                              \
+            break;                                                            \
+          } else if(start - parent->last == parent->diff) {                   \
+            merged = true;                                                    \
+            parent->last = last;                                              \
+            if(parent->diff != 0)                                             \
+              parent->count = ((parent->last - parent->start) / parent->diff) + 1; \
+            else                                                              \
+              parent->count = 1;                                              \
+            break;                                                            \
+          } else if((start <= parent->last) && (parent->start <= last)) {     \
+            merged = true;                                                    \
+            parent->start = parent->start < start ? parent->start : start;    \
+            parent->last = parent->last < last ? last : parent->last;         \
+            if(parent->diff != 0)                                             \
+              parent->count = ((parent->last - parent->start) / parent->diff) + 1; \
+            else                                                              \
+              parent->count = 1;                                              \
+            break;                                                            \
+          }                                                                   \
         }                                                                     \
       }                                                                       \
                                                                               \
@@ -326,6 +348,8 @@ ITSTATIC void ITPREFIX ## _merge(struct rb_root *tree1, struct rb_root *tree2)\
       rb_link_node(&new_node->ITRB, rb_parent, link);                         \
       rb_insert_augmented(&new_node->ITRB, tree1, &ITPREFIX ## _augment);     \
     }                                                                         \
+    /*rb_erase(node2, tree2);                                           \
+      free(node);*/                                                     \
   }                                                                           \
 }			      				                      \
                                                                               \
@@ -446,54 +470,69 @@ model.write('intervals_overlap.lp')
 model.optimize()
 */
 
-bool solve_ilp(struct interval_tree_node *node1, struct interval_tree_node *node2) {
-  glp_prob *lp;
-  int ia[5], ja[5];
-  double ar[5], z, x1, x2, size1, size2;
+bool solve_mip(struct interval_tree_node *node1, struct interval_tree_node *node2) {
+  glp_prob *mip;
+  int ia[1+4], ja[1+4];
+  double ar[1+4], z, x1, x2, size1, size2;
   bool res = false;
 
+  /* node1->print(); */
+  /* node2->print(); */
+
   /* create problem */
-  lp = glp_create_prob();
-  glp_set_prob_name(lp, "overlap");
-  glp_set_obj_dir(lp, GLP_MIN);
+  mip = glp_create_prob();
+  glp_set_prob_name(mip, "overlap");
+  glp_set_obj_dir(mip, GLP_MIN);
   /* fill problem */
-  glp_add_rows(lp, 1);
-  glp_set_row_name(lp, 1, "c0");
-  glp_set_row_bnds(lp, 1, GLP_DB, 0, node1->start - node2->start);
-  glp_add_cols(lp, 4);
-  glp_set_col_name(lp, 1, "x1");
-  glp_set_col_bnds(lp, 1, GLP_DB, 0.0, node1->count);
-  glp_set_obj_coef(lp, 1, node1->diff);
-  glp_set_col_name(lp, 2, "x2");
-  glp_set_col_bnds(lp, 2, GLP_DB, 0.0, node1->count);
-  glp_set_obj_coef(lp, 2, node1->diff);
-  glp_set_col_name(lp, 3, "size1");
-  glp_set_col_bnds(lp, 3, GLP_DB, 0.0, 1 << (node1->size_type >> 4));
-  glp_set_col_name(lp, 4, "size2");
-  glp_set_col_bnds(lp, 4, GLP_DB, 0.0, 1 << (node2->size_type >> 4));
+  glp_add_rows(mip, 1);
+  glp_set_row_name(mip, 1, "c0");
+  long int diff = node1->start - node2->start;
+  glp_set_row_bnds(mip, 1, GLP_FX, -1 * diff, -1 * diff);
+  glp_add_cols(mip, 4);
+  glp_set_col_name(mip, 1, "x1");
+  glp_set_col_bnds(mip, 1, GLP_DB, 0.0, node1->count);
+  glp_set_obj_coef(mip, 1, node1->diff);
+  glp_set_col_kind(mip, 1, GLP_IV);
+  glp_set_col_name(mip, 2, "x2");
+  glp_set_col_bnds(mip, 2, GLP_DB, 0.0, node2->count);
+  glp_set_obj_coef(mip, 2, node2->diff);
+  glp_set_col_kind(mip, 2, GLP_IV);
+  glp_set_col_name(mip, 3, "size1");
+  glp_set_col_bnds(mip, 3, GLP_DB, 0.0, (1 << (node1->size_type >> 4)) - 1);
+  glp_set_col_kind(mip, 3, GLP_IV);
+  glp_set_col_name(mip, 4, "size2");
+  glp_set_col_bnds(mip, 4, GLP_DB, 0.0, (1 << (node2->size_type >> 4)) - 1);
+  glp_set_col_kind(mip, 4, GLP_IV);
   ia[1] = 1, ja[1] = 1, ar[1] = node1->diff;
-  ia[2] = 1, ja[2] = 2, ar[2] = -node2->diff;
-  ia[3] = 1, ja[3] = 3, ar[3] = 1;
-  ia[4] = 1, ja[4] = 4, ar[4] = -1;
-  glp_load_matrix(lp, 4, ia, ja, ar);
-  if(glp_write_lp(lp, 0, "ilp_problem.lp") == 0)
-    printf("Problem written!\n");
+  ia[2] = 1, ja[2] = 2, ar[2] = node2->diff; ar[2] *= -1;
+  ia[3] = 1, ja[3] = 3, ar[3] = 1.0;
+  ia[4] = 1, ja[4] = 4, ar[4] = -1.0;
+  glp_load_matrix(mip, 4, ia, ja, ar);
+  std::string filename = "ilp_problem" + std::to_string(rand()) + ".lp";
+  /* if(glp_write_lp(mip, 0, filename.c_str()) == 0) */
+  /*   printf("Problem written!\n"); */
   /* solve problem */
-  int ret = glp_simplex(lp, NULL);
-  /* int ret = glp_exact(lp, NULL); */
-  if(ret == 0) {
+  /* int ret = glp_simplex(mip, NULL); */
+  glp_iocp parm;
+  glp_init_iocp(&parm);
+  parm.presolve = GLP_ON;
+  glp_term_out(GLP_OFF);
+  glp_intopt(mip, &parm);
+  int ret = glp_mip_status(mip);
+  /* int ret = 0; */
+  if(ret != GLP_NOFEAS) {
     /* recover and display results */
-    /* z = glp_get_obj_val(lp); */
-    x1 = glp_get_col_prim(lp, 1);
-    x2 = glp_get_col_prim(lp, 2);
-    size1 = glp_get_col_prim(lp, 3);
-    size2 = glp_get_col_prim(lp, 4);
-    printf("x1 = %g; x2 = %g, size1 = %g, size2 = %g\n", x1, x2, size1, size2);
+    /* z = glp_get_obj_val(mip); */
+    /* x1 = glp_get_col_prim(mip, 1); */
+    /* x2 = glp_get_col_prim(mip, 2); */
+    /* size1 = glp_get_col_prim(mip, 3); */
+    /* size2 = glp_get_col_prim(mip, 4); */
+    /* printf("x1 = %g; x2 = %g, size1 = %g, size2 = %g\n", x1, x2, size1, size2); */
     res = true;
   }
   /* housekeeping */
-  glp_delete_prob(lp);
-  glp_free_env();
+  /* glp_delete_prob(mip); */
+  /* glp_free_env(); */
 
   return res;
 }

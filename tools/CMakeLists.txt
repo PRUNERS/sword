@@ -10,7 +10,7 @@ add_executable(sword-print-report sword-print-report.cc)
 # target_link_libraries(sword-race-analysis ${CMAKE_CURRENT_BINARY_DIR}/libintervaltree.a ${CMAKE_CURRENT_BINARY_DIR}/librbtree.a)
 target_link_libraries(sword-race-analysis ${CMAKE_CURRENT_BINARY_DIR}/librbtree.a)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -O0 -stdlib=libstdc++")
-set_target_properties(sword-race-analysis sword-print-report PROPERTIES LINK_FLAGS "-lboost_system -lboost_filesystem -pthread -lglpk")
+set_target_properties(sword-race-analysis sword-print-report PROPERTIES LINK_FLAGS "-lboost_system -lboost_filesystem -pthread -lglpk -lgmp")
 
 configure_file(clang-sword.in clang-sword)
 configure_file(clang-sword++.in clang-sword++)

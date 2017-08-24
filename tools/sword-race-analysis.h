@@ -23,7 +23,5 @@ public:
 };
 
 boost::filesystem::path traces_data;
-boost::atomic<unsigned> reduction_steps;
-boost::atomic<unsigned> trees_counts;
 
 #endif // SWORD_RACE_ANALYSIS_H
