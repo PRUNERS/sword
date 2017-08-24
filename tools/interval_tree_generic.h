@@ -290,7 +290,7 @@ ITSTATIC void ITPREFIX ## _merge(struct rb_root *tree1, struct rb_root *tree2)\
   ITSTRUCT *parent;                                                           \
   struct rb_node *node2;                                                      \
                                                                               \
-  for (node2 = rb_last(tree2); node2; node2 = rb_prev(node2)) {               \
+  for (node2 = rb_last(tree2); node2;) {                                      \
     ITSTRUCT *node = rb_entry(node2, ITSTRUCT, ITRB);                         \
     ITTYPE start = node->start, last = node->last;                            \
     bool merged = false;                                                      \
@@ -348,8 +348,9 @@ ITSTATIC void ITPREFIX ## _merge(struct rb_root *tree1, struct rb_root *tree2)\
       rb_link_node(&new_node->ITRB, rb_parent, link);                         \
       rb_insert_augmented(&new_node->ITRB, tree1, &ITPREFIX ## _augment);     \
     }                                                                         \
-    /*rb_erase(node2, tree2);                                           \
-      free(node);*/                                                     \
+    node2 = rb_prev(node2);                                                   \
+    rb_erase(&node->ITRB, tree2);                                             \
+    free(node);                                                               \
   }                                                                           \
 }			      				                      \
                                                                               \
