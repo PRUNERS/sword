@@ -28,6 +28,8 @@
 extern "C" {
 #include "rbtree_augmented.h"
 
+std::mutex mipmtx;
+
 /*
  * Template for implementing interval trees
  *
@@ -261,10 +263,11 @@ ITSTATIC void ITPREFIX ## _overlap(std::mutex &mtx, struct rb_root *tree1,    \
            (parent->start <= last)) {                                         \
           bool has_overlapping = (parent->count == 1) && (node->count == 1);  \
           if(!has_overlapping) {                                              \
-            if(parent->start > start)                                         \
+            if(parent->start > start) {                                       \
               has_overlapping = solve_mip(parent, node);                      \
-            else                                                              \
+            } else {                                                          \
               has_overlapping = solve_mip(node, parent);                      \
+            }                                                                 \
           }                                                                   \
           if(has_overlapping) {                                               \
             mtx.lock();                                                       \
@@ -330,6 +333,9 @@ ITSTATIC void ITPREFIX ## _merge(struct rb_root *tree1, struct rb_root *tree2)\
               parent->count = 1;                                              \
             break;                                                            \
           }                                                                   \
+        } else if(parent->start == start) {                                   \
+          merged = true;                                                      \
+          break;                                                              \
         }                                                                     \
       }                                                                       \
                                                                               \
@@ -532,8 +538,8 @@ bool solve_mip(struct interval_tree_node *node1, struct interval_tree_node *node
     res = true;
   }
   /* housekeeping */
-  /* glp_delete_prob(mip); */
-  /* glp_free_env(); */
+  glp_delete_prob(mip);
+  glp_free_env();
 
   return res;
 }

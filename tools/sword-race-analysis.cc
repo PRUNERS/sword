@@ -81,24 +81,16 @@ unsigned long long getTotalSystemMemory()
   return pages * page_size;
 }
 
-void analyze_trees(rb_root *tree1, rb_root *tree2, boost::lockfree::queue<rb_root*> &reduction,
+void analyze_trees(bool last, rb_root *tree1, rb_root *tree2,
      std::vector<std::pair<interval_tree_node,interval_tree_node>> &races) {
   if(tree1 && tree2) {
     interval_tree_overlap(rmtx, tree1, tree2, races);
-    interval_tree_merge(tree1, tree2);
+    if(!last)
+      interval_tree_merge(tree1, tree2);
   }
-
-  // rmtx.lock();
-  // if(!tree1)
-  //   reduction.push(tree2);
-  // else
-  //   reduction.push(tree1);
-  // rmtx.unlock();
-  // trees_counts++;
-  // reduction_steps--;
 }
 
-void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fob, uint64_t foe, rb_root *interval_tree_root, boost::lockfree::queue<rb_root*> &reduction) {
+void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fob, uint64_t foe, rb_root *interval_tree_root) {
   std::string filename(path.string() + "/datafile_" + std::to_string(t));
   uint64_t filesize = foe - fob;
   uint64_t out_len;
@@ -194,9 +186,6 @@ void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fo
     fclose(datafile);
 
   }
-  // reduction.push(interval_tree_root);
-  // trees_counts++;
-  // reduction_steps++;
 }
 
 int main(int argc, char **argv) {
@@ -325,10 +314,9 @@ int main(int argc, char **argv) {
     std::vector<std::thread> lm_thread;
     // lm_thread.reserve(traces.size());
     std::list<rb_root *> interval_trees;
-    boost::lockfree::queue<rb_root*> reduction(traces.size() * 2);
     for(std::map<unsigned, TraceInfo>::iterator th = traces.begin(); th != traces.end(); ++th) {
       interval_trees.push_back(new rb_root());
-      lm_thread.push_back(std::thread(load_and_convert_file, dir, th->first, th->second.file_offset_begin, th->second.file_offset_end, interval_trees.back(), std::ref(reduction)));
+      lm_thread.push_back(std::thread(load_and_convert_file, dir, th->first, th->second.file_offset_begin, th->second.file_offset_end, interval_trees.back()));
     }
     for(int k = 0; k < lm_thread.size(); k++) {
       lm_thread[k].join();
@@ -353,10 +341,12 @@ int main(int argc, char **argv) {
     std::vector<std::pair<interval_tree_node,interval_tree_node>> rep_races;
     std::list<rb_root *>::iterator it;
     std::list<rb_root *>::iterator del;
+    bool last;
     while(interval_trees.size() > 1) {
       int lst_size = interval_trees.size();
       it = interval_trees.begin();
       while(lst_size != 1 && it != interval_trees.end()) {
+        last = (interval_trees.size() == 2);
         rb_root *tree1 = *it;
         std::advance(it, 1);
         rb_root *tree2 = *it;
@@ -364,7 +354,10 @@ int main(int argc, char **argv) {
         std::advance(it, 1);
         interval_trees.erase(del);
         lst_size -= 2;
-        lm_thread.push_back(std::thread(analyze_trees, tree1, tree2, std::ref(reduction), std::ref(rep_races)));
+        // INFO(std::cout, "Size: " << interval_trees.size());
+        // INFO(std::cout, "Tree1: " << tree1 << " - Tree2: " << tree2);
+        lm_thread.push_back(std::thread(analyze_trees, last, tree1, tree2, std::ref(rep_races)));
+        // analyze_trees(tree1, tree2, std::ref(rep_races));
       }
       for(int k = 0; k < lm_thread.size(); k++) {
         lm_thread[k].join();

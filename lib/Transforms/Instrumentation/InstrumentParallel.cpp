@@ -45,6 +45,37 @@
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
+#include <cxxabi.h>
+
+// Set of namespace to ignore
+std::set<std::string> namespace_set = { "std::", "__gnu_cxx::" };
+
+inline std::string demangle(const char* name)
+{
+  int status = -1;
+
+  std::unique_ptr<char, void(*)(void*)> res { abi::__cxa_demangle(name, NULL, NULL, &status), std::free };
+  return (status == 0) ? res.get() : std::string(name);
+}
+
+inline bool isThirdParty(const char* name) {
+  std::string str = demangle(name);
+
+  for(std::set<std::string>::iterator it = namespace_set.begin();
+      it != namespace_set.end(); ++it) {
+
+    std::string::size_type pos = str.find('(');
+    std::string sstr;
+    if(pos != std::string::npos) {
+       sstr = str.substr(0, pos);
+    }
+    if((str.compare(0, it->length(), *it) == 0) ||
+       (sstr.find(*it) != std::string::npos))
+      return true;
+  }
+  return false;
+}
+
 using namespace llvm;
 
 #define DEBUG_TYPE "sword"
@@ -545,7 +576,7 @@ void InstrumentParallel::setMetadata(Instruction *Inst, const char *name, const 
 
 bool InstrumentParallel::runOnFunction(Function &F) {
   if (&F == SwordCtorFunction)
-  	return false;
+    return false;
   Function *IF;
   llvm::GlobalVariable *ompStatusGlobal = NULL;
   // llvm::GlobalVariable *ompOutLZO = NULL;
@@ -566,6 +597,19 @@ bool InstrumentParallel::runOnFunction(Function &F) {
 
   Module *M = F.getParent();
   StringRef functionName = F.getName();
+
+  if(isThirdParty(functionName.str().c_str()))
+    return false;
+
+  if(functionName.endswith("_dtor") ||
+     functionName.endswith("__sword__") ||
+     functionName.endswith("__clang_call_terminate") ||
+     functionName.endswith("__tsan_default_suppressions") ||
+     functionName.endswith("__sword__get_omp_status") ||
+     functionName.startswith(".omp.reduction.reduction_func") ||
+     (F.getLinkage() == llvm::GlobalValue::AvailableExternallyLinkage)) {
+    return false;
+  }
 
   ConstantInt *Zero8 = ConstantInt::get(Type::getInt8Ty(M->getContext()), 0);
   ConstantInt *Zero32 = ConstantInt::get(Type::getInt32Ty(M->getContext()), 0);
@@ -609,16 +653,6 @@ bool InstrumentParallel::runOnFunction(Function &F) {
     // TLS_DECLARE(ompWrkmem, llvm::Type::getInt64PtrTy(M->getContext()), "wrkmem"); // wrkmem *
 
     return true;
-  }
-
-  if(functionName.endswith("_dtor") ||
-     functionName.endswith("__sword__") ||
-     functionName.endswith("__clang_call_terminate") ||
-     functionName.endswith("__tsan_default_suppressions") ||
-	 functionName.endswith("__sword__get_omp_status") ||
-	 functionName.startswith(".omp.reduction.reduction_func") ||
-     (F.getLinkage() == llvm::GlobalValue::AvailableExternallyLinkage)) {
-    return false;
   }
 
   IRBuilder<> IRB(M->getContext());
