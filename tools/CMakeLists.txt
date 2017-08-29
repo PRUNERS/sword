@@ -1,6 +1,8 @@
 add_definitions(-D_FILE_OFFSET_BITS=64)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -O3 -stdlib=libstdc++")
+
 set(RBTREE_SOURCES interval_tree.cc rbtree.c)
 add_library(rbtree STATIC ${RBTREE_SOURCES})
 # add_library(rbtree STATIC rbtree.c)
@@ -9,7 +11,6 @@ add_executable(sword-race-analysis sword-race-analysis.cc ${SRCS})
 add_executable(sword-print-report sword-print-report.cc)
 # target_link_libraries(sword-race-analysis ${CMAKE_CURRENT_BINARY_DIR}/libintervaltree.a ${CMAKE_CURRENT_BINARY_DIR}/librbtree.a)
 target_link_libraries(sword-race-analysis ${CMAKE_CURRENT_BINARY_DIR}/librbtree.a)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -O0 -stdlib=libstdc++")
 set_target_properties(sword-race-analysis sword-print-report PROPERTIES LINK_FLAGS "-lboost_system -lboost_filesystem -pthread -lglpk -lgmp")
 
 configure_file(clang-sword.in clang-sword)
