@@ -264,9 +264,13 @@ ITSTATIC void ITPREFIX ## _overlap(std::mutex &mtx, struct rb_root *tree1,    \
           bool has_overlapping = (parent->count == 1) && (node->count == 1);  \
           if(!has_overlapping) {                                              \
             if(parent->start > start) {                                       \
+              /* mipmtx.lock(); */                                            \
               has_overlapping = solve_mip(parent, node);                      \
+              /* mipmtx.unlock(); */                                          \
             } else {                                                          \
+              /* mipmtx.lock(); */                                            \
               has_overlapping = solve_mip(node, parent);                      \
+              /* mipmtx.unlock(); */                                          \
             }                                                                 \
           }                                                                   \
           if(has_overlapping) {                                               \
@@ -526,17 +530,8 @@ bool solve_mip(struct interval_tree_node *node1, struct interval_tree_node *node
   glp_term_out(GLP_OFF);
   glp_intopt(mip, &parm);
   int ret = glp_mip_status(mip);
-  /* int ret = 0; */
-  if(ret != GLP_NOFEAS) {
-    /* recover and display results */
-    /* z = glp_get_obj_val(mip); */
-    /* x1 = glp_get_col_prim(mip, 1); */
-    /* x2 = glp_get_col_prim(mip, 2); */
-    /* size1 = glp_get_col_prim(mip, 3); */
-    /* size2 = glp_get_col_prim(mip, 4); */
-    /* printf("x1 = %g; x2 = %g, size1 = %g, size2 = %g\n", x1, x2, size1, size2); */
+  if(ret != GLP_NOFEAS)
     res = true;
-  }
   /* housekeeping */
   glp_delete_prob(mip);
   glp_free_env();
