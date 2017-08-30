@@ -22,6 +22,7 @@
 #include <stdbool.h>
 
 #include <algorithm>
+#include <glpk.h>
 #include <mutex>
 #include <set>
 
@@ -264,13 +265,9 @@ ITSTATIC void ITPREFIX ## _overlap(std::mutex &mtx, struct rb_root *tree1,    \
           bool has_overlapping = (parent->count == 1) && (node->count == 1);  \
           if(!has_overlapping) {                                              \
             if(parent->start > start) {                                       \
-              /* mipmtx.lock(); */                                            \
               has_overlapping = solve_mip(parent, node);                      \
-              /* mipmtx.unlock(); */                                          \
             } else {                                                          \
-              /* mipmtx.lock(); */                                            \
               has_overlapping = solve_mip(node, parent);                      \
-              /* mipmtx.unlock(); */                                          \
             }                                                                 \
           }                                                                   \
           if(has_overlapping) {                                               \
@@ -487,12 +484,8 @@ bool solve_mip(struct interval_tree_node *node1, struct interval_tree_node *node
   double ar[1+4], z, x1, x2, size1, size2;
   bool res = false;
 
-  /* node1->print(); */
-  /* node2->print(); */
-
   /* create problem */
   mip = glp_create_prob();
-  glp_set_prob_name(mip, "overlap");
   glp_set_obj_dir(mip, GLP_MIN);
   /* fill problem */
   glp_add_rows(mip, 1);
@@ -519,11 +512,12 @@ bool solve_mip(struct interval_tree_node *node1, struct interval_tree_node *node
   ia[3] = 1, ja[3] = 3, ar[3] = 1.0;
   ia[4] = 1, ja[4] = 4, ar[4] = -1.0;
   glp_load_matrix(mip, 4, ia, ja, ar);
-  std::string filename = "ilp_problem" + std::to_string(rand()) + ".lp";
+
+  /* std::string filename = "ilp_problem" + std::to_string(rand()) + ".lp"; */
   /* if(glp_write_lp(mip, 0, filename.c_str()) == 0) */
   /*   printf("Problem written!\n"); */
+
   /* solve problem */
-  /* int ret = glp_simplex(mip, NULL); */
   glp_iocp parm;
   glp_init_iocp(&parm);
   parm.presolve = GLP_ON;
@@ -532,6 +526,7 @@ bool solve_mip(struct interval_tree_node *node1, struct interval_tree_node *node
   int ret = glp_mip_status(mip);
   if(ret != GLP_NOFEAS)
     res = true;
+
   /* housekeeping */
   glp_delete_prob(mip);
   glp_free_env();

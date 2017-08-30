@@ -195,6 +195,13 @@ int main(int argc, char **argv) {
   if(argc < 7)
     INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --traces-path <path-to-traces-folder> --report-path <path-to-report-folder>\n\n");
 
+  if (!glp_config("TLS")) {
+    printf("The loaded GLPK library does not support thread local memory.\n"
+           "You need a version of the library configured with "
+           "--enable-reentrant=yes to run this program.\n");
+    exit(EXIT_FAILURE);
+  }
+
   for(int i = 1; i < argc; ++i) {
     if (std::string(argv[i]) == "--help") {
       INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --traces-path <path-to-traces-folder> --report-path <path-to-report-folder>\n\n");

@@ -25,10 +25,6 @@ endif()
 
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR})
 
-find_package(Boost 1.58 COMPONENTS REQUIRED)
-INCLUDE_DIRECTORIES(${BOOST_INCLUDE_DIR})
-LINK_DIRECTORIES(${BOOST_LIBRARY_DIRS})
-
 # Add cmake directory to search for custom cmake functions
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
@@ -89,6 +85,18 @@ endif()
 
 # These include files are in the cmake/ subdirectory
 include(LibswordUtils)
+
+find_package(Boost 1.58.0 COMPONENTS system filesystem REQUIRED)
+if(Boost_FOUND)
+  include_directories(${Boost_INCLUDE_DIR})
+  link_directories(${Boost_LIBRARY_DIRS})
+endif()
+
+find_package(GLPK 1.63 REQUIRED)
+if(Boost_FOUND)
+  include_directories(${GLPK_INCLUDE_DIRS})
+  link_directories(${GLPK_LIBRARIES})
+endif()
 
 find_package(Omp)
 include_directories(${OMP_INCLUDE_PATH})
