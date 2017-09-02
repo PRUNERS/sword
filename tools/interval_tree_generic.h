@@ -25,6 +25,7 @@
 #include <glpk.h>
 #include <mutex>
 #include <set>
+#include <sstream>
 
 extern "C" {
 #include "rbtree_augmented.h"
@@ -100,7 +101,7 @@ RB_DECLARE_CALLBACKS(static, ITPREFIX ## _augment, ITSTRUCT, ITRB,	      \
 									      \
 /* Insert / remove interval nodes from the tree */			      \
 									      \
-ITSTATIC void ITPREFIX ## _insert_data(ITSTRUCT node, struct rb_root *root)   \
+ITSTATIC void ITPREFIX ## _insert_data(ITSTRUCT node, struct rb_root *root, int t) \
 {									      \
         struct rb_node **link = &root->rb_node, *rb_parent = NULL;            \
 	ITTYPE start = node.start, last = node.last, end = 0;                 \
@@ -131,7 +132,7 @@ ITSTATIC void ITPREFIX ## _insert_data(ITSTRUCT node, struct rb_root *root)   \
                     size_t diff = node.start - parent->start;                 \
                     if(diff != 0 && diff < 64) {                              \
                       end = END(parent);                                      \
-                      parent->diff = node.start - parent->start;              \
+                      parent->diff = diff;                                    \
                       if(node.start == (end + diff)) {                        \
                         parent->count++;                                      \
                         parent->last = END(parent);                           \
@@ -240,8 +241,10 @@ ITPREFIX ## _subtree_search(ITSTRUCT *node, ITTYPE start, ITTYPE last)	      \
 	}								      \
 }									      \
 									      \
-ITSTATIC void ITPREFIX ## _overlap(std::mutex &mtx, struct rb_root *tree1,    \
- struct rb_root *tree2, std::vector<std::pair<ITSTRUCT,ITSTRUCT>> &races)     \
+ITSTATIC void ITPREFIX ## _overlap(std::mutex &mtx,                           \
+  unsigned t1, struct rb_root *tree1,                                         \
+  unsigned t2, struct rb_root *tree2,                                         \
+  std::vector<std::pair<ITSTRUCT,ITSTRUCT>> &races)                           \
 {									      \
   struct rb_node **link, *rb_parent;                                          \
   ITSTRUCT *parent;                                                           \
@@ -264,10 +267,10 @@ ITSTATIC void ITPREFIX ## _overlap(std::mutex &mtx, struct rb_root *tree1,    \
            (parent->start <= last)) {                                         \
           bool has_overlapping = (parent->count == 1) && (node->count == 1);  \
           if(!has_overlapping) {                                              \
-            if(parent->start > start) {                                       \
-              has_overlapping = solve_mip(parent, node);                      \
+            if(parent->start >= start) {                                      \
+              has_overlapping = solve_mip(t1, parent, t2, node);              \
             } else {                                                          \
-              has_overlapping = solve_mip(node, parent);                      \
+              has_overlapping = solve_mip(t1, node, t2, parent);              \
             }                                                                 \
           }                                                                   \
           if(has_overlapping) {                                               \
@@ -412,50 +415,52 @@ ITPREFIX ## _iter_next(ITSTRUCT *node, ITTYPE start, ITTYPE last)	      \
 	}								      \
 }
 
-  void print_dot_null(int key, int nullcount) {
-    std::cout << "    null" << nullcount << " [shape=point];" << std::endl;
-    std::cout << "    " << key <<"-> null" << nullcount << ";" << std::endl;
+void print_dot_null(int key, int nullcount, std::stringstream &ss) {
+    ss << "    null" << nullcount << " [shape=point];" << std::endl;
+    ss << "    " << key <<"-> null" << nullcount << ";" << std::endl;
   }
 
-  void print_dot_aux(struct interval_tree_node *node)
+void print_dot_aux(struct interval_tree_node *node, std::stringstream &ss)
   {
     static int nullcount = 0;
 
     if (node->rb.rb_left) {
         interval_tree_node *left = rb_entry(node->rb.rb_left, struct interval_tree_node, rb);
-        std::cout << "    " << node->key << " -> " << left->key << ";" << std::endl;
-        std::cout << node->key << " [label=\"[" << node->start << "," << node->last << "]," << node->count << "\n" << TypeValue[(node->size_type & 0x0F)] << "," << 1 << (node->size_type >> 4)  << "," << node->pc << "\"]" << std::endl;
-        std::cout << left->key << " [label=\"[" << left->start << "," << left->last << "]," << left->count << "\n" << TypeValue[(left->size_type & 0x0F)] << "," << 1 << (left->size_type >> 4) << "," << left->pc << "\"]" << std::endl;
-        print_dot_aux(left);
+        ss << "    " << node->key << " -> " << left->key << ";" << std::endl;
+        ss << node->key << " [label=\"[" << node->start << "," << node->last << "]," << node->count << "\n" << TypeValue[(node->size_type & 0x0F)] << "," << (1 << (node->size_type >> 4)) << "," << node->pc << "\"]" << std::endl;
+        ss << left->key << " [label=\"[" << left->start << "," << left->last << "]," << left->count << "\n" << TypeValue[(left->size_type & 0x0F)] << "," << (1 << (left->size_type >> 4)) << "," << left->pc << "\"]" << std::endl;
+        print_dot_aux(left, ss);
       }
     else
-      print_dot_null(node->key, nullcount++);
+      print_dot_null(node->key, nullcount++, ss);
 
     if (node->rb.rb_right) {
         interval_tree_node *right = rb_entry(node->rb.rb_right, struct interval_tree_node, rb);
-        std::cout << "    " << node->key << " -> " << right->key << ";" << std::endl;
-        std::cout << node->key << " [label=\"[" << node->start << "," << node->last << "]," << node->count << "\n" << TypeValue[(node->size_type & 0x0F)] << "," << (node->size_type >> 4)  << "," << node->pc << "\"]" << std::endl;
-        std::cout << right->key << " [label=\"[" << right->start << "," << right->last << "]," << right->count << "\n" << TypeValue[(right->size_type & 0x0F)] << "," << (right->size_type >> 4) << "," << right->pc << "\"]" << std::endl;
-        print_dot_aux(right);
+        ss << "    " << node->key << " -> " << right->key << ";" << std::endl;
+        ss << node->key << " [label=\"[" << node->start << "," << node->last << "]," << node->count << "\n" << TypeValue[(node->size_type & 0x0F)] << "," << (1 << (node->size_type >> 4))  << "," << node->pc << "\"]" << std::endl;
+        ss << right->key << " [label=\"[" << right->start << "," << right->last << "]," << right->count << "\n" << TypeValue[(right->size_type & 0x0F)] << "," << (1 << (right->size_type >> 4)) << "," << right->pc << "\"]" << std::endl;
+        print_dot_aux(right, ss);
       }
     else
-      print_dot_null(node->key, nullcount++);
+      print_dot_null(node->key, nullcount++, ss);
   }
 
 void interval_tree_print(struct rb_root *root) {
-  std::cout << "digraph BST {\n" << std::endl;
-  std::cout << "    node [fontname=\"Arial\"];\n" << std::endl;
+  std::stringstream ss;
+  ss << "digraph BST {\n" << std::endl;
+  ss << "    node [fontname=\"Arial\"];\n" << std::endl;
 
   interval_tree_node *parent = rb_entry(root->rb_node, struct interval_tree_node, rb);
 
   if (!root->rb_node) {
-    std::cout << "\n" << std::endl;
+    ss << "\n" << std::endl;
   } else if (!parent->rb.rb_right && !parent->rb.rb_left)
-    std::cout << "    " << parent->key << ";" << std::endl;
+    ss << "    " << parent->key << ";" << std::endl;
   else
-    print_dot_aux(parent);
+    print_dot_aux(parent, ss);
 
-  std::cout << "}" << std::endl;
+  ss << "}" << std::endl;
+  std::cout << ss.str();
 }
 
 /*
@@ -478,7 +483,8 @@ model.write('intervals_overlap.lp')
 model.optimize()
 */
 
-bool solve_mip(struct interval_tree_node *node1, struct interval_tree_node *node2) {
+bool solve_mip(unsigned t1, struct interval_tree_node *node1,
+               unsigned t2, struct interval_tree_node *node2) {
   glp_prob *mip;
   int ia[1+4], ja[1+4];
   double ar[1+4], z, x1, x2, size1, size2;
@@ -513,19 +519,25 @@ bool solve_mip(struct interval_tree_node *node1, struct interval_tree_node *node
   ia[4] = 1, ja[4] = 4, ar[4] = -1.0;
   glp_load_matrix(mip, 4, ia, ja, ar);
 
-  /* std::string filename = "ilp_problem" + std::to_string(rand()) + ".lp"; */
-  /* if(glp_write_lp(mip, 0, filename.c_str()) == 0) */
-  /*   printf("Problem written!\n"); */
-
   /* solve problem */
-  glp_iocp parm;
-  glp_init_iocp(&parm);
-  parm.presolve = GLP_ON;
   glp_term_out(GLP_OFF);
-  glp_intopt(mip, &parm);
-  int ret = glp_mip_status(mip);
-  if(ret != GLP_NOFEAS)
-    res = true;
+  // int ret = glp_simplex(mip,NULL);
+  int ret = glp_exact(mip,NULL);
+  if(ret == 0) {
+    glp_iocp parm;
+    parm.presolve = GLP_ON;
+    glp_init_iocp(&parm);
+    ret = glp_intopt(mip, &parm);
+    if(ret == 0) {
+      int status = glp_mip_status(mip);
+      if((status == GLP_FEAS) || (status == GLP_OPT)) {
+        res = true;
+        /* std::string filename = "ilp_problem" + std::to_string(rand()) + ".lp"; */
+        /* if(glp_write_lp(mip, 0, filename.c_str()) == 0) */
+        /*   printf("Problem written!\n"); */
+      }
+    }
+  }
 
   /* housekeeping */
   glp_delete_prob(mip);

@@ -44,11 +44,12 @@ struct interval_tree_node {
 
   void print() {
     std::cout << "Start: " << start << std::endl
-              << "Last: " << last << std::endl
-              << "Diff: " << diff << std::endl
+              << " Last: " << last << std::endl
+              << " Type: " << TypeValue[(size_type & 0x0F)] << std::endl
+              << " Size: " << (1 << (size_type >> 4)) << std::endl
               << "Count: " << count << std::endl
-              << "Size: " << (1 << (size_type >> 4)) << std::endl
-              << "PC: " << pc << std::endl;
+              << " Diff: " << diff << std::endl
+              << "   PC: " << pc << std::endl;
   }
 };
 
@@ -56,14 +57,15 @@ extern void
 interval_tree_insert(struct interval_tree_node *node, struct rb_root *root);
 
 extern void
-interval_tree_insert_data(struct interval_tree_node node, struct rb_root *root);
+interval_tree_insert_data(struct interval_tree_node node, struct rb_root *root, int t);
 
 extern void
 interval_tree_merge(struct rb_root *tree1, struct rb_root *tree2);
 
 extern void
-interval_tree_overlap(std::mutex &mtx, struct rb_root *tree1, struct rb_root *tree2,
-std::vector<std::pair<struct interval_tree_node,struct interval_tree_node>> &races);
+interval_tree_overlap(std::mutex &mtx, unsigned t1, struct rb_root *tree1,
+                      unsigned t2, struct rb_root *tree2,
+                      std::vector<std::pair<struct interval_tree_node, struct interval_tree_node>> &races);
 
 extern void
 interval_tree_remove(struct interval_tree_node *node, struct rb_root *root);
@@ -77,8 +79,8 @@ interval_tree_iter_next(struct interval_tree_node *node,
 			unsigned long start, unsigned long last);
 
 extern void interval_tree_print(struct rb_root *root);
-extern void print_dot_aux(struct interval_tree_node *node);
-extern void print_dot_null(int key, int nullcount);
+extern void print_dot_aux(struct interval_tree_node *node, std::stringstream &ss);
+extern void print_dot_null(int key, int nullcount, std::stringstream &ss);
 }
 
 #endif	/* _LINUX_INTERVAL_TREE_H */

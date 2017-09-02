@@ -25,6 +25,16 @@
 
 #include <boost/lockfree/queue.hpp>
 
+struct TreeRoot {
+  unsigned tid;
+  rb_root *root;
+
+  TreeRoot(int id, rb_root *r) {
+    tid = id;
+    root = r;
+  }
+};
+
 void SaveReport(std::string filename) {
   std::ofstream file(filename, std::ios::out | std::ios::binary);
   size_t size = races.size();
@@ -81,10 +91,10 @@ unsigned long long getTotalSystemMemory()
   return pages * page_size;
 }
 
-void analyze_trees(bool last, rb_root *tree1, rb_root *tree2,
+void analyze_trees(bool last, unsigned t1, rb_root *tree1, unsigned t2, rb_root *tree2,
      std::vector<std::pair<interval_tree_node,interval_tree_node>> &races) {
   if(tree1 && tree2) {
-    interval_tree_overlap(rmtx, tree1, tree2, races);
+    interval_tree_overlap(rmtx, t1, tree1, t2, tree2, races);
     if(!last)
       interval_tree_merge(tree1, tree2);
   }
@@ -156,7 +166,7 @@ void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fo
       for(std::vector<TraceItem>::const_iterator it = file_buffer.begin(); it != file_buffer.end(); ++it) {
         switch(it->getType()) {
         case data_access:
-          interval_tree_insert_data(interval_tree_node(it->data.access.address, it->data.access.address, it->data.access.size_type, (size_t) it->data.access.pc.num, mutex), interval_tree_root);
+          interval_tree_insert_data(interval_tree_node(it->data.access.address, it->data.access.address, it->data.access.size_type, (size_t) it->data.access.pc.num, mutex), interval_tree_root, t);
           break;
         case mutex_acquired:
           mutex.insert(it->data.mutex_region.getWaitId());
@@ -301,7 +311,6 @@ int main(int argc, char **argv) {
       if (entry.path().filename().string().find("metafile_") != std::string::npos) {
         unsigned tid;
         sscanf(entry.path().filename().string().c_str(), "metafile_%d", &tid);
-        // INFO(std::cout, entry.path().filename().string());
         std::string filename(dir + entry.path().filename().string());
         std::ifstream file(filename);
         std::string str;
@@ -319,11 +328,11 @@ int main(int argc, char **argv) {
 
     // Struct to load uncompressed data from file
     std::vector<std::thread> lm_thread;
-    // lm_thread.reserve(traces.size());
-    std::list<rb_root *> interval_trees;
+    lm_thread.reserve(traces.size());
+    std::list<TreeRoot> interval_trees;
     for(std::map<unsigned, TraceInfo>::iterator th = traces.begin(); th != traces.end(); ++th) {
-      interval_trees.push_back(new rb_root());
-      lm_thread.push_back(std::thread(load_and_convert_file, dir, th->first, th->second.file_offset_begin, th->second.file_offset_end, interval_trees.back()));
+      interval_trees.push_back(TreeRoot(th->first, new rb_root()));
+      lm_thread.push_back(std::thread(load_and_convert_file, dir, th->first, th->second.file_offset_begin, th->second.file_offset_end, interval_trees.back().root));
     }
     for(int k = 0; k < lm_thread.size(); k++) {
       lm_thread[k].join();
@@ -331,40 +340,33 @@ int main(int argc, char **argv) {
     lm_thread.clear();
 
     if(print) {
-      std::ofstream out0("thread0.dot");
-      std::streambuf *coutbuf0 = std::cout.rdbuf(); //save old buf
-      std::cout.rdbuf(out0.rdbuf());
-      interval_tree_print(interval_trees.front());
-      std::cout.rdbuf(coutbuf0);
-      std::list<rb_root *>::iterator it = interval_trees.begin();
-      std::advance(it, 1);
-      std::ofstream out1("thread1.dot");
-      std::streambuf *coutbuf1 = std::cout.rdbuf(); //save old buf
-      std::cout.rdbuf(out1.rdbuf());
-      interval_tree_print(*it);
-      std::cout.rdbuf(coutbuf1);
+      for(std::list<TreeRoot>::iterator it = interval_trees.begin();
+          it != interval_trees.end(); it++) {
+        std::ofstream out0("thread" + std::to_string(it->tid) + ".dot");
+        std::streambuf *coutbuf0 = std::cout.rdbuf();
+        std::cout.rdbuf(out0.rdbuf());
+        interval_tree_print(it->root);
+        std::cout.rdbuf(coutbuf0);
+      }
     }
 
     std::vector<std::pair<interval_tree_node,interval_tree_node>> rep_races;
-    std::list<rb_root *>::iterator it;
-    std::list<rb_root *>::iterator del;
+    std::list<TreeRoot>::iterator it;
+    std::list<TreeRoot>::iterator del;
     bool last;
     while(interval_trees.size() > 1) {
       int lst_size = interval_trees.size();
       it = interval_trees.begin();
       while(lst_size != 1 && it != interval_trees.end()) {
         last = (interval_trees.size() == 2);
-        rb_root *tree1 = *it;
+        TreeRoot tree1 = *it;
         std::advance(it, 1);
-        rb_root *tree2 = *it;
+        TreeRoot tree2 = *it;
         del = it;
         std::advance(it, 1);
         interval_trees.erase(del);
         lst_size -= 2;
-        // INFO(std::cout, "Size: " << interval_trees.size());
-        // INFO(std::cout, "Tree1: " << tree1 << " - Tree2: " << tree2);
-        lm_thread.push_back(std::thread(analyze_trees, last, tree1, tree2, std::ref(rep_races)));
-        // analyze_trees(tree1, tree2, std::ref(rep_races));
+        lm_thread.push_back(std::thread(analyze_trees, last, tree1.tid, tree1.root, tree2.tid, tree2.root, std::ref(rep_races)));
       }
       for(int k = 0; k < lm_thread.size(); k++) {
         lm_thread[k].join();
@@ -376,7 +378,7 @@ int main(int argc, char **argv) {
       std::ofstream out("thread.dot");
       std::streambuf *coutbuf = std::cout.rdbuf(); //save old buf
       std::cout.rdbuf(out.rdbuf());
-      interval_tree_print(interval_trees.front());
+      interval_tree_print(interval_trees.front().root);
       std::cout.rdbuf(coutbuf);
     }
 
