@@ -31,7 +31,7 @@ struct interval_tree_node {
   size_t pc;
   std::set<size_t> mutex;
 
-  interval_tree_node(unsigned int s, unsigned int l, uint8_t st, size_t p, const std::set<size_t> mtx) {
+  interval_tree_node(size_t s, size_t l, uint8_t st, size_t p, const std::set<size_t> mtx) {
     key = ++global_key;
     start = s;
     last = l;
@@ -72,11 +72,11 @@ interval_tree_remove(struct interval_tree_node *node, struct rb_root *root);
 
 extern struct interval_tree_node *
 interval_tree_iter_first(struct rb_root *root,
-			 unsigned long start, unsigned long last);
+			 size_t start, size_t last);
 
 extern struct interval_tree_node *
 interval_tree_iter_next(struct interval_tree_node *node,
-			unsigned long start, unsigned long last);
+			size_t start, size_t last);
 
 extern void interval_tree_print(struct rb_root *root);
 extern void print_dot_aux(struct interval_tree_node *node, std::stringstream &ss);

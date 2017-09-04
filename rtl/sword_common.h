@@ -102,9 +102,9 @@ struct __attribute__ ((__packed__)) Access {
 
   void setData(AccessSize as, AccessType at,
                size_t a, size_t p) {
-    address = a;
     size_type = (as << 4);
     size_type |= at;
+    address = a;
     pc.num = p;
   }
 

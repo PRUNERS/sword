@@ -244,8 +244,7 @@ ITPREFIX ## _subtree_search(ITSTRUCT *node, ITTYPE start, ITTYPE last)	      \
 ITSTATIC void ITPREFIX ## _overlap(std::mutex &mtx,                           \
   unsigned t1, struct rb_root *tree1,                                         \
   unsigned t2, struct rb_root *tree2,                                         \
-  std::vector<std::pair<ITSTRUCT,ITSTRUCT>> &races)                           \
-{									      \
+  std::vector<std::pair<ITSTRUCT,ITSTRUCT>> &races) {                          \
   struct rb_node **link, *rb_parent;                                          \
   ITSTRUCT *parent;                                                           \
   struct rb_node *node2;                                                      \
@@ -270,7 +269,7 @@ ITSTATIC void ITPREFIX ## _overlap(std::mutex &mtx,                           \
             if(parent->start >= start) {                                      \
               has_overlapping = solve_mip(t1, parent, t2, node);              \
             } else {                                                          \
-              has_overlapping = solve_mip(t1, node, t2, parent);              \
+              has_overlapping = solve_mip(t2, node, t1, parent);              \
             }                                                                 \
           }                                                                   \
           if(has_overlapping) {                                               \
@@ -521,8 +520,8 @@ bool solve_mip(unsigned t1, struct interval_tree_node *node1,
 
   /* solve problem */
   glp_term_out(GLP_OFF);
-  // int ret = glp_simplex(mip,NULL);
-  int ret = glp_exact(mip,NULL);
+  // int ret = glp_simplex(mip, NULL);
+  int ret = glp_exact(mip, NULL);
   if(ret == 0) {
     glp_iocp parm;
     parm.presolve = GLP_ON;

@@ -331,8 +331,9 @@ int main(int argc, char **argv) {
     lm_thread.reserve(traces.size());
     std::list<TreeRoot> interval_trees;
     for(std::map<unsigned, TraceInfo>::iterator th = traces.begin(); th != traces.end(); ++th) {
-      interval_trees.push_back(TreeRoot(th->first, new rb_root()));
-      lm_thread.push_back(std::thread(load_and_convert_file, dir, th->first, th->second.file_offset_begin, th->second.file_offset_end, interval_trees.back().root));
+      rb_root *root = new rb_root();
+      interval_trees.push_back(TreeRoot(th->first, root));
+      lm_thread.push_back(std::thread(load_and_convert_file, dir, th->first, th->second.file_offset_begin, th->second.file_offset_end, root));
     }
     for(int k = 0; k < lm_thread.size(); k++) {
       lm_thread[k].join();
