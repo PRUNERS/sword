@@ -617,39 +617,39 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   ConstantInt *One = ConstantInt::get(Type::getInt32Ty(M->getContext()), 1);
 
   // ompOutLZO = M->getNamedGlobal("out");
-  ompThreadID = M->getNamedGlobal("tid");
+  ompThreadID = M->getNamedGlobal("__sword_tid__");
   ompStatusGlobal = M->getNamedGlobal("__sword_status__");
-  ompAccesses = M->getNamedGlobal("accesses");
-  ompAccesses1 = M->getNamedGlobal("accesses1");
-  ompAccesses2 = M->getNamedGlobal("accesses2");
-  ompIndex = M->getNamedGlobal("idx");
-  ompBarrierID = M->getNamedGlobal("bid");
-  ompBuffer = M->getNamedGlobal("buffer");
-  ompOffset = M->getNamedGlobal("offset");
-  ompSpan = M->getNamedGlobal("span");
-  ompFileOffsetBegin = M->getNamedGlobal("file_offset_begin");
-  ompFileOffsetEnd = M->getNamedGlobal("file_offset_end");
-  ompDatafile = M->getNamedGlobal("datafile");
-  ompMetafile = M->getNamedGlobal("metafile");
+  ompAccesses = M->getNamedGlobal("__sword_accesses__");
+  ompAccesses1 = M->getNamedGlobal("__sword_accesses1__");
+  ompAccesses2 = M->getNamedGlobal("__sword_accesses2__");
+  ompIndex = M->getNamedGlobal("__sword_idx__");
+  ompBarrierID = M->getNamedGlobal("__sword_bid__");
+  ompBuffer = M->getNamedGlobal("__sword_buffer__");
+  ompOffset = M->getNamedGlobal("__sword_offset__");
+  ompSpan = M->getNamedGlobal("__sword_span__");
+  ompFileOffsetBegin = M->getNamedGlobal("__sword_file_offset_begin__");
+  ompFileOffsetEnd = M->getNamedGlobal("__sword_file_offset_end__");
+  ompDatafile = M->getNamedGlobal("__sword_datafile__");
+  ompMetafile = M->getNamedGlobal("__sword_metafile__");
   // ompWrkmem = M->getNamedGlobal("wrkmem");
 
   if(functionName.compare("main") == 0) {
     IRBuilder<> IRB(M->getContext());
     // TLS_DECLARE(ompOutLZO, IRB.getInt8PtrTy(), "out"); // unsigned char *
-    TLS_DECLARE(ompThreadID, IRB.getInt32Ty(), "tid"); // int
+    TLS_DECLARE(ompThreadID, IRB.getInt32Ty(), "__sword_tid__"); // int
     TLS_DECLARE(ompStatusGlobal, IRB.getInt32Ty(), "__sword_status__"); // int
-    TLS_DECLARE(ompAccesses, IRB.getInt8PtrTy(), "accesses"); // TraceItem *
-    TLS_DECLARE(ompAccesses1, IRB.getInt8PtrTy(), "accesses1"); // TraceItem *
-    TLS_DECLARE(ompAccesses2, IRB.getInt8PtrTy(), "accesses2"); // TraceItem *
-    TLS_DECLARE(ompIndex, IRB.getInt64Ty(), "idx"); // uint64_t
-    TLS_DECLARE(ompBarrierID, IRB.getInt64Ty(), "bid"); // uint64_t
-    TLS_DECLARE(ompBuffer, IRB.getInt8PtrTy(), "buffer"); // char *
-    TLS_DECLARE(ompOffset, IRB.getInt32Ty(), "offset"); // size_t
-    TLS_DECLARE(ompSpan, IRB.getInt32Ty(), "span"); // size_t
-    TLS_DECLARE(ompFileOffsetBegin, IRB.getInt64Ty(), "file_offset_begin"); // size_t
-    TLS_DECLARE(ompFileOffsetEnd, IRB.getInt64Ty(), "file_offset_end"); // size_t
-    TLS_DECLARE(ompDatafile, IRB.getInt8PtrTy(), "datafile"); // FILE *
-    TLS_DECLARE(ompMetafile, IRB.getInt8PtrTy(), "metafile"); // FILE *
+    TLS_DECLARE(ompAccesses, IRB.getInt8PtrTy(), "__sword_accesses__"); // TraceItem *
+    TLS_DECLARE(ompAccesses1, IRB.getInt8PtrTy(), "__sword_accesses1__"); // TraceItem *
+    TLS_DECLARE(ompAccesses2, IRB.getInt8PtrTy(), "__sword_accesses2__"); // TraceItem *
+    TLS_DECLARE(ompIndex, IRB.getInt64Ty(), "__sword_idx__"); // uint64_t
+    TLS_DECLARE(ompBarrierID, IRB.getInt64Ty(), "__sword_bid__"); // uint64_t
+    TLS_DECLARE(ompBuffer, IRB.getInt8PtrTy(), "__sword_buffer__"); // char *
+    TLS_DECLARE(ompOffset, IRB.getInt32Ty(), "__sword_offset__"); // size_t
+    TLS_DECLARE(ompSpan, IRB.getInt32Ty(), "__sword_span__"); // size_t
+    TLS_DECLARE(ompFileOffsetBegin, IRB.getInt64Ty(), "__sword_file_offset_begin__"); // size_t
+    TLS_DECLARE(ompFileOffsetEnd, IRB.getInt64Ty(), "__sword_file_offset_end__"); // size_t
+    TLS_DECLARE(ompDatafile, IRB.getInt8PtrTy(), "__sword_datafile__"); // FILE *
+    TLS_DECLARE(ompMetafile, IRB.getInt8PtrTy(), "__sword_metafile__"); // FILE *
     // TLS_DECLARE(ompWrkmem, llvm::Type::getInt64PtrTy(M->getContext()), "wrkmem"); // wrkmem *
 
     return true;
@@ -657,20 +657,20 @@ bool InstrumentParallel::runOnFunction(Function &F) {
 
   IRBuilder<> IRB(M->getContext());
   // TLS_DECLARE_EXTERN(ompOutLZO, IRB.getInt8PtrTy(), "out"); // unsigned char *
-  TLS_DECLARE_EXTERN(ompThreadID, IRB.getInt32Ty(), "tid"); // int
+  TLS_DECLARE_EXTERN(ompThreadID, IRB.getInt32Ty(), "__sword_tid__"); // int
   TLS_DECLARE_EXTERN(ompStatusGlobal, IRB.getInt32Ty(), "__sword_status__"); // int
-  TLS_DECLARE_EXTERN(ompAccesses, IRB.getInt8PtrTy(), "accesses"); // TraceItem *
-  TLS_DECLARE_EXTERN(ompAccesses1, IRB.getInt8PtrTy(), "accesses1"); // TraceItem *
-  TLS_DECLARE_EXTERN(ompAccesses2, IRB.getInt8PtrTy(), "accesses2"); // TraceItem *
-  TLS_DECLARE_EXTERN(ompIndex, IRB.getInt64Ty(), "idx"); // uint64_t
-  TLS_DECLARE_EXTERN(ompBarrierID, IRB.getInt64Ty(), "bid"); // uint64_t
-  TLS_DECLARE_EXTERN(ompBuffer, IRB.getInt8PtrTy(), "buffer"); // char *
-  TLS_DECLARE_EXTERN(ompOffset, IRB.getInt32Ty(), "offset"); // size_t
-  TLS_DECLARE_EXTERN(ompSpan, IRB.getInt32Ty(), "span"); // size_t
-  TLS_DECLARE_EXTERN(ompFileOffsetBegin, IRB.getInt64Ty(), "file_offset_begin"); // size_t
-  TLS_DECLARE_EXTERN(ompFileOffsetEnd, IRB.getInt64Ty(), "file_offset_end"); // size_t
-  TLS_DECLARE_EXTERN(ompDatafile, IRB.getInt8PtrTy(), "datafile"); // FILE *
-  TLS_DECLARE_EXTERN(ompMetafile, IRB.getInt8PtrTy(), "metafile"); // FILE *
+  TLS_DECLARE_EXTERN(ompAccesses, IRB.getInt8PtrTy(), "__sword_accesses__"); // TraceItem *
+  TLS_DECLARE_EXTERN(ompAccesses1, IRB.getInt8PtrTy(), "__sword_accesses1__"); // TraceItem *
+  TLS_DECLARE_EXTERN(ompAccesses2, IRB.getInt8PtrTy(), "__sword_accesses2__"); // TraceItem *
+  TLS_DECLARE_EXTERN(ompIndex, IRB.getInt64Ty(), "__sword_idx__"); // uint64_t
+  TLS_DECLARE_EXTERN(ompBarrierID, IRB.getInt64Ty(), "__sword_bid__"); // uint64_t
+  TLS_DECLARE_EXTERN(ompBuffer, IRB.getInt8PtrTy(), "__sword_buffer__"); // char *
+  TLS_DECLARE_EXTERN(ompOffset, IRB.getInt32Ty(), "__sword_offset__"); // size_t
+  TLS_DECLARE_EXTERN(ompSpan, IRB.getInt32Ty(), "__sword_span__"); // size_t
+  TLS_DECLARE_EXTERN(ompFileOffsetBegin, IRB.getInt64Ty(), "__sword_file_offset_begin__"); // size_t
+  TLS_DECLARE_EXTERN(ompFileOffsetEnd, IRB.getInt64Ty(), "__sword_file_offset_end__"); // size_t
+  TLS_DECLARE_EXTERN(ompDatafile, IRB.getInt8PtrTy(), "__sword_datafile__"); // FILE *
+  TLS_DECLARE_EXTERN(ompMetafile, IRB.getInt8PtrTy(), "__sword_metafile__"); // FILE *
   // TLS_DECLARE_EXTERN(ompWrkmem, llvm::Type::getInt64PtrTy(M->getContext()), "wrkmem"); // wrkmem *
 
   if(functionName.startswith(".omp")) {
