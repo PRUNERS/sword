@@ -172,6 +172,10 @@ if __name__ == '__main__':
 #                     if ppid in pregions:
 #                         pregions[tid][ppid]['nested'].append(pid)
 
+    print_tree = ""
+    if args.print_tree:
+        command += " --print"
+
     for key,value in pregions.iteritems():
         for bid, nested in value.iteritems():
             if(args.cluster_run):
@@ -179,9 +183,6 @@ if __name__ == '__main__':
                 # SLURM Configuration values
                 config_file = SLURM_DIR + "/slurm_config_" + sanitizeFileName(subdir) + "_" + str(key)
                 output = SLURM_DIR + "/slurm_output_" + sanitizeFileName(subdir)
-                print_tree = ""
-                if args.print_tree:
-                    command += " --print"
                 cmd = "ulimit -c unlimited\nstantime \"%s --executable %s --traces-path %s --report-path %s --pregion %s %s\" %s/overhead/%s.dat" % (analysis_tool, executable, args.traces_path, args.report_path, key, print_tree, args.report_path, key)
                 createSLURMConfig(config_file, walltime, output, cmd)
                 # Run on cluster
@@ -202,16 +203,18 @@ if __name__ == '__main__':
                 if(ret):
                     print "A problem occurred while analyzing the traces in folder '" + subdir + "'.\n\nPlease run the analysis again with the command: '" + command + "'."
             else:
-                nested_str = ','.join(map(str, nested['nested']))
-                if(not nested_str):
-                    command = "%s --executable %s --traces-path %s --report-path %s --pregion %s --bid %s" % (analysis_tool, executable, args.traces_path, args.report_path, key, bid)
+                overhead_filename = "%s/overhead/%s.dat" % (args.report_path, key)
+                if(not os.path.exists(overhead_filename)):
+                    nested_str = ','.join(map(str, nested['nested']))
+                    if(not nested_str):
+                        command = "ulimit -c unlimited\nstantime \"%s --executable %s --traces-path %s --report-path %s --pregion %s --bid %s %s\" %s/overhead/%s.dat" % (analysis_tool, executable, args.traces_path, args.report_path, key, bid, print_tree, args.report_path, key)
+                    else:
+                        command = "ulimit -c unlimited\nstantime \"%s --executable %s --traces-path %s --report-path %s --pregion %s --bid %s --nested %s %s\" %s/overhead/%s.dat" % (analysis_tool, executable, args.traces_path, args.report_path, key, bid, nested_str, print_tree, args.report_path, key)
+                    print command
+                    ret = None
+                    if(not args.dry_run):
+                        ret = executeCommand(command)
+                    if(ret):
+                        print "A problem occurred while analyzing the traces in folder '" + subdir + "'.\n\nPlease run the analysis again with the command: '" + command + "'."
                 else:
-                    command = "%s --executable %s --traces-path %s --report-path %s --pregion %s --bid %s --nested %s" % (analysis_tool, executable, args.traces_path, args.report_path, key, bid, nested_str)
-                if args.print_tree:
-                    command += " --print"
-                print command
-                ret = None
-                if(not args.dry_run):
-                    ret = executeCommand(command)
-                if(ret):
-                    print "A problem occurred while analyzing the traces in folder '" + subdir + "'.\n\nPlease run the analysis again with the command: '" + command + "'."
+                    print "%s exists!" % overhead_filename
