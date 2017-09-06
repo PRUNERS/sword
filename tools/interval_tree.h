@@ -17,10 +17,14 @@ static const char * TypeValue[] = { "R", "W", "AR", "AW" };
 
 #define END(node) ((node)->start + ((node)->diff * ((node)->count - 1)))
 
-static int global_key = 0;
+#ifdef PRINT
+std::atomic<int> global_key = 0;
+#endif // PRINT
 
 struct interval_tree_node {
+#ifdef PRINT
   int key;
+#endif
   struct rb_node rb;
   size_t start;
   size_t last;
@@ -32,7 +36,9 @@ struct interval_tree_node {
   std::set<size_t> mutex;
 
   interval_tree_node(size_t s, size_t l, uint8_t st, size_t p, const std::set<size_t> mtx) {
+#ifdef PRINT
     key = ++global_key;
+#endif // PRINT
     start = s;
     last = l;
     count = 1;
@@ -78,9 +84,11 @@ extern struct interval_tree_node *
 interval_tree_iter_next(struct interval_tree_node *node,
 			size_t start, size_t last);
 
+#ifdef PRINT
 extern void interval_tree_print(struct rb_root *root);
 extern void print_dot_aux(struct interval_tree_node *node, std::stringstream &ss);
 extern void print_dot_null(int key, int nullcount, std::stringstream &ss);
+#endif // PRINT
 }
 
 #endif	/* _LINUX_INTERVAL_TREE_H */

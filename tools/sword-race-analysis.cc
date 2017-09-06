@@ -200,7 +200,9 @@ void load_and_convert_file(boost::filesystem::path path, unsigned t, uint64_t fo
 
 int main(int argc, char **argv) {
   std::string unknown_option = "";
+#ifdef PRINT
   bool print = false;
+#endif // PRINT
 
   if(argc < 7)
     INFO(std::cout, "Usage:\n\n  " << argv[0] << " " << "--executable <path-to-executable-name> --traces-path <path-to-traces-folder> --report-path <path-to-report-folder>\n\n");
@@ -258,8 +260,10 @@ int main(int argc, char **argv) {
         INFO(std::cerr, "--nested option requires one argument.");
         return -1;
       }
+#ifdef PRINT
     } else if (std::string(argv[i]) == "--print") {
       print = true;
+#endif // PRINT
     } else {
       unknown_option = argv[i++];
     }
@@ -340,6 +344,7 @@ int main(int argc, char **argv) {
     }
     lm_thread.clear();
 
+#ifdef PRINT
     if(print) {
       for(std::list<TreeRoot>::iterator it = interval_trees.begin();
           it != interval_trees.end(); it++) {
@@ -350,6 +355,7 @@ int main(int argc, char **argv) {
         std::cout.rdbuf(coutbuf0);
       }
     }
+#endif // PRINT
 
     std::vector<std::pair<interval_tree_node,interval_tree_node>> rep_races;
     std::list<TreeRoot>::iterator it;
@@ -375,6 +381,7 @@ int main(int argc, char **argv) {
       lm_thread.clear();
     }
 
+#ifdef PRINT
     if(print) {
       std::ofstream out("thread.dot");
       std::streambuf *coutbuf = std::cout.rdbuf(); //save old buf
@@ -382,6 +389,7 @@ int main(int argc, char **argv) {
       interval_tree_print(interval_trees.front().root);
       std::cout.rdbuf(coutbuf);
     }
+#endif // PRINT
 
     for(std::vector<std::pair<interval_tree_node,interval_tree_node>>::iterator it = rep_races.begin(); it != rep_races.end(); ++it) {
       interval_tree_node i = std::get<0>(*it);

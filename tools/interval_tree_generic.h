@@ -414,6 +414,7 @@ ITPREFIX ## _iter_next(ITSTRUCT *node, ITTYPE start, ITTYPE last)	      \
 	}								      \
 }
 
+#ifdef PRINT
 void print_dot_null(int key, int nullcount, std::stringstream &ss) {
     ss << "    null" << nullcount << " [shape=point];" << std::endl;
     ss << "    " << key <<"-> null" << nullcount << ";" << std::endl;
@@ -461,6 +462,7 @@ void interval_tree_print(struct rb_root *root) {
   ss << "}" << std::endl;
   std::cout << ss.str();
 }
+#endif // PRINT
 
 /*
 model = Model("IntervalsOvelap")
