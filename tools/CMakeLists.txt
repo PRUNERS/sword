@@ -1,5 +1,5 @@
 add_definitions(-D_FILE_OFFSET_BITS=64)
-add_definitions(-D PRINT) # PRINT TREES
+# add_definitions(-D PRINT) # PRINT TREES
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O3")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -stdlib=libstdc++")
