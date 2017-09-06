@@ -10,16 +10,17 @@
 #include <set>
 #include <vector>
 
+#ifdef PRINT
+#include <atomic>
+static std::atomic<int> global_key(0);
+#endif // PRINT
+
 extern "C" {
 #include "rbtree.h"
 
 static const char * TypeValue[] = { "R", "W", "AR", "AW" };
 
 #define END(node) ((node)->start + ((node)->diff * ((node)->count - 1)))
-
-#ifdef PRINT
-std::atomic<int> global_key = 0;
-#endif // PRINT
 
 struct interval_tree_node {
 #ifdef PRINT
