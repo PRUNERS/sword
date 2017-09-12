@@ -10,6 +10,8 @@
 #include <set>
 #include <vector>
 
+#define PRINT 0
+
 #ifdef PRINT
 #include <atomic>
 static std::atomic<int> global_key(0);

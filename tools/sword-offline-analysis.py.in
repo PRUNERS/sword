@@ -174,7 +174,7 @@ if __name__ == '__main__':
 
     print_tree = ""
     if args.print_tree:
-        command += " --print"
+        print_tree += " --print"
 
     for key,value in pregions.iteritems():
         for bid, nested in value.iteritems():
