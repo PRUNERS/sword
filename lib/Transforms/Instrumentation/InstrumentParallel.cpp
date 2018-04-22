@@ -598,8 +598,8 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   Module *M = F.getParent();
   StringRef functionName = F.getName();
 
-  if(isThirdParty(functionName.str().c_str()))
-    return false;
+  // if(isThirdParty(functionName.str().c_str()))
+  //   return false;
 
   if(functionName.endswith("_dtor") ||
      functionName.endswith("__sword__") ||
