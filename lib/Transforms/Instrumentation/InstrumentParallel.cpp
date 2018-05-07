@@ -9,6 +9,14 @@
 //
 // This file is a part of SWORD, an OpenMP race detector.
 //
+// The tool is under development, for the details about previous versions see
+// http://code.google.com/p/data-race-test
+//
+// The instrumentation phase is quite simple:
+//   - Insert calls to run-time library before every memory access.
+//      - Optimizations may apply to avoid instrumenting some of the accesses.
+//   - Insert calls at function entry/exit.
+// The rest is handled by the run-time library.
 //===----------------------------------------------------------------------===//
 
 #include "../../../include/sword/LinkAllPasses.h"
@@ -20,6 +28,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CaptureTracking.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/IR/DataLayout.h"
@@ -39,8 +48,10 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/EscapeEnumerator.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
@@ -157,7 +168,7 @@ private:
                                       const DataLayout &DL);
   bool addrPointsToConstantData(Value *Addr);
   int getMemoryAccessFuncIndex(Value *Addr, const DataLayout &DL);
-
+  void InsertRuntimeIgnores(Function &F);
   std::string PassName;
   void setMetadata(Instruction *Inst, const char *name, const char *description);
   bool isNotInstrumentable(MDNode *mdNode);
@@ -225,6 +236,9 @@ Pass *llvm::createInstrumentParallelPass() {
 
 void InstrumentParallel::initializeCallbacks(Module &M) {
   IRBuilder<> IRB(M.getContext());
+  AttributeList Attr;
+  Attr = Attr.addAttribute(M.getContext(), AttributeList::FunctionIndex,
+                           Attribute::NoUnwind);
   // Initialize the callbacks.
 //  SwordFuncEntry = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
 //      "__sword_func_entry", IRB.getVoidTy(), IRB.getInt64Ty(), IRB.getInt8PtrTy(), nullptr));
@@ -238,6 +252,9 @@ void InstrumentParallel::initializeCallbacks(Module &M) {
     const unsigned BitSize = ByteSize * 8;
     std::string ByteSizeStr = utostr(ByteSize);
     std::string BitSizeStr = utostr(BitSize);
+    // SmallString<32> ReadName("__tsan_read" + ByteSizeStr);
+    // TsanRead[i] = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
+    //     ReadName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy()));
 
     int LongSize = M.getDataLayout().getPointerSizeInBits();
     IntptrTy = Type::getIntNTy(M.getContext(), LongSize);
@@ -359,7 +376,7 @@ static bool isVtableAccess(Instruction *I) {
 
 // Do not instrument known races/"benign races" that come from compiler
 // instrumentatin. The user has no way of suppressing them.
-static bool shouldInstrumentReadWriteFromAddress(Value *Addr) {
+static bool shouldInstrumentReadWriteFromAddress(const Module *M, Value *Addr) {
   // Peel off GEPs and BitCasts.
   Addr = Addr->stripInBoundsOffsets();
 
@@ -367,8 +384,9 @@ static bool shouldInstrumentReadWriteFromAddress(Value *Addr) {
     if (GV->hasSection()) {
       StringRef SectionName = GV->getSection();
       // Check if the global is in the PGO counters section.
-      if (SectionName.endswith(getInstrProfCountersSectionName(
-            /*AddSegment=*/false)))
+      auto OF = Triple(M->getTargetTriple()).getObjectFormat();
+      if (SectionName.endswith(
+              getInstrProfSectionName(IPSK_cnts, OF, /*AddSegmentInfo=*/false)))
         return false;
     }
 
@@ -472,13 +490,13 @@ void InstrumentParallel::chooseInstructionsToInstrument(
     // }
     if (StoreInst *Store = dyn_cast<StoreInst>(I)) {
       Value *Addr = Store->getPointerOperand();
-      if (!shouldInstrumentReadWriteFromAddress(Addr))
+      if (!shouldInstrumentReadWriteFromAddress(I->getModule(), Addr))
         continue;
       WriteTargets.insert(Addr);
     } else {
       LoadInst *Load = cast<LoadInst>(I);
       Value *Addr = Load->getPointerOperand();
-      if (!shouldInstrumentReadWriteFromAddress(Addr))
+      if (!shouldInstrumentReadWriteFromAddress(I->getModule(), Addr))
         continue;
       if (WriteTargets.count(Addr)) {
         // We will write to this temp, so no reason to analyze the read.
@@ -555,10 +573,11 @@ void InstrumentParallel::chooseInstructionsToInstrument(
 }
 
 static bool isAtomic(Instruction *I) {
+  // TODO: Ask TTI whether synchronization scope is between threads.
   if (LoadInst *LI = dyn_cast<LoadInst>(I))
-    return LI->isAtomic() && LI->getSynchScope() == CrossThread;
+    return LI->isAtomic() && LI->getSyncScopeID() != SyncScope::SingleThread;
   if (StoreInst *SI = dyn_cast<StoreInst>(I))
-    return SI->isAtomic() && SI->getSynchScope() == CrossThread;
+    return SI->isAtomic() && SI->getSyncScopeID() != SyncScope::SingleThread;
   if (isa<AtomicRMWInst>(I))
     return true;
   if (isa<AtomicCmpXchgInst>(I))
@@ -738,7 +757,8 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   SmallVector<Instruction*, 8> MemIntrinCalls;
   bool Res = false;
   bool HasCalls = false;
-  const DataLayout &DL = IF->getParent()->getDataLayout();
+  bool SanitizeFunction = F.hasFnAttribute(Attribute::SanitizeThread);
+  const DataLayout &DL = F.getParent()->getDataLayout();
   const TargetLibraryInfo *TLI =
       &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
@@ -749,8 +769,6 @@ bool InstrumentParallel::runOnFunction(Function &F) {
         AtomicAccesses.push_back(&Inst);
       else if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst))
         LocalLoadsAndStores.push_back(&Inst);
-      else if (isa<ReturnInst>(Inst))
-        RetVec.push_back(&Inst);
       else if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst)) {
         if (CallInst *CI = dyn_cast<CallInst>(&Inst))
           maybeMarkSanitizerLibraryCallNoBuiltin(CI, TLI);
@@ -769,7 +787,7 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   // (e.g. variables that do not escape, etc).
 
   // Instrument memory accesses only if we want to report bugs in the function.
-  if (ClInstrumentMemoryAccesses)
+  if (ClInstrumentMemoryAccesses && SanitizeFunction)
     for (auto Inst : AllLoadsAndStores) {
       Res |= instrumentLoadOrStore(Inst, DL);
     }
@@ -781,26 +799,31 @@ bool InstrumentParallel::runOnFunction(Function &F) {
       Res |= instrumentAtomic(Inst, DL);
     }
 
-  // We do not instrument MemInstrinsics for now
-  // if (ClInstrumentMemIntrinsics)
-  //   for (auto Inst : MemIntrinCalls) {
-  //     Res |= instrumentMemIntrinsic(Inst);
-  //   }
+  // if (ClInstrumentMemIntrinsics && SanitizeFunction)
+  //  for (auto Inst : MemIntrinCalls) {
+  //    Res |= instrumentMemIntrinsic(Inst);
+  //  }
+
+  if (F.hasFnAttribute("sanitize_thread_no_checking_at_run_time")) {
+    assert(!F.hasFnAttribute(Attribute::SanitizeThread));
+    if (HasCalls)
+      InsertRuntimeIgnores(F);
+  }
 
   // Instrument function entry/exit points if there were instrumented accesses.
-//  if ((Res || HasCalls) && ClInstrumentFuncEntryExit) {
-//    IRBuilder<> IRB(IF->getEntryBlock().getFirstNonPHI());
-//    Value *ReturnAddress = IRB.CreateCall(
-//        Intrinsic::getDeclaration(IF->getParent(), Intrinsic::returnaddress),
-//        IRB.getInt32(0));
-//    IRB.CreateCall(SwordFuncEntry, ReturnAddress);
-//    for (auto RetInst : RetVec) {
-//      IRBuilder<> IRBRet(RetInst);
-//      IRBRet.CreateCall(SwordFuncExit);
-//    }
-//    Res = true;
-//  }
+  // if ((Res || HasCalls) && ClInstrumentFuncEntryExit) {
+  //  IRBuilder<> IRB(F.getEntryBlock().getFirstNonPHI());
+  //  Value *ReturnAddress = IRB.CreateCall(
+  //      Intrinsic::getDeclaration(F.getParent(), Intrinsic::returnaddress),
+  //      IRB.getInt32(0));
+  //  IRB.CreateCall(TsanFuncEntry, ReturnAddress);
 
+  // EscapeEnumerator EE(F, "tsan_cleanup", ClHandleCxxExceptions);
+  // while (IRBuilder<> *AtExit = EE.Next()) {
+  //  AtExit->CreateCall(TsanFuncExit, {});
+  // }
+  //   Res = true;
+  // }
   return Res;
 }
 
@@ -811,6 +834,13 @@ bool InstrumentParallel::instrumentLoadOrStore(Instruction *I,
   Value *Addr = IsWrite
       ? cast<StoreInst>(I)->getPointerOperand()
       : cast<LoadInst>(I)->getPointerOperand();
+
+  // swifterror memory addresses are mem2reg promoted by instruction selection.
+  // As such they cannot have regular uses like an instrumentation function and
+  // it makes no sense to track them as memory.
+  if (Addr->isSwiftError())
+    return false;
+
   int Idx = getMemoryAccessFuncIndex(Addr, DL);
   if (Idx < 0)
     return false;
@@ -859,7 +889,7 @@ static ConstantInt *createOrdering(IRBuilder<> *IRB, AtomicOrdering ord) {
   switch (ord) {
     case AtomicOrdering::NotAtomic:
       llvm_unreachable("unexpected atomic ordering!");
-    case AtomicOrdering::Unordered:              // Fall-through.
+    case AtomicOrdering::Unordered:              LLVM_FALLTHROUGH;
     case AtomicOrdering::Monotonic:              v = 0; break;
     // Not specified yet:
     // case AtomicOrdering::Consume:                v = 1; break;
@@ -899,11 +929,6 @@ bool InstrumentParallel::instrumentMemIntrinsic(Instruction *I) {
   return false;
 }
 
-static Value *createIntOrPtrToIntCast(Value *V, Type* Ty, IRBuilder<> &IRB) {
-  return isa<PointerType>(V->getType()) ?
-    IRB.CreatePtrToInt(V, Ty) : IRB.CreateIntCast(V, Ty, false);
-}
-
 // Both llvm and ThreadSanitizer atomic operations are based on C++11/C1x
 // standards.  For background see C++11 standard.  A slightly older, publicly
 // available draft of the standard (not entirely up-to-date, but close enough
@@ -926,15 +951,9 @@ bool InstrumentParallel::instrumentAtomic(Instruction *I, const DataLayout &DL) 
     Value *Args[] = {IRB.CreatePointerCast(Addr, PtrTy),
                      createOrdering(&IRB, LI->getOrdering())};
     Type *OrigTy = cast<PointerType>(Addr->getType())->getElementType();
-    if (Ty == OrigTy) {
-      Instruction *C = CallInst::Create(SwordAtomicLoad[Idx], Args);
-      ReplaceInstWithInst(I, C);
-    } else {
-      // We are loading a pointer, so we need to cast the return value.
-      Value *C = IRB.CreateCall(SwordAtomicLoad[Idx], Args);
-      Instruction *Cast = CastInst::Create(Instruction::IntToPtr, C, OrigTy);
-      ReplaceInstWithInst(I, Cast);
-    }
+    Value *C = IRB.CreateCall(SwordAtomicLoad[Idx], Args);
+    Value *Cast = IRB.CreateBitOrPointerCast(C, OrigTy);
+    I->replaceAllUsesWith(Cast);
   } else if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
     Value *Addr = SI->getPointerOperand();
     int Idx = getMemoryAccessFuncIndex(Addr, DL);
@@ -945,7 +964,7 @@ bool InstrumentParallel::instrumentAtomic(Instruction *I, const DataLayout &DL) 
     Type *Ty = Type::getIntNTy(IRB.getContext(), BitSize);
     Type *PtrTy = Ty->getPointerTo();
     Value *Args[] = {IRB.CreatePointerCast(Addr, PtrTy),
-                     createIntOrPtrToIntCast(SI->getValueOperand(), Ty, IRB),
+                     IRB.CreateBitOrPointerCast(SI->getValueOperand(), Ty),
                      createOrdering(&IRB, SI->getOrdering())};
     CallInst *C = CallInst::Create(SwordAtomicStore[Idx], Args);
     ReplaceInstWithInst(I, C);
@@ -976,9 +995,9 @@ bool InstrumentParallel::instrumentAtomic(Instruction *I, const DataLayout &DL) 
     Type *Ty = Type::getIntNTy(IRB.getContext(), BitSize);
     Type *PtrTy = Ty->getPointerTo();
     Value *CmpOperand =
-      createIntOrPtrToIntCast(CASI->getCompareOperand(), Ty, IRB);
+      IRB.CreateBitOrPointerCast(CASI->getCompareOperand(), Ty);
     Value *NewOperand =
-      createIntOrPtrToIntCast(CASI->getNewValOperand(), Ty, IRB);
+      IRB.CreateBitOrPointerCast(CASI->getNewValOperand(), Ty);
     Value *Args[] = {IRB.CreatePointerCast(Addr, PtrTy),
                      CmpOperand,
                      NewOperand,
@@ -1001,7 +1020,7 @@ bool InstrumentParallel::instrumentAtomic(Instruction *I, const DataLayout &DL) 
     I->eraseFromParent();
   } else if (FenceInst *FI = dyn_cast<FenceInst>(I)) {
     Value *Args[] = {createOrdering(&IRB, FI->getOrdering())};
-    Function *F = FI->getSynchScope() == SingleThread ?
+    Function *F = FI->getSyncScopeID() == SyncScope::SingleThread ?
         SwordAtomicSignalFence : SwordAtomicThreadFence;
     CallInst *C = CallInst::Create(F, Args);
     ReplaceInstWithInst(I, C);

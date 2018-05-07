@@ -153,7 +153,7 @@ extern "C" {
   }
 
   static void on_ompt_callback_thread_begin(ompt_thread_type_t thread_type,
-                                            ompt_thread_data_t *thread_data) {
+                                            ompt_data_t *thread_data) {
     __sword_tid__ = my_next_id();
 
     __sword_accesses1__ = new std::vector<TraceItem>(NUM_OF_ACCESSES);
@@ -193,12 +193,11 @@ extern "C" {
   }
 
   static void on_ompt_callback_parallel_begin(ompt_data_t *parent_task_data,
-                                              ompt_frame_t *parent_task_frame,
-                                              ompt_data_t *parallel_data,
+                                              const ompt_frame_t *parent_task_frame,
+                                              ompt_data_t* parallel_data,
                                               uint32_t requested_team_size,
-                                              void *parallel_function,
-                                              ompt_invoker_t invoker) {
-
+                                              ompt_invoker_t invoker,
+                                              const void *codeptr_ra) {
     __sword_status__++;
 
     if(__sword_status__ == 1) {
@@ -289,14 +288,18 @@ extern "C" {
     DUMP_TO_FILE
       }
 
-#define register_callback(name) {                               \
-    if (ompt_set_callback(name, (ompt_callback_t)&on_##name) == \
-        ompt_has_event_no_callback)                             \
-      printf("0: Could not register callback '" #name "'\n");   \
-  }
+#define register_callback_t(name, type)                       \
+do {                                                          \
+  type f_##name = &on_##name;                                 \
+  if (ompt_set_callback(name, (ompt_callback_t) f_##name) ==  \
+      ompt_set_never)                                         \
+    printf("0: Could not register callback '" #name "'\n");   \
+} while(0)
+
+#define register_callback(name) register_callback_t(name, name##_t)
 
   int ompt_initialize(ompt_function_lookup_t lookup,
-                      ompt_fns_t* fns) {
+                      ompt_data_t* tool_data) {
     const char *options = getenv("SWORD_OPTIONS");
     sword_flags = new SwordFlags(options);
 
@@ -313,8 +316,8 @@ extern "C" {
     register_callback(ompt_callback_parallel_end);
     register_callback(ompt_callback_implicit_task);
     register_callback(ompt_callback_sync_region);
-    register_callback(ompt_callback_mutex_acquired);
-    register_callback(ompt_callback_mutex_released);
+    register_callback_t(ompt_callback_mutex_acquired, ompt_callback_mutex_t);
+    register_callback_t(ompt_callback_mutex_released, ompt_callback_mutex_t);
 
     std::string str = sword_flags->traces_path;
     if(sword_flags->traces_path.empty()) {
@@ -361,14 +364,15 @@ extern "C" {
     return 0;
   }
 
-  void ompt_finalize(ompt_fns_t* fns) {
+  void ompt_finalize(ompt_data_t *tool_data) {
     fflush(NULL);
   }
 
-  ompt_fns_t* ompt_start_tool(unsigned int omp_version,
-                              const char *runtime_version) {
-    static ompt_fns_t ompt_fns = { &ompt_initialize, &ompt_finalize };
-    return &ompt_fns;
+ompt_start_tool_result_t* ompt_start_tool(
+  unsigned int omp_version,
+  const char *runtime_version) {
+    static ompt_start_tool_result_t ompt_start_tool_result = {&ompt_initialize, &ompt_finalize, {0}};
+    return &ompt_start_tool_result;
   }
 
 }
