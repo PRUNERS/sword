@@ -1,21 +1,21 @@
 @AUTO_GEN_COMMENT@
 
-config.test_compiler = "@SWORD_TEST_COMPILER@"
+config.test_compiler = "@LIBSWORD_TEST_COMPILER@"
 config.test_filecheck = "@FILECHECK_EXECUTABLE@"
-config.test_extra_cflags = "@SWORD_TEST_CFLAGS@"
+config.test_extra_cflags = "@LIBSWORD_TEST_CFLAGS@"
 config.libsword_obj_root = "@CMAKE_CURRENT_BINARY_DIR@"
-config.library_dir = "@SWORD_LIB_PATH@"
+config.library_dir = "@LIBSWORD_LIB_PATH@"
 config.omp_header_directory = "@OMP_INCLUDE_PATH@"
 config.omp_lib_directory = "@OMP_LIB_PATH@"
-config.sword_tools_dir = "@SWORD_TOOLS_DIR@"
-config.sword_library_dir = "@SWORD_LIB_PATH@"
-config.sword_runtime_dir = "@SWORD_RUNTIME_PATH@"
-config.sword_tools_dir = "@SWORD_TOOL_PATH@"
-config.sword_library = "@SWORD_LIB@"
-config.sword_runtime = "@SWORD_RTL@"
+config.sword_tools_dir = "@LIBSWORD_TOOLS_DIR@"
+config.sword_library_dir = "@LIBSWORD_LIB_PATH@"
+config.sword_runtime_dir = "@LIBSWORD_RUNTIME_PATH@"
+config.sword_tools_dir = "@LIBSWORD_TOOL_PATH@"
+config.sword_library = "@LIBSWORD_LIB@"
+config.sword_runtime = "@LIBSWORD_RTL@"
 config.operating_system = "@CMAKE_SYSTEM_NAME@"
-config.has_libm = "@SWORD_HAVE_LIBM@"
+config.has_libm = "@LIBSWORD_HAVE_LIBM@"
 config.has_race = True
 
 # Let the main config do the real work.
-lit_config.load_config(config, "@SWORD_BASE_DIR@/test/lit.cfg")
+lit_config.load_config(config, "@LIBSWORD_BASE_DIR@/test/lit.cfg")
