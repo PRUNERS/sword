@@ -31,7 +31,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 # Standalone build or part of LLVM?
 set(SWORD_STANDALONE_BUILD FALSE)
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
-    project(sword)
+    project(sword C CXX)
 
   set(SWORD_STANDALONE_BUILD TRUE)
 endif()
@@ -69,8 +69,17 @@ if(${SWORD_STANDALONE_BUILD})
   include(HandleLLVMOptions)
   include(AddLLVM)
 
+  # Group test settings.
+  set(LIBSWORD_TEST_C_COMPILER ${CMAKE_C_COMPILER} CACHE STRING
+    "C compiler to use for testing Sword runtime libraries.")
+  set(LIBSWORD_TEST_CXX_COMPILER ${CMAKE_CXX_COMPILER} CACHE STRING
+    "C++ compiler to use for testing Sword runtime libraries.")
+  set(LIBSWORD_LLVM_TOOLS_DIR "" CACHE PATH "Path to LLVM tools for testing.")
+
   add_definitions(${LLVM_DEFINITIONS})
   include_directories(${LLVM_INCLUDE_DIRS})
+else()
+  set(LLVM_ROOT ${CMAKE_INSTALL_PREFIX} CACHE PATH "Root of LLVM install.")
 endif()
 
 # Look for OpenMP runtime
@@ -82,9 +91,6 @@ if(${SWORD_STANDALONE_BUILD})
 else()
   set(OMP_PREFIX ${LLVM_ROOT} CACHE PATH "Root of OpenMP runtime install")
 endif()
-
-# These include files are in the cmake/ subdirectory
-include(LibswordUtils)
 
 find_package(Boost 1.58.0 COMPONENTS system filesystem REQUIRED)
 if(Boost_FOUND)
@@ -100,19 +106,51 @@ endif()
 
 find_package(Omp)
 include_directories(${OMP_INCLUDE_PATH})
-find_package(Ompt)
-include_directories(${OMPT_INCLUDE_PATH})
+link_directories(${OMP_LIB_PATH})
+if(NOT ${LLVM_NATIVE_ARCH} STREQUAL "PowerPC")
+  if(NOT ${LIBOMP_TSAN_SUPPORT}) # (__powerpc64__)
+    find_package(Ompt)
+    include_directories(${OMPT_INCLUDE_PATH})
+  endif()
+endif()
 
+include(config-ix)
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  has_ompt_support("${OMP_LIB_PATH}" "libomp.so" "ompt_start_tool" LIBSWORD_OMPT_SUPPORT)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  has_ompt_support("${OMP_LIB_PATH}" "libomp.dylib" "_ompt_callbacks" LIBSWORD_OMPT_SUPPORT)
+endif()
+
+# Set up testing infrastructure.
+include(SwordTesting)
+
+set(LIBSWORD_TEST_FLAGS "" CACHE STRING
+  "Extra compiler flags to send to the test compiler.")
+set(LIBSWORD_TEST_SWORD_FLAGS ${LIBSWORD_TEST_COMPILER_SWORD_FLAGS} CACHE STRING
+  "Sword compiler flag to use for testing Sword runtime libraries.")
+
+# Setting directory names
+
+set(LIBSWORD_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(LIBSWORD_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+if(NOT ${LIBOMP_TSAN_SUPPORT})
+    set(LIBSWORD_RUNTIME_PATH ${CMAKE_BINARY_DIR}/rtl)
+    set(LIBSWORD_SWORD_RUNTIME_SUPPRESSIONS_FILE ${CMAKE_CURRENT_SOURCE_DIR}/rtl/suppressions.txt)
+    set(LIBSWORD_RTL libsword${EXT})
+  endif()
+
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  set(CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS "${CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS} -undefined dynamic_lookup")
+endif()
+
+set(LIBSWORD_LIB_PATH ${CMAKE_BINARY_DIR}/lib)
+set(LIBSWORD_LIB LLVMSword${EXT})
+set(LIBSWORD_TOOLS_DIR ${LIBSWORD_BASE_DIR}/tools)
 add_subdirectory(lib)
-add_subdirectory(rtl)
 
-set(SWORD_LIB LLVMSword.so)
-set(SWORD_LIB_PATH ${CMAKE_BINARY_DIR}/lib)
-set(SWORD_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(SWORD_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
-set(SWORD_RUNTIME_PATH ${CMAKE_BINARY_DIR}/rtl)
-set(SWORD_TOOL_PATH ${CMAKE_BINARY_DIR}/tools)
-set(SWORD_RTL libsword.so)
-
+if(NOT ${LIBOMP_TSAN_SUPPORT})
+    add_subdirectory(rtl)
+endif()
 add_subdirectory(test)
 add_subdirectory(tools)
