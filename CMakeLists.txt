@@ -13,9 +13,9 @@
 #
 # All rights reserved.
 #
-# This file is part of Archer. For details, see
-# https://pruners.github.io/archer. Please also read
-# https://github.com/PRUNERS/archer/blob/master/LICENSE.
+# This file is part of Sword. For details, see
+# https://pruners.github.io/sword. Please also read
+# https://github.com/PRUNERS/sword/blob/master/LICENSE.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -78,11 +78,11 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR})
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 # Standalone build or part of LLVM?
-set(SWORD_STANDALONE_BUILD FALSE)
+set(LIBSWORD_STANDALONE_BUILD FALSE)
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
     project(sword C CXX)
 
-  set(SWORD_STANDALONE_BUILD TRUE)
+  set(LIBSWORD_STANDALONE_BUILD TRUE)
 endif()
 
 if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
@@ -108,7 +108,7 @@ elseif(${UNIX})
   set(EXT .so)
 endif()
 
-if(${SWORD_STANDALONE_BUILD})
+if(${LIBSWORD_STANDALONE_BUILD})
   # LLVM detection part
   set(LLVM_ROOT "" CACHE PATH "Root of LLVM install.")
   find_package(LLVM MODULE REQUIRED)
@@ -125,7 +125,7 @@ if(${SWORD_STANDALONE_BUILD})
   include(HandleLLVMOptions)
   include(AddLLVM)
 
-  # Group test settings.
+    # Group test settings.
   set(LIBSWORD_TEST_C_COMPILER ${CMAKE_C_COMPILER} CACHE STRING
     "C compiler to use for testing Sword runtime libraries.")
   set(LIBSWORD_TEST_CXX_COMPILER ${CMAKE_CXX_COMPILER} CACHE STRING
@@ -139,7 +139,7 @@ else()
 endif()
 
 # Look for OpenMP runtime
-if(${SWORD_STANDALONE_BUILD})
+if(${LIBSWORD_STANDALONE_BUILD})
   set(OMP_PREFIX /usr/local CACHE PATH "Root of OpenMP runtime install")
   if(NOT EXISTS ${OMP_PREFIX}/include/omp.h)
     message(FATAL_ERROR "OMP_PREFIX (${OMP_PREFIX}) is not a valid OpenMP runtime install")
