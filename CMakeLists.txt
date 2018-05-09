@@ -125,7 +125,7 @@ if(${LIBSWORD_STANDALONE_BUILD})
   include(HandleLLVMOptions)
   include(AddLLVM)
 
-    # Group test settings.
+  # Group test settings.
   set(LIBSWORD_TEST_C_COMPILER ${CMAKE_C_COMPILER} CACHE STRING
     "C compiler to use for testing Sword runtime libraries.")
   set(LIBSWORD_TEST_CXX_COMPILER ${CMAKE_CXX_COMPILER} CACHE STRING
@@ -164,10 +164,8 @@ find_package(Omp)
 include_directories(${OMP_INCLUDE_PATH})
 link_directories(${OMP_LIB_PATH})
 if(NOT ${LLVM_NATIVE_ARCH} STREQUAL "PowerPC")
-  if(NOT ${LIBOMP_TSAN_SUPPORT}) # (__powerpc64__)
-    find_package(Ompt)
-    include_directories(${OMPT_INCLUDE_PATH})
-  endif()
+  find_package(Ompt)
+  include_directories(${OMPT_INCLUDE_PATH})
 endif()
 
 include(config-ix)

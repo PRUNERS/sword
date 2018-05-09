@@ -13,9 +13,9 @@
 #
 # All rights reserved.
 #
-# This file is part of Archer. For details, see
-# https://pruners.github.io/archer. Please also read
-# https://github.com/PRUNERS/archer/blob/master/LICENSE.
+# This file is part of Sword. For details, see
+# https://pruners.github.io/sword. Please also read
+# https://github.com/PRUNERS/sword/blob/master/LICENSE.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -52,10 +52,10 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O3")
 
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR})
 
-set(SWORD_SOURCES sword_rtl.cc ${SRCS})
+set(LIBSWORD_SOURCES sword_rtl.cc ${SRCS})
 
-add_library(sword MODULE ${SWORD_SOURCES})
-add_library(sword_static STATIC ${SWORD_SOURCES})
+add_library(sword MODULE ${LIBSWORD_SOURCES})
+add_library(sword_static STATIC ${LIBSWORD_SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-fopenmp")
 

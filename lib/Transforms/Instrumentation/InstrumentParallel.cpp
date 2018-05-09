@@ -13,9 +13,9 @@ LLNL-CODE-727057
 
 All rights reserved.
 
-This file is part of Archer. For details, see
-https://pruners.github.io/archer. Please also read
-https://github.com/PRUNERS/archer/blob/master/LICENSE.
+This file is part of Sword. For details, see
+https://pruners.github.io/sword. Please also read
+https://github.com/PRUNERS/sword/blob/master/LICENSE.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
