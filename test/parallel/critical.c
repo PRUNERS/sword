@@ -1,4 +1,4 @@
-// RUN: %raceomp-compile-and-run 2>&1 | FileCheck %s
+// RUN: %libsword-compile-and-run-race 2>&1 | FileCheck %s
 #include <omp.h>
 #include <stdio.h>
 
@@ -23,4 +23,3 @@ int main(int argc, char* argv[])
 }
 
 // CHECK: SWORD did not find any race on '{{.*}}'.
-

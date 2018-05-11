@@ -1,4 +1,4 @@
-// RUN: %raceomp-compile-and-run 2>&1 | FileCheck %s
+// RUN: %libsword-compile-and-run-race 2>&1 | FileCheck %s
 #include <omp.h>
 #include <stdio.h>
 
@@ -7,7 +7,7 @@ int main(int argc, char* argv[])
   int var = 0, i;
   int sum1 = 0;
   int sum2 = 0;
-  
+
   // Number of threads is empirical: We need enough threads so that
   // the reduction is really performed hierarchically in the barrier!
   #pragma omp parallel num_threads(5) reduction(+: var)
