@@ -3,7 +3,7 @@
 config.test_c_compiler = "@LIBSWORD_TEST_C_COMPILER@"
 config.test_cxx_compiler = "@LIBSWORD_TEST_CXX_COMPILER@"
 config.test_compiler_features = @LIBSWORD_TEST_COMPILER_FEATURES@
-config.test_filecheck = "@FILECHECK_EXECUTABLE@"
+config.test_filecheck = "@LIBSWORD_FILECHECK_EXECUTABLE@"
 config.test_sword_flags = "@LIBSWORD_TEST_SWORD_FLAGS@"
 config.test_extra_flags = "@LIBSWORD_TEST_FLAGS@"
 config.libsword_obj_root = "@CMAKE_CURRENT_BINARY_DIR@"
