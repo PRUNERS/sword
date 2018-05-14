@@ -2,7 +2,7 @@ add_definitions(-D_FILE_OFFSET_BITS=64)
 # add_definitions(-D PRINT) # PRINT TREES
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O3")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -stdlib=libc++")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3")
 
 set(RBTREE_SOURCES interval_tree.cc rbtree.c)
 add_library(rbtree STATIC ${RBTREE_SOURCES})
