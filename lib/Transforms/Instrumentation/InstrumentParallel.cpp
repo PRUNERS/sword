@@ -1,53 +1,9 @@
-/*
-Copyright (c) 2015-2017, Lawrence Livermore National Security, LLC.
-
-Produced at the Lawrence Livermore National Laboratory
-
-Written by Simone Atzeni (simone@cs.utah.edu), Joachim Protze
-(joachim.protze@tu-dresden.de), Jonas Hahnfeld
-(hahnfeld@itc.rwth-aachen.de), Ganesh Gopalakrishnan, Zvonimir
-Rakamaric, Dong H. Ahn, Gregory L. Lee, Ignacio Laguna, and Martin
-Schulz.
-
-LLNL-CODE-727057
-
-All rights reserved.
-
-This file is part of Sword. For details, see
-https://pruners.github.io/sword. Please also read
-https://github.com/PRUNERS/sword/blob/master/LICENSE.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
-
-   Redistributions of source code must retain the above copyright
-   notice, this list of conditions and the disclaimer below.
-
-   Redistributions in binary form must reproduce the above copyright
-   notice, this list of conditions and the disclaimer (as noted below)
-   in the documentation and/or other materials provided with the
-   distribution.
-
-   Neither the name of the LLNS/LLNL nor the names of its contributors
-   may be used to endorse or promote products derived from this
-   software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL LAWRENCE
-LIVERMORE NATIONAL SECURITY, LLC, THE U.S. DEPARTMENT OF ENERGY OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
 //===-- InstrumentParallel.cpp - SWORD race detector -------------------------------===//
+//
+//                     The LLVM Compiler Infrastructure
+//
+// This file is distributed under the University of Illinois Open Source
+// License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
 //
@@ -61,16 +17,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // The rest is handled by the run-time library.
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Transforms/Instrumentation.h"
+#include "../../../include/sword/LinkAllPasses.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Function.h"
@@ -79,7 +35,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -89,7 +44,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -97,7 +51,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
-#include "sword/LinkAllPasses.h"
 
 #include <cxxabi.h>
 
@@ -146,51 +99,38 @@ STATISTIC(NumOmittedReadsFromConstantGlobals,
 STATISTIC(NumOmittedReadsFromVtable, "Number of vtable reads");
 STATISTIC(NumOmittedNonCaptured, "Number of accesses ignored due to capturing");
 
-//static const char *const kSwordModuleCtorName = "sword.module_ctor";
-//static const char *const kSwordInitName = "__sword_init";
 
 #define MIN_VERSION 39
 
-static cl::opt<bool>  ClInstrumentMemoryAccesses(
-    "sword-instrument-memory-accesses", cl::init(true),
-    cl::desc("Instrument memory accesses"), cl::Hidden);
-static cl::opt<bool>  ClInstrumentFuncEntryExit(
-    "sword-instrument-func-entry-exit", cl::init(true),
-    cl::desc("Instrument function entry and exit"), cl::Hidden);
-static cl::opt<bool>  ClInstrumentAtomics(
-    "sword-instrument-atomics", cl::init(true),
-    cl::desc("Instrument atomics"), cl::Hidden);
-static cl::opt<bool>  ClInstrumentMemIntrinsics(
-    "sword-instrument-memintrinsics", cl::init(true),
-    cl::desc("Instrument memintrinsics (memset/memcpy/memmove)"), cl::Hidden);
 
 #define TLS_DECLARE(var, type, name)		  		                           \
-		if(!var) {                                                                 \
+		if(!var) {                                                             \
 			var = new llvm::GlobalVariable(*M, type, false,                    \
-					llvm::GlobalValue::CommonLinkage,           	   \
-					Zero32, name, NULL,                         	   \
-					GlobalVariable::GeneralDynamicTLSModel,     	   \
-					0, false);                                  	   \
-		} else if(var && (var->getLinkage() !=					   \
-				llvm::GlobalValue::CommonLinkage)) {  			   \
+					llvm::GlobalValue::CommonLinkage,           			   \
+					Zero32, name, NULL,                         			   \
+					GlobalVariable::GeneralDynamicTLSModel,     			   \
+					0, false);                                  			   \
+		} else if(var && (var->getLinkage() !=								   \
+				llvm::GlobalValue::CommonLinkage)) {  			   			   \
 			var->setLinkage(llvm::GlobalValue::CommonLinkage);                 \
 			var->setExternallyInitialized(false);                              \
 			var->setInitializer(Zero32);                                       \
 		}
 
-#define TLS_DECLARE_EXTERN(var, type, name)			  		           \
-		if(!var) {								   \
-			var = new llvm::GlobalVariable(*M, type, false,  	   	   \
-					llvm::GlobalValue::AvailableExternallyLinkage,	   \
-					0, name, NULL,					   \
-					GlobalVariable::GeneralDynamicTLSModel,		   \
-					0, true);					   \
+#define TLS_DECLARE_EXTERN(var, type, name)			  		                   \
+		if(!var) {															   \
+			var = new llvm::GlobalVariable(*M, type, false,  	   	   		   \
+					llvm::GlobalValue::AvailableExternallyLinkage,	 		   \
+					0, name, NULL,								  		  	   \
+					GlobalVariable::GeneralDynamicTLSModel,			   		   \
+					0, true);												   \
 		}
 
 namespace {
 
+/// InstrumentParallel: instrument the code in module to find races.
 struct InstrumentParallel : public FunctionPass {
-  InstrumentParallel() : FunctionPass(ID) { PassName = "InstrumentParallel"; }
+  InstrumentParallel() : FunctionPass(ID) {}
 #if LLVM_VERSION > MIN_VERSION
   StringRef getPassName() const override;
 #else
@@ -201,7 +141,7 @@ struct InstrumentParallel : public FunctionPass {
   bool doInitialization(Module &M) override;
   static char ID;  // Pass identification, replacement for typeid.
 
-private:
+ private:
   void initializeCallbacks(Module &M);
   bool instrumentLoadOrStore(Instruction *I, const DataLayout &DL);
   bool instrumentAtomic(Instruction *I, const DataLayout &DL);
@@ -211,7 +151,7 @@ private:
                                       const DataLayout &DL);
   bool addrPointsToConstantData(Value *Addr);
   int getMemoryAccessFuncIndex(Value *Addr, const DataLayout &DL);
-  void InsertRuntimeIgnores(Function &F);
+
   std::string PassName;
   void setMetadata(Instruction *Inst, const char *name, const char *description);
   bool isNotInstrumentable(MDNode *mdNode);
@@ -224,8 +164,6 @@ private:
   GlobalVariable *AccessMax;
   GlobalVariable *FunctionMin;
   GlobalVariable *FunctionMax;
-//  Function *SwordFuncEntry;
-//  Function *SwordFuncExit;
   Function *SwordFuncTermination;
   // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
   static const size_t kNumberOfAccessSizes = 5;
@@ -248,23 +186,23 @@ private:
 
 char InstrumentParallel::ID = 0;
 INITIALIZE_PASS_BEGIN(
-    InstrumentParallel, "sword-sbl",
+    InstrumentParallel, "sword",
     "InstrumentParallel: instrument parallel functions.",
     false, false)
 INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
 INITIALIZE_PASS_END(
-    InstrumentParallel, "sword-sbl",
+    InstrumentParallel, "sword",
     "InstrumentParallel: instrument parallel functions.",
     false, false)
 
 #if LLVM_VERSION > MIN_VERSION
 	StringRef InstrumentParallel::getPassName() const {
-		return PassName;
+		return "InstrumentParallel";
 	}
 #else
 	const char *InstrumentParallel::getPassName() const {
-		return PassName.c_str();
+		return "InstrumentParallel";
 	}
 #endif
 
@@ -273,7 +211,7 @@ void InstrumentParallel::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<AAResultsWrapperPass>();
 }
 
-Pass *llvm::createInstrumentParallelPass() {
+FunctionPass *llvm::createInstrumentParallelPass() {
   return new InstrumentParallel();
 }
 
@@ -283,52 +221,39 @@ void InstrumentParallel::initializeCallbacks(Module &M) {
   Attr = Attr.addAttribute(M.getContext(), AttributeList::FunctionIndex,
                            Attribute::NoUnwind);
   // Initialize the callbacks.
-//  SwordFuncEntry = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-//      "__sword_func_entry", IRB.getVoidTy(), IRB.getInt64Ty(), IRB.getInt8PtrTy(), nullptr));
-//  SwordFuncExit = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-//      "__sword_func_exit", IRB.getVoidTy(), IRB.getInt64Ty(), nullptr));
-  SwordFuncTermination = checkSanitizerInterfaceFunction(
-    M.getOrInsertFunction("__sword_internal_end_checker_threads", IRB.getVoidTy(), nullptr));
   OrdTy = IRB.getInt32Ty();
   for (size_t i = 0; i < kNumberOfAccessSizes; ++i) {
     const unsigned ByteSize = 1U << i;
     const unsigned BitSize = ByteSize * 8;
     std::string ByteSizeStr = utostr(ByteSize);
     std::string BitSizeStr = utostr(BitSize);
-    // SmallString<32> ReadName("__tsan_read" + ByteSizeStr);
-    // TsanRead[i] = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-    //     ReadName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy()));
-
-    int LongSize = M.getDataLayout().getPointerSizeInBits();
-    IntptrTy = Type::getIntNTy(M.getContext(), LongSize);
-
     SmallString<32> ReadName("__sword_read" + ByteSizeStr);
     SwordRead[i] = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-        ReadName, IRB.getVoidTy(), IRB.getInt8PtrTy(), nullptr));
+        ReadName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy()));
 
     SmallString<32> WriteName("__sword_write" + ByteSizeStr);
     SwordWrite[i] = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-        WriteName, IRB.getVoidTy(), IRB.getInt8PtrTy(), nullptr));
+        WriteName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy()));
 
-    SmallString<64> UnalignedReadName("_sword_unaligned_read" + ByteSizeStr);
+    SmallString<64> UnalignedReadName("__sword_unaligned_read" + ByteSizeStr);
     SwordUnalignedRead[i] =
         checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-            UnalignedReadName, IRB.getVoidTy(), IRB.getInt8PtrTy(), nullptr));
+            UnalignedReadName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy()));
 
     SmallString<64> UnalignedWriteName("__sword_unaligned_write" + ByteSizeStr);
     SwordUnalignedWrite[i] =
         checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-            UnalignedWriteName, IRB.getVoidTy(), IRB.getInt8PtrTy(), nullptr));
+            UnalignedWriteName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy()));
 
     Type *Ty = Type::getIntNTy(M.getContext(), BitSize);
     Type *PtrTy = Ty->getPointerTo();
     SmallString<32> AtomicLoadName("__sword_atomic" + BitSizeStr + "_load");
     SwordAtomicLoad[i] = checkSanitizerInterfaceFunction(
-        M.getOrInsertFunction(AtomicLoadName, Ty, PtrTy, OrdTy, nullptr));
+        M.getOrInsertFunction(AtomicLoadName, Attr, Ty, PtrTy, OrdTy));
 
     SmallString<32> AtomicStoreName("__sword_atomic" + BitSizeStr + "_store");
     SwordAtomicStore[i] = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-        AtomicStoreName, IRB.getVoidTy(), PtrTy, Ty, OrdTy, nullptr));
+        AtomicStoreName, Attr, IRB.getVoidTy(), PtrTy, Ty, OrdTy));
 
     for (int op = AtomicRMWInst::FIRST_BINOP;
         op <= AtomicRMWInst::LAST_BINOP; ++op) {
@@ -352,33 +277,18 @@ void InstrumentParallel::initializeCallbacks(Module &M) {
         continue;
       SmallString<32> RMWName("__sword_atomic" + itostr(BitSize) + NamePart);
       SwordAtomicRMW[op][i] = checkSanitizerInterfaceFunction(
-          M.getOrInsertFunction(RMWName, Ty, PtrTy, Ty, OrdTy, nullptr));
+          M.getOrInsertFunction(RMWName, Attr, Ty, PtrTy, Ty, OrdTy));
     }
 
     SmallString<32> AtomicCASName("__sword_atomic" + BitSizeStr +
                                   "_compare_exchange_val");
     SwordAtomicCAS[i] = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-        AtomicCASName, Ty, PtrTy, Ty, Ty, OrdTy, OrdTy, nullptr));
+        AtomicCASName, Attr, Ty, PtrTy, Ty, Ty, OrdTy, OrdTy));
   }
-  // SwordVptrUpdate = checkSanitizerInterfaceFunction(
-  //     M.getOrInsertFunction("__sword_vptr_update", IRB.getVoidTy(),
-  //                           IRB.getInt8PtrTy(), IRB.getInt8PtrTy(), nullptr));
-  // SwordVptrLoad = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-  //     "__sword_vptr_read", IRB.getVoidTy(), IRB.getInt8PtrTy(), nullptr));
   SwordAtomicThreadFence = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-      "__sword_atomic_thread_fence", IRB.getVoidTy(), OrdTy, nullptr));
+      "__sword_atomic_thread_fence", Attr, IRB.getVoidTy(), OrdTy));
   SwordAtomicSignalFence = checkSanitizerInterfaceFunction(M.getOrInsertFunction(
-      "__sword_atomic_signal_fence", IRB.getVoidTy(), OrdTy, nullptr));
-
-  // MemmoveFn = checkSanitizerInterfaceFunction(
-  //     M.getOrInsertFunction("memmove", IRB.getInt8PtrTy(), IRB.getInt8PtrTy(),
-  //                           IRB.getInt8PtrTy(), IntptrTy, nullptr));
-  // MemcpyFn = checkSanitizerInterfaceFunction(
-  //     M.getOrInsertFunction("memcpy", IRB.getInt8PtrTy(), IRB.getInt8PtrTy(),
-  //                           IRB.getInt8PtrTy(), IntptrTy, nullptr));
-  // MemsetFn = checkSanitizerInterfaceFunction(
-  //     M.getOrInsertFunction("memset", IRB.getInt8PtrTy(), IRB.getInt8PtrTy(),
-  //                           IRB.getInt32Ty(), IntptrTy, nullptr));
+      "__sword_atomic_signal_fence", Attr, IRB.getVoidTy(), OrdTy));
 }
 
 bool InstrumentParallel::doInitialization(Module &M) {
@@ -402,12 +312,6 @@ bool InstrumentParallel::doInitialization(Module &M) {
                                        llvm::GlobalValue::PrivateLinkage, Zero64,
                                        "function_max", NULL,
                                        GlobalVariable::NotThreadLocal, 0, false);
-//  std::tie(SwordCtorFunction, std::ignore) = createSanitizerCtorAndInitFunctions(
-//      M, kSwordModuleCtorName, kSwordInitName,
-//      /*InitArgTypes=*/{Int64PtrTy, Int64PtrTy, Int64PtrTy, Int64PtrTy},
-//      /*InitArgs=*/{AccessMin, AccessMax, FunctionMin, FunctionMax});
-
-//  appendToGlobalCtors(M, SwordCtorFunction, 0);
   return true;
 }
 
@@ -521,16 +425,8 @@ void InstrumentParallel::chooseInstructionsToInstrument(
   SmallSet<Value*, 8> WriteTargets;
   // Iterate from the end.
   for (Instruction *I : reverse(Local)) {
-//    if(I->getMetadata("sword.ompstatus") || I->getMetadata("sword.ignore_access"))
     if(I->getMetadata("sword.ompstatus"))
       continue;
-    // BAD!: This will remove any instrumentation basically
-    // if(DebugLoc debugLoc = I->getDebugLoc()) {
-    //   if(MDNode *mdNode = debugLoc.getScope()) {
-    //     if(isNotInstrumentable(mdNode))
-    //       continue;
-    //   }
-    // }
     if (StoreInst *Store = dyn_cast<StoreInst>(I)) {
       Value *Addr = Store->getPointerOperand();
       if (!shouldInstrumentReadWriteFromAddress(I->getModule(), Addr))
@@ -630,13 +526,19 @@ static bool isAtomic(Instruction *I) {
   return false;
 }
 
-void InstrumentParallel::setMetadata(Instruction *Inst, const char *name, const char *description) {
-  LLVMContext& C = Inst->getContext();
-  MDNode* N = MDNode::get(C, MDString::get(C, description));
-  Inst->setMetadata(name, N);
-}
+// void InstrumentParallel::InsertRuntimeIgnores(Function &F) {
+//   IRBuilder<> IRB(F.getEntryBlock().getFirstNonPHI());
+//   IRB.CreateCall(SwordIgnoreBegin);
+//   EscapeEnumerator EE(F, "sword_ignore_cleanup", ClHandleCxxExceptions);
+//   while (IRBuilder<> *AtExit = EE.Next()) {
+//     AtExit->CreateCall(SwordIgnoreEnd);
+//   }
+// }
 
 bool InstrumentParallel::runOnFunction(Function &F) {
+  // This is required to prevent instrumenting call to __sword_init from within
+  // the module constructor.
+
   if (&F == SwordCtorFunction)
     return false;
   Function *IF;
@@ -666,7 +568,7 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   if(functionName.endswith("_dtor") ||
      functionName.endswith("__sword__") ||
      functionName.endswith("__clang_call_terminate") ||
-     functionName.endswith("__tsan_default_suppressions") ||
+     functionName.endswith("__sword_default_suppressions") ||
      functionName.endswith("__sword__get_omp_status") ||
      functionName.startswith(".omp.reduction.reduction_func") ||
      (F.getLinkage() == llvm::GlobalValue::AvailableExternallyLinkage)) {
@@ -800,8 +702,8 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   SmallVector<Instruction*, 8> MemIntrinCalls;
   bool Res = false;
   bool HasCalls = false;
-  bool SanitizeFunction = F.hasFnAttribute(Attribute::SanitizeThread);
-  const DataLayout &DL = F.getParent()->getDataLayout();
+  bool SanitizeFunction = IF->hasFnAttribute(Attribute::SanitizeThread);
+  const DataLayout &DL = IF->getParent()->getDataLayout();
   const TargetLibraryInfo *TLI =
       &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
@@ -830,43 +732,16 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   // (e.g. variables that do not escape, etc).
 
   // Instrument memory accesses only if we want to report bugs in the function.
-  if (ClInstrumentMemoryAccesses && SanitizeFunction)
-    for (auto Inst : AllLoadsAndStores) {
-      Res |= instrumentLoadOrStore(Inst, DL);
-    }
+  for (auto Inst : AllLoadsAndStores) {
+    Res |= instrumentLoadOrStore(Inst, DL);
+  }
 
   // Instrument atomic memory accesses in any case (they can be used to
   // implement synchronization).
-  if (ClInstrumentAtomics)
-    for (auto Inst : AtomicAccesses) {
-      Res |= instrumentAtomic(Inst, DL);
-    }
-
-  // if (ClInstrumentMemIntrinsics && SanitizeFunction)
-  //  for (auto Inst : MemIntrinCalls) {
-  //    Res |= instrumentMemIntrinsic(Inst);
-  //  }
-
-  if (F.hasFnAttribute("sanitize_thread_no_checking_at_run_time")) {
-    assert(!F.hasFnAttribute(Attribute::SanitizeThread));
-    if (HasCalls)
-      InsertRuntimeIgnores(F);
+  for (auto Inst : AtomicAccesses) {
+    Res |= instrumentAtomic(Inst, DL);
   }
 
-  // Instrument function entry/exit points if there were instrumented accesses.
-  // if ((Res || HasCalls) && ClInstrumentFuncEntryExit) {
-  //  IRBuilder<> IRB(F.getEntryBlock().getFirstNonPHI());
-  //  Value *ReturnAddress = IRB.CreateCall(
-  //      Intrinsic::getDeclaration(F.getParent(), Intrinsic::returnaddress),
-  //      IRB.getInt32(0));
-  //  IRB.CreateCall(TsanFuncEntry, ReturnAddress);
-
-  // EscapeEnumerator EE(F, "tsan_cleanup", ClHandleCxxExceptions);
-  // while (IRBuilder<> *AtExit = EE.Next()) {
-  //  AtExit->CreateCall(TsanFuncExit, {});
-  // }
-  //   Res = true;
-  // }
   return Res;
 }
 
@@ -887,30 +762,6 @@ bool InstrumentParallel::instrumentLoadOrStore(Instruction *I,
   int Idx = getMemoryAccessFuncIndex(Addr, DL);
   if (Idx < 0)
     return false;
-  // if (IsWrite && isVtableAccess(I)) {
-  //   DEBUG(dbgs() << "  VPTR : " << *I << "\n");
-  //   Value *StoredValue = cast<StoreInst>(I)->getValueOperand();
-  //   // StoredValue may be a vector type if we are storing several vptrs at once.
-  //   // In this case, just take the first element of the vector since this is
-  //   // enough to find vptr races.
-  //   if (isa<VectorType>(StoredValue->getType()))
-  //     StoredValue = IRB.CreateExtractElement(
-  //         StoredValue, ConstantInt::get(IRB.getInt32Ty(), 0));
-  //   if (StoredValue->getType()->isIntegerTy())
-  //     StoredValue = IRB.CreateIntToPtr(StoredValue, IRB.getInt8PtrTy());
-  //   // Call SwordVptrUpdate.
-  //   IRB.CreateCall(SwordVptrUpdate,
-  //                  {IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()),
-  //                   IRB.CreatePointerCast(StoredValue, IRB.getInt8PtrTy())});
-  //   NumInstrumentedVtableWrites++;
-  //   return true;
-  // }
-  // if (!IsWrite && isVtableAccess(I)) {
-  //   IRB.CreateCall(SwordVptrLoad,
-  //                  IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()));
-  //   NumInstrumentedVtableReads++;
-  //   return true;
-  // }
   const unsigned Alignment = IsWrite
       ? cast<StoreInst>(I)->getAlignment()
       : cast<LoadInst>(I)->getAlignment();
@@ -949,9 +800,9 @@ static ConstantInt *createOrdering(IRBuilder<> *IRB, AtomicOrdering ord) {
 // We do not instrument memset/memmove/memcpy intrinsics (too complicated),
 // instead we simply replace them with regular function calls, which are then
 // intercepted by the run-time.
-// Since tsan is running after everyone else, the calls should not be
+// Since sword is running after everyone else, the calls should not be
 // replaced back with intrinsics. If that becomes wrong at some point,
-// we will need to call e.g. __tsan_memset to avoid the intrinsics.
+// we will need to call e.g. __sword_memset to avoid the intrinsics.
 bool InstrumentParallel::instrumentMemIntrinsic(Instruction *I) {
   IRBuilder<> IRB(I);
   if (MemSetInst *M = dyn_cast<MemSetInst>(I)) {
@@ -972,7 +823,12 @@ bool InstrumentParallel::instrumentMemIntrinsic(Instruction *I) {
   return false;
 }
 
-// Both llvm and ThreadSanitizer atomic operations are based on C++11/C1x
+static Value *createIntOrPtrToIntCast(Value *V, Type* Ty, IRBuilder<> &IRB) {
+  return isa<PointerType>(V->getType()) ?
+    IRB.CreatePtrToInt(V, Ty) : IRB.CreateIntCast(V, Ty, false);
+}
+
+// Both llvm and InstrumentParallel atomic operations are based on C++11/C1x
 // standards.  For background see C++11 standard.  A slightly older, publicly
 // available draft of the standard (not entirely up-to-date, but close enough
 // for casual browsing) is available here:
@@ -1092,4 +948,4 @@ static void registerInstrumentParallelPass(const PassManagerBuilder &, llvm::leg
   PM.add(new InstrumentParallel());
 }
 
-static RegisterStandardPasses RegisterMyPass(PassManagerBuilder::EP_EarlyAsPossible, registerInstrumentParallelPass);
+static RegisterStandardPasses RegisterInstrumentParallelPass(PassManagerBuilder::EP_EarlyAsPossible, registerInstrumentParallelPass);

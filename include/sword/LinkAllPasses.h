@@ -62,7 +62,7 @@ class ModulePass;
 }
 
 namespace llvm {
-llvm::Pass *createInstrumentParallelPass();
+llvm::FunctionPass *createInstrumentParallelPass();
 }
 
 namespace {

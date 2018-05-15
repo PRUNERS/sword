@@ -53,10 +53,6 @@ else()
   set(LIBSWORD_HEADER_FILES ${PROJECT_SOURCE_DIR}/tools/sword/include)
 endif()
 
-if(${LIBOMP_TSAN_SUPPORT})
-  add_definitions(-D TSAN_SUPPORT=1)
-endif()
-
 include_directories(${LIBSWORD_HEADER_FILES})
 
 set(LIBSWORD_SOURCE_FILES

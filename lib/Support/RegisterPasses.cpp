@@ -55,11 +55,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "llvm/Transforms/Vectorize.h"
 
 namespace llvm {
-void initializeSwordPasses(llvm::PassRegistry &Registry) {
-  initializeInstrumentParallelPass(Registry);
-}
+  void initializeSwordPasses(llvm::PassRegistry &Registry) {
+    initializeInstrumentParallelPass(Registry);
+  }
 
-void registerSwordPasses(llvm::legacy::PassManagerBase &PM) {
-  PM.add(createInstrumentParallelPass());
-}
+  void registerSwordPasses(llvm::legacy::PassManagerBase &PM) {
+    PM.add(createInstrumentParallelPass());
+  }
 }
