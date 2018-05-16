@@ -17,7 +17,6 @@
 // The rest is handled by the run-time library.
 //===----------------------------------------------------------------------===//
 
-#include "../../../include/sword/LinkAllPasses.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -51,6 +50,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
+#include "sword/LinkAllPasses.h"
 
 #include <cxxabi.h>
 
@@ -948,4 +948,4 @@ static void registerInstrumentParallelPass(const PassManagerBuilder &, llvm::leg
   PM.add(new InstrumentParallel());
 }
 
-static RegisterStandardPasses RegisterInstrumentParallelPass(PassManagerBuilder::EP_EarlyAsPossible, registerInstrumentParallelPass);
+static RegisterStandardPasses RegisterMyPass(PassManagerBuilder::EP_EarlyAsPossible, registerInstrumentParallelPass);
