@@ -2,7 +2,7 @@
 
 config.test_c_compiler = "@LIBSWORD_TEST_C_COMPILER@"
 config.test_cxx_compiler = "@LIBSWORD_TEST_CXX_COMPILER@"
-config.test_compiler_features = @LIBSWORD_TEST_COMPILER_FEATURES@
+config.test_compiler_features = "@LIBSWORD_TEST_COMPILER_FEATURES@"
 config.test_filecheck = "@LIBSWORD_FILECHECK_EXECUTABLE@"
 config.test_sword_flags = "@LIBSWORD_TEST_SWORD_FLAGS@"
 config.test_extra_flags = "@LIBSWORD_TEST_FLAGS@"
@@ -10,15 +10,16 @@ config.libsword_obj_root = "@CMAKE_CURRENT_BINARY_DIR@"
 config.omp_library_dir = "@OMP_LIB_PATH@"
 config.omp_header_dir = "@OMP_INCLUDE_PATH@"
 config.operating_system = "@CMAKE_SYSTEM_NAME@"
-config.has_ompt = @LIBSWORD_OMPT_SUPPORT@
-config.has_libm = @LIBSWORD_HAVE_LIBM@
+config.has_ompt = "@LIBSWORD_OMPT_SUPPORT@"
+config.has_libm = "@LIBSWORD_HAVE_LIBM@"
+config.boost_lib_dir = "@Boost_LIBRARY_DIRS@"
 config.sword_tools_dir = "@LIBSWORD_TOOLS_DIR@"
 config.sword_library_dir = "@LIBSWORD_LIB_PATH@"
 config.sword_runtime_dir = "@LIBSWORD_RUNTIME_PATH@"
 config.sword_library = "@LIBSWORD_LIB@"
 config.sword_runtime = "@LIBSWORD_RTL@"
-config.has_sword_library = @LIBSWORD_HAVE_SWORD_LIBRARY@
-config.has_sword_runtime = @LIBSWORD_HAVE_SWORD_RUNTIME@
+config.has_sword_library = "@LIBSWORD_HAVE_SWORD_LIBRARY@"
+config.has_sword_runtime = "@LIBSWORD_HAVE_SWORD_RUNTIME@"
 
 # Let the main config do the real work.
 lit_config.load_config(config, "@LIBSWORD_BASE_DIR@/test/lit.cfg")
