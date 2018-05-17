@@ -366,6 +366,16 @@ do {                                                          \
 
   void ompt_finalize(ompt_data_t *tool_data) {
     fflush(NULL);
+
+    std::cout << std::endl;
+    std::cout << "################################################################" << std::endl;
+    std::cout << std::endl << "SWORD data gathering terminated." << std::endl;
+    std::cout << std::endl;
+    std::cout << "To analyze the data and detect races, please execute:" << std::endl << std::endl;
+    std::cout << "\tsword-offline-analysis --analysis-tool /path/to/sword-race-analysis --executable " << executable << " --traces-path /path/to/sword_data --report-path /path/to/sword_report" << std::endl; 
+    std::cout  << std::endl << std::endl << "To print the results of theanalysis, please execute:" << std::endl << std::endl;
+    std::cout << "\tsword-print-report --executable " << executable << " --report-path /path/to/sword_report" << std::endl;
+    std::cout << std::endl << "################################################################" << std::endl << std::endl;
   }
 
 ompt_start_tool_result_t* ompt_start_tool(
