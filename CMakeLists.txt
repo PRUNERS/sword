@@ -197,7 +197,7 @@ endif()
 
 set(LIBSWORD_LIB_PATH ${CMAKE_BINARY_DIR}/lib)
 set(LIBSWORD_LIB LLVMSword${EXT})
-set(LIBSWORD_TOOLS_DIR ${LIBSWORD_BASE_DIR}/tools)
+set(LIBSWORD_TOOLS_DIR ${CMAKE_BINARY_DIR}/tools)
 
 add_subdirectory(lib)
 add_subdirectory(rtl)

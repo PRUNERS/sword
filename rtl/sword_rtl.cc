@@ -361,7 +361,7 @@ do {                                                          \
     // INFO(std::cout, "SIZE TASK DEPENDENCE:" << sizeof(TaskDependence));
     // INFO(std::cout, "SIZE OFFSET SPAN:" << sizeof(OffsetSpan));
 
-    return 0;
+    return 1;
   }
 
   void ompt_finalize(ompt_data_t *tool_data) {

@@ -47,7 +47,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/EscapeEnumerator.h"
-#include "llvm/Transforms/Utils/Local.h"
+//#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include "sword/LinkAllPasses.h"
@@ -103,49 +103,48 @@ STATISTIC(NumOmittedNonCaptured, "Number of accesses ignored due to capturing");
 #define MIN_VERSION 39
 
 
-#define TLS_DECLARE(var, type, name)		  		                           \
-		if(!var) {                                                             \
-			var = new llvm::GlobalVariable(*M, type, false,                    \
-					llvm::GlobalValue::CommonLinkage,           			   \
-					Zero32, name, NULL,                         			   \
-					GlobalVariable::GeneralDynamicTLSModel,     			   \
-					0, false);                                  			   \
-		} else if(var && (var->getLinkage() !=								   \
-				llvm::GlobalValue::CommonLinkage)) {  			   			   \
-			var->setLinkage(llvm::GlobalValue::CommonLinkage);                 \
-			var->setExternallyInitialized(false);                              \
-			var->setInitializer(Zero32);                                       \
-		}
+#define TLS_DECLARE(var, type, name, initializer)			\
+  if(!var) {								\
+    var = new llvm::GlobalVariable(*M, type, false,			\
+				   llvm::GlobalValue::CommonLinkage,	\
+				   initializer, name, NULL,		\
+				   GlobalVariable::GeneralDynamicTLSModel, \
+				   0, false);				\
+  } else if(var && (var->getLinkage() !=				\
+ 		    llvm::GlobalValue::CommonLinkage)) {		\
+    var->setLinkage(llvm::GlobalValue::CommonLinkage);			\
+    var->setExternallyInitialized(false);				\
+    var->setInitializer(Zero64);					\
+  }
 
-#define TLS_DECLARE_EXTERN(var, type, name)			  		                   \
-		if(!var) {															   \
-			var = new llvm::GlobalVariable(*M, type, false,  	   	   		   \
-					llvm::GlobalValue::AvailableExternallyLinkage,	 		   \
-					0, name, NULL,								  		  	   \
-					GlobalVariable::GeneralDynamicTLSModel,			   		   \
-					0, true);												   \
-		}
+#define TLS_DECLARE_EXTERN(var, type, name)				\
+  if(!var) {								\
+    var = new llvm::GlobalVariable(*M, type, false,			\
+				   llvm::GlobalValue::ExternalWeakLinkage,  \
+				   0, name, NULL,			\
+				   GlobalVariable::GeneralDynamicTLSModel, \
+				   0, true);				\
+  }
 
 namespace {
-
-/// InstrumentParallel: instrument the code in module to find races.
-struct InstrumentParallel : public FunctionPass {
-  InstrumentParallel() : FunctionPass(ID) {}
+  /// InstrumentParallel: instrument the code in module to find races.
+  struct InstrumentParallel : public FunctionPass {
+    InstrumentParallel() : FunctionPass(ID) {}
 #if LLVM_VERSION > MIN_VERSION
-  StringRef getPassName() const override;
+    StringRef getPassName() const override;
 #else
-  const char *getPassName() const override;
+    const char *getPassName() const override;
 #endif
-  void getAnalysisUsage(AnalysisUsage &AU) const override;
-  bool runOnFunction(Function &F) override;
-  bool doInitialization(Module &M) override;
-  static char ID;  // Pass identification, replacement for typeid.
-
+    void getAnalysisUsage(AnalysisUsage &AU) const override;
+    bool runOnFunction(Function &F) override;
+    bool doInitialization(Module &M) override;
+    static char ID;  // Pass identification, replacement for typeid.
+    
  private:
-  void initializeCallbacks(Module &M);
-  bool instrumentLoadOrStore(Instruction *I, const DataLayout &DL);
-  bool instrumentAtomic(Instruction *I, const DataLayout &DL);
-  bool instrumentMemIntrinsic(Instruction *I);
+    void initializeCallbacks(Module &M);
+    bool instrumentLoadOrStore(Instruction *I, const DataLayout &DL);
+    bool instrumentAtomic(Instruction *I, const DataLayout &DL);
+    bool instrumentMemIntrinsic(Instruction *I);
   void chooseInstructionsToInstrument(SmallVectorImpl<Instruction *> &Local,
                                       SmallVectorImpl<Instruction *> &All,
                                       const DataLayout &DL);
@@ -600,21 +599,21 @@ bool InstrumentParallel::runOnFunction(Function &F) {
   if(functionName.compare("main") == 0) {
     IRBuilder<> IRB(M->getContext());
     // TLS_DECLARE(ompOutLZO, IRB.getInt8PtrTy(), "out"); // unsigned char *
-    TLS_DECLARE(ompThreadID, IRB.getInt32Ty(), "__sword_tid__"); // int
-    TLS_DECLARE(ompStatusGlobal, IRB.getInt32Ty(), "__sword_status__"); // int
-    TLS_DECLARE(ompAccesses, IRB.getInt8PtrTy(), "__sword_accesses__"); // TraceItem *
-    TLS_DECLARE(ompAccesses1, IRB.getInt8PtrTy(), "__sword_accesses1__"); // TraceItem *
-    TLS_DECLARE(ompAccesses2, IRB.getInt8PtrTy(), "__sword_accesses2__"); // TraceItem *
-    TLS_DECLARE(ompIndex, IRB.getInt64Ty(), "__sword_idx__"); // uint64_t
-    TLS_DECLARE(ompBarrierID, IRB.getInt64Ty(), "__sword_bid__"); // uint64_t
-    TLS_DECLARE(ompBuffer, IRB.getInt8PtrTy(), "__sword_buffer__"); // char *
-    TLS_DECLARE(ompOffset, IRB.getInt32Ty(), "__sword_offset__"); // size_t
-    TLS_DECLARE(ompSpan, IRB.getInt32Ty(), "__sword_span__"); // size_t
-    TLS_DECLARE(ompFileOffsetBegin, IRB.getInt64Ty(), "__sword_file_offset_begin__"); // size_t
-    TLS_DECLARE(ompFileOffsetEnd, IRB.getInt64Ty(), "__sword_file_offset_end__"); // size_t
-    TLS_DECLARE(ompDatafile, IRB.getInt8PtrTy(), "__sword_datafile__"); // FILE *
-    TLS_DECLARE(ompMetafile, IRB.getInt8PtrTy(), "__sword_metafile__"); // FILE *
-    // TLS_DECLARE(ompWrkmem, llvm::Type::getInt64PtrTy(M->getContext()), "wrkmem"); // wrkmem *
+    TLS_DECLARE(ompThreadID, IRB.getInt32Ty(), "__sword_tid__", Zero32); // int
+    TLS_DECLARE(ompStatusGlobal, IRB.getInt32Ty(), "__sword_status__", Zero32); // int
+    // TLS_DECLARE(ompAccesses, IRB.getInt8PtrTy(), "__sword_accesses__", nullptr); // TraceItem *
+    // TLS_DECLARE(ompAccesses1, IRB.getInt8PtrTy(), "__sword_accesses1__", nullptr); // TraceItem *
+    // TLS_DECLARE(ompAccesses2, IRB.getInt8PtrTy(), "__sword_accesses2__", nullptr); // TraceItem *
+    TLS_DECLARE(ompIndex, IRB.getInt64Ty(), "__sword_idx__", Zero64); // uint64_t
+    TLS_DECLARE(ompBarrierID, IRB.getInt64Ty(), "__sword_bid__", Zero64); // uint64_t
+    // TLS_DECLARE(ompBuffer, IRB.getInt8PtrTy(), "__sword_buffer__", nullptr); // char *
+    TLS_DECLARE(ompOffset, IRB.getInt32Ty(), "__sword_offset__", Zero32); // size_t
+    TLS_DECLARE(ompSpan, IRB.getInt32Ty(), "__sword_span__", Zero32); // size_t
+    TLS_DECLARE(ompFileOffsetBegin, IRB.getInt64Ty(), "__sword_file_offset_begin__", Zero64); // size_t
+    TLS_DECLARE(ompFileOffsetEnd, IRB.getInt64Ty(), "__sword_file_offset_end__", Zero64); // size_t
+    // TLS_DECLARE(ompDatafile, IRB.getInt8PtrTy(), "__sword_datafile__", nullptr); // FILE *
+    // TLS_DECLARE(ompMetafile, IRB.getInt8PtrTy(), "__sword_metafile__", nullptr); // FILE *
+    // TLS_DECLARE(ompWrkmem, llvm::Type::getInt64PtrTy(M->getContext()), "wrkmem", Zero32); // wrkmem *
 
     return true;
   }
@@ -715,8 +714,8 @@ bool InstrumentParallel::runOnFunction(Function &F) {
       else if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst))
         LocalLoadsAndStores.push_back(&Inst);
       else if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst)) {
-        if (CallInst *CI = dyn_cast<CallInst>(&Inst))
-          maybeMarkSanitizerLibraryCallNoBuiltin(CI, TLI);
+        // if (CallInst *CI = dyn_cast<CallInst>(&Inst))
+        //   maybeMarkSanitizerLibraryCallNoBuiltin(CI, TLI);
         if (isa<MemIntrinsic>(Inst))
           MemIntrinCalls.push_back(&Inst);
         HasCalls = true;

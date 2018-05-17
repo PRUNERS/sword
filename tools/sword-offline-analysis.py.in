@@ -183,7 +183,7 @@ if __name__ == '__main__':
                 # SLURM Configuration values
                 config_file = SLURM_DIR + "/slurm_config_" + sanitizeFileName(subdir) + "_" + str(key)
                 output = SLURM_DIR + "/slurm_output_" + sanitizeFileName(subdir)
-                cmd = "ulimit -c unlimited\nstantime \"%s --executable %s --traces-path %s --report-path %s --pregion %s %s\" %s/overhead/%s.dat" % (analysis_tool, executable, args.traces_path, args.report_path, key, print_tree, args.report_path, key)
+                cmd = "ulimit -c unlimited\n%s --executable %s --traces-path %s --report-path %s --pregion %s %s" % (analysis_tool, executable, args.traces_path, args.report_path, key, print_tree)
                 createSLURMConfig(config_file, walltime, output, cmd)
                 # Run on cluster
                 # sbatch_output_file = "%s/%s.%s.%s" % (benchmark_paths[val["path"]]["sbatch_output_path"], app["executable"], mode, t)
@@ -207,9 +207,9 @@ if __name__ == '__main__':
                 if(not os.path.exists(overhead_filename)):
                     nested_str = ','.join(map(str, nested['nested']))
                     if(not nested_str):
-                        command = "ulimit -c unlimited\nstantime \"%s --executable %s --traces-path %s --report-path %s --pregion %s --bid %s %s\" %s/overhead/%s.dat" % (analysis_tool, executable, args.traces_path, args.report_path, key, bid, print_tree, args.report_path, key)
+                        command = "ulimit -c unlimited\n%s --executable %s --traces-path %s --report-path %s --pregion %s --bid %s %s" % (analysis_tool, executable, args.traces_path, args.report_path, key, bid, print_tree)
                     else:
-                        command = "ulimit -c unlimited\nstantime \"%s --executable %s --traces-path %s --report-path %s --pregion %s --bid %s --nested %s %s\" %s/overhead/%s.dat" % (analysis_tool, executable, args.traces_path, args.report_path, key, bid, nested_str, print_tree, args.report_path, key)
+                        command = "ulimit -c unlimited\n%s --executable %s --traces-path %s --report-path %s --pregion %s --bid %s --nested %s %s" % (analysis_tool, executable, args.traces_path, args.report_path, key, bid, nested_str, print_tree)
                     print command
                     ret = None
                     if(not args.dry_run):
