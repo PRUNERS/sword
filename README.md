@@ -2,46 +2,46 @@
 <h2>Table of Contents</h2>
 <div id="text-table-of-contents">
 <ul>
-<li><a href="#orgcf12c03">1. License</a></li>
-<li><a href="#org2b96967">2. Introduction</a></li>
-<li><a href="#orga7756a6">3. Prerequisites</a></li>
-<li><a href="#orgd863524">4. Installation</a>
+<li><a href="#org26aef55">1. License</a></li>
+<li><a href="#org7ee25e5">2. Introduction</a></li>
+<li><a href="#org14c5c0f">3. Prerequisites</a></li>
+<li><a href="#orgd744a9b">4. Installation</a>
 <ul>
-<li><a href="#orgbe0955e">4.1. Manual Building</a>
+<li><a href="#org906a538">4.1. Manual Building</a>
 <ul>
-<li><a href="#orgc80dea8">4.1.1. Stand-alone building</a></li>
+<li><a href="#org57b6c78">4.1.1. Stand-alone building</a></li>
 </ul>
 </li>
 </ul>
 </li>
-<li><a href="#orgd6e3214">5. Usage</a>
+<li><a href="#orga0090a3">5. Usage</a>
 <ul>
-<li><a href="#org9ae7f62">5.1. How to compile</a>
+<li><a href="#org70bfd5b">5.1. How to compile</a>
 <ul>
-<li><a href="#org8993317">5.1.1. Single source</a></li>
-<li><a href="#orgad11a42">5.1.2. Makefile</a></li>
+<li><a href="#orgebb143d">5.1.1. Single source</a></li>
+<li><a href="#orgab9f46a">5.1.2. Makefile</a></li>
 </ul>
 </li>
-<li><a href="#org1aecc55">5.2. Options</a></li>
-<li><a href="#org17ca0d2">5.3. Runtime Flags</a></li>
+<li><a href="#org25c5f2f">5.2. Options</a></li>
+<li><a href="#org902206d">5.3. Runtime Flags</a></li>
 </ul>
 </li>
-<li><a href="#org2ebafab">6. Example</a></li>
-<li><a href="#org7738913">7. Contacts and Support</a></li>
-<li><a href="#org5cea87a">8. Members</a></li>
+<li><a href="#org9de97ed">6. Example</a></li>
+<li><a href="#org819291f">7. Contacts and Support</a></li>
+<li><a href="#org7a3fc28">8. Members</a></li>
 </ul>
 </div>
 </div>
 
 
-<a id="orgcf12c03"></a>
+<a id="org26aef55"></a>
 
 # License
 
 Please see LICENSE for usage terms.
 
 
-<a id="org2b96967"></a>
+<a id="org7ee25e5"></a>
 
 # Introduction
 
@@ -56,7 +56,7 @@ process. It builds on open-source tools infrastructure such as LLVM,
 and OMPT to provide portability.
 
 
-<a id="orga7756a6"></a>
+<a id="org14c5c0f"></a>
 
 # Prerequisites
 
@@ -72,7 +72,7 @@ Sword has been tested with the LLVM OpenMP Runtime version >= 6.0
 (with OMPT support.
 
 
-<a id="orgd863524"></a>
+<a id="orgd744a9b"></a>
 
 # Installation
 
@@ -80,7 +80,7 @@ Sword has been developed under LLVM 6.0 (for more information visit
 <http://llvm.org>).
 
 
-<a id="orgbe0955e"></a>
+<a id="org906a538"></a>
 
 ## Manual Building
 
@@ -93,7 +93,7 @@ based on bash shell, Clang/LLVM 6.0 version, Ninja build system, and
 the LLVM OpenMP Runtime with OMPT support).
 
 
-<a id="orgc80dea8"></a>
+<a id="org57b6c78"></a>
 
 ### Stand-alone building
 
@@ -144,12 +144,12 @@ and build it with the following commands:
      cd ../..
 
 
-<a id="orgd6e3214"></a>
+<a id="orga0090a3"></a>
 
 # Usage
 
 
-<a id="org9ae7f62"></a>
+<a id="org70bfd5b"></a>
 
 ## How to compile
 
@@ -164,14 +164,14 @@ The following are some of the examples of how one can integrate
 *clang-sword* into her build system.
 
 
-<a id="org8993317"></a>
+<a id="orgebb143d"></a>
 
 ### Single source
 
     clang-sword example.c -o example
 
 
-<a id="orgad11a42"></a>
+<a id="orgab9f46a"></a>
 
 ### Makefile
 
@@ -180,7 +180,7 @@ In your Makefile, set the following variables:
     CC=clang-sword
 
 
-<a id="org1aecc55"></a>
+<a id="org25c5f2f"></a>
 
 ## Options
 
@@ -188,7 +188,7 @@ The command *clang-sword* works as a compiler wrapper, all the
 options available for clang are also available for *clang-sword*.
 
 
-<a id="org17ca0d2"></a>
+<a id="org902206d"></a>
 
 ## Runtime Flags
 
@@ -225,7 +225,7 @@ different flags are separated by spaces, e.g.:
 </table>
 
 
-<a id="org2ebafab"></a>
+<a id="org9de97ed"></a>
 
 # Example
 
@@ -279,23 +279,23 @@ analysis, for this example it will print the following information:
 
 Now we can execute the offline analysis with the tool:
 
-    sword-offline-analysis --analysis-tool sword-race-analysis --executable example --traces-path sword_data --report-path sword_report
+    sword-offline-analysis --analysis-tool sword-race-analysis --executable myprogram --traces-path sword_data --report-path sword_report
 
 Then, print the result of the analysis with:
 
-    sword-print-report --executable example --report-path sword_report
+    sword-print-report --executable myprogram --report-path sword_report
 
 For our example, the result will be the following:
 
     --------------------------------------------------
-    WARNING: SWORD: data race (program=example)
+    WARNING: SWORD: data race (program=myprogram)
       Two different threads made the following accesses:
-        Write of size 4 in .omp_outlined._debug__ at /home/satzeni/work/compilers/sword/sword/build/example.c:11:10
-        Read of size 4 in .omp_outlined._debug__ at /home/satzeni/work/compilers/sword/sword/build/example.c:11:12
+        Write of size 4 in .omp_outlined._debug__ at /home/satzeni/work/compilers/sword/sword/build/myprogram.c:11:10
+        Read of size 4 in .omp_outlined._debug__ at /home/satzeni/work/compilers/sword/sword/build/myprogram.c:11:12
     --------------------------------------------------
 
 
-<a id="org7738913"></a>
+<a id="org819291f"></a>
 
 # Contacts and Support
 
@@ -307,7 +307,7 @@ For our example, the result will be the following:
     <ul style="list-style-type:circle"> <li> <a href="mailto:simone@cs.utah.edu?Subject=[sword-dev]%20" target="_top">Simone Atzeni</a> </li> </ul>
 
 
-<a id="org5cea87a"></a>
+<a id="org7a3fc28"></a>
 
 # Members
 

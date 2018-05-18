@@ -402,23 +402,23 @@ sword-print-report --executable /path/to/your/executable --report-path /path/to/
 Now we can execute the offline analysis with the tool:
 
 #+BEGIN_SRC bash :exports code
-sword-offline-analysis --analysis-tool sword-race-analysis --executable example --traces-path sword_data --report-path sword_report
+sword-offline-analysis --analysis-tool sword-race-analysis --executable myprogram --traces-path sword_data --report-path sword_report
 #+END_SRC
 
 Then, print the result of the analysis with:
 
 #+BEGIN_SRC bash :exports code
-sword-print-report --executable example --report-path sword_report
+sword-print-report --executable myprogram --report-path sword_report
 #+END_SRC
 
 For our example, the result will be the following:
 
 #+BEGIN_SRC bash :exports code
 --------------------------------------------------
-WARNING: SWORD: data race (program=example)
+WARNING: SWORD: data race (program=myprogram)
   Two different threads made the following accesses:
-    Write of size 4 in .omp_outlined._debug__ at /home/satzeni/work/compilers/sword/sword/build/example.c:11:10
-    Read of size 4 in .omp_outlined._debug__ at /home/satzeni/work/compilers/sword/sword/build/example.c:11:12
+    Write of size 4 in .omp_outlined._debug__ at /home/satzeni/work/compilers/sword/sword/build/myprogram.c:11:10
+    Read of size 4 in .omp_outlined._debug__ at /home/satzeni/work/compilers/sword/sword/build/myprogram.c:11:12
 --------------------------------------------------
 #+END_SRC
 
