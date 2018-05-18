@@ -60,4 +60,5 @@ else
     link_flags=""
 fi
 
-@LLVM_ROOT@/bin/clang++ -I@OMP_PREFIX@/include -Xclang -load -Xclang @CMAKE_INSTALL_PREFIX@/lib/LLVMSword.so -fopenmp -g "$@" $link_flags
+# Temporary addin -O1 to solve problem with TLS variable
+@LLVM_ROOT@/bin/clang++ -I@OMP_PREFIX@/include -Xclang -load -Xclang @CMAKE_INSTALL_PREFIX@/lib/LLVMSword.so -fopenmp -g -O1 "$@" $link_flags
