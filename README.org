@@ -23,8 +23,8 @@ and OMPT to provide portability.
 
 * Prerequisites
 To compile Sword you need a host Clang/LLVM version >= 6.0, a CMake
-version >= 3.4.3, [GLPK](https://www.gnu.org/software/glpk/) version
->= 4.61, and [Boost](https://www.boost.org/) Libraries version >= 1.58.
+version >= 3.4.3, [GLPK](https://www.gnu.org/software/glpk/) version >= 4.61, 
+and [Boost](https://www.boost.org/) Libraries version >= 1.58.
 
 Ninja build system is preferred. For more information how to obtain
 Ninja visit https://github.com/ninja-build/ninja. (Note that this is
@@ -103,8 +103,9 @@ the LLVM OpenMP Runtime with OMPT support).
     # -D GLPK_ROOT= \
     # -D BOOST_ROOT= \
     -D COMPRESSION=LZO .. \
-    ninja -j8 -l8 # or any number of
-    available cores ninja install cd ../..
+    ninja -j8 -l8 # or any number of available cores 
+    ninja install
+    cd ../..
  #+END_SRC
 
 # ** Build Sword within Clang/LLVM
@@ -329,7 +330,7 @@ Runtime flags are passed via *SWORD&#95;OPTIONS* environment variable,
 different flags are separated by spaces, e.g.:
 
 #+BEGIN_SRC bash :exports code
-SWORD_OPTIONS="flush_shadow=1" ./myprogram
+SWORD_OPTIONS="traces_path=/path/to/traces/data" ./myprogram
 #+END_SRC
 
 |-----------------+---------------+-----------------------------------------------------------------------|
