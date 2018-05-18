@@ -93,7 +93,8 @@ extern thread_local size_t __sword_file_offset_begin__;
 extern thread_local size_t __sword_file_offset_end__;
 thread_local FILE *__sword_datafile__;
 thread_local FILE *__sword_metafile__;
-thread_local char *executable = "/path/to/your/executable";
+char *executable = "/path/to/your/executable";
+// extern char *executable;
 
 typedef emilib::HashSet<uint64_t, NUM_OF_ACCESSES> fast_set;
 thread_local fast_set set;
