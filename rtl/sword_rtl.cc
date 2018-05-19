@@ -319,11 +319,12 @@ do {                                                          \
     register_callback_t(ompt_callback_mutex_acquired, ompt_callback_mutex_t);
     register_callback_t(ompt_callback_mutex_released, ompt_callback_mutex_t);
 
+    // std::string str = sword_flags->traces_path;
+    // if(sword_flags->traces_path.empty()) {
+    //   str = std::string("./") + std::string(SWORD_DATA);
+    //   sword_flags->traces_path = str;
+    // }
     std::string str = sword_flags->traces_path;
-    if(sword_flags->traces_path.empty()) {
-      str = std::string("./") + std::string(SWORD_DATA);
-      sword_flags->traces_path = str;
-    }
     if(boost::filesystem::is_directory(str)) {
       try {
         boost::filesystem::rename(str, str + ".old");
@@ -370,11 +371,12 @@ do {                                                          \
     std::cout << std::endl;
     std::cout << "################################################################" << std::endl;
     std::cout << std::endl << "SWORD data gathering terminated." << std::endl;
+    std::cout << std::endl << "Logs are stored in \"" << sword_flags->traces_path << "\"." << std::endl;
     std::cout << std::endl;
     std::cout << "To analyze the data and detect races, please execute:" << std::endl << std::endl;
-    std::cout << "\tsword-offline-analysis --analysis-tool /path/to/sword-race-analysis --executable " << executable << " --traces-path /path/to/sword_data --report-path /path/to/sword_report" << std::endl; 
-    std::cout  << std::endl << std::endl << "To print the results of theanalysis, please execute:" << std::endl << std::endl;
-    std::cout << "\tsword-print-report --executable " << executable << " --report-path /path/to/sword_report" << std::endl;
+    std::cout << "\tsword-offline-analysis --analysis-tool sword-race-analysis --executable " << __progname << " --traces-path ./sword_data --report-path ./sword_report" << std::endl; 
+    std::cout  << std::endl << std::endl << "To print the results of the analysis, please execute:" << std::endl << std::endl;
+    std::cout << "\tsword-print-report --executable " << __progname << " --report-path ./sword_report" << std::endl;
     std::cout << std::endl << "################################################################" << std::endl << std::endl;
   }
 
