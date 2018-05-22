@@ -55,9 +55,9 @@ for arg in "$@" ; do
 done
 
 if [ $linking == yes ] ; then
-    link_flags="-L@OMP_PREFIX@/lib -Wl,-rpath=@OMP_PREFIX@/lib @CMAKE_INSTALL_PREFIX@/lib/libsword_static.a -lrt -lz -L@Boost_LIBRARY_DIRS@ -lboost_system -lboost_filesystem -lstdc++"
+    link_flags="-L@OMP_LIB_PATH@ -Wl,-rpath=@OMP_LIB_PATH@ @CMAKE_INSTALL_PREFIX@/lib/libsword_static.a -lrt -lz -L@Boost_LIBRARY_DIRS@ -lboost_system -lboost_filesystem -lstdc++"
 else
     link_flags=""
 fi
 
-@LLVM_ROOT@/bin/clang -I@OMP_PREFIX@/include -Xclang -load -Xclang @CMAKE_INSTALL_PREFIX@/lib/LLVMSword.so -fopenmp -g "$@" $link_flags
+@LLVM_ROOT@/bin/clang -I@OMP_INCLUDE_PATH@ -Xclang -load -Xclang @CMAKE_INSTALL_PREFIX@/lib@LLVM_LIBDIR_SUFFIX@/LLVMSword.so -fopenmp -g "$@" $link_flags
