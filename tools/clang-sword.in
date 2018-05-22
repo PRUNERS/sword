@@ -60,4 +60,4 @@ else
     link_flags=""
 fi
 
-@LLVM_ROOT@/bin/clang -I@OMP_PREFIX@/include -Xclang -load -Xclang @CMAKE_INSTALL_PREFIX@/lib/LLVMSword.so -fopenmp -g "$@" $link_flags
+@LLVM_ROOT@/bin/clang -I@OMP_PREFIX@/include -Xclang -load -Xclang @CMAKE_INSTALL_PREFIX@/lib@LLVM_LIBDIR_SUFFIX@/LLVMSword.so -fopenmp -g "$@" $link_flags
