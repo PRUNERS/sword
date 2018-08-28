@@ -68,8 +68,8 @@ Ninja build system is preferred. For more information how to obtain
 Ninja visit <https://github.com/ninja-build/ninja>. (Note that this is
 different than PRUNERS NINJA tool.)
 
-Sword has been tested with the LLVM OpenMP Runtime version >= 6.0
-(with OMPT support.
+Sword has been tested with the LLVM OpenMP Runtime version 6.0
+(with OMPT support).
 
 
 <a id="orgd744a9b"></a>
